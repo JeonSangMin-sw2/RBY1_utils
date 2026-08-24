@@ -33,9 +33,19 @@ URDF_PATH = os.path.join(SCRIPT_DIR, "models", "leader_arm", "model.urdf")
 # URDF_PATH = os.path.join(SCRIPT_DIR, "../../models/leader_arm", "model.urdf") # /../../models/leader_arm/model.urdf
 LEADER_ARM_DEVICE_NAME = rby.upc.resolve_leader_arm_device_name()
 
+# ============================================================
+# Global Configuration & User Customization Parameters
+# ============================================================
+DECAY_TIME = 3.0              # Soft torque ramp-down time in seconds
+MONITOR_HZ = 20.0             # Monitoring UI refresh rate (Hz)
+MAX_RETRY_COUNT_TOOL = 10     # Maximum retry count for tool communication
+MAX_RETRY_COUNT_JOINT = 10    # Maximum retry count for joint communication
+USE_SOFT_STOP = True          # Hardware fault behavior: True (Soft ramp-down) / False (Instant power off)
 
 
-
+# ============================================================
+# LeaderArm
+# ============================================================
 class LeaderArm:
     DOF = 14
     DEVICE_COUNT = 16
@@ -646,12 +656,6 @@ class LeaderArm:
 
 
 def main(address, model):
-    DECAY_TIME = 3.0            # Soft torque ramp-down time in seconds
-    MONITOR_HZ = 20.0           # Monitoring UI refresh rate (Hz)
-    MAX_RETRY_COUNT_TOOL = 10   # Maximum retry count for tool communication
-    MAX_RETRY_COUNT_JOINT = 10  # Maximum retry count for joint communication
-    USE_SOFT_STOP = True        # Behavior on hardware faults: True (Soft ramp-down) / False (Instant total power off)
-
     robot = rby.create_robot(address, model)
     try:
         robot.connect()

@@ -38,6 +38,46 @@ LEADER_ARM_DEVICE_NAME = rby.upc.resolve_leader_arm_device_name()
 
 GRIPPER_DIRECTION = False
 
+# ============================================================
+# Global Configuration & User Customization Parameters
+# ============================================================
+DECAY_TIME = 3.0              # Soft torque ramp-down time in seconds
+MONITOR_HZ = 20.0             # Monitoring UI refresh rate (Hz)
+MAX_RETRY_COUNT_TOOL = 10     # Maximum retry count for tool communication
+MAX_RETRY_COUNT_JOINT = 10    # Maximum retry count for joint communication
+USE_SOFT_STOP = True          # Hardware fault behavior: True (Soft ramp-down) / False (Instant power off)
+DEFAULT_ALIGN_DURATION = 4.0   # Duration (seconds) for leader arm posture alignment to ready pose
+
+
+@dataclass
+class Pose:
+    toros: np.typing.NDArray
+    right_arm: np.typing.NDArray
+    left_arm: np.typing.NDArray
+
+
+# Robot Ready Pose Configurations (Degrees converted to Radians)
+READY_POSE = {
+    "A": Pose(
+        toros=np.deg2rad([0.0, 45.0, -90.0, 45.0, 0.0, 0.0]),
+        right_arm=np.deg2rad([0.0, -5.0, 0.0, -120.0, 0.0, 70.0, 0.0]),
+        left_arm=np.deg2rad([0.0, 5.0, 0.0, -120.0, 0.0, 70.0, 0.0]),
+    ),
+    "M": Pose(
+        toros=np.deg2rad([0.0, 45.0, -90.0, 45.0, 0.0, 0.0]),
+        right_arm=np.deg2rad([0.0, -5.0, 0.0, -120.0, 0.0, 70.0, 0.0]),
+        left_arm=np.deg2rad([0.0, 5.0, 0.0, -120.0, 0.0, 70.0, 0.0]),
+    ),
+}
+
+
+class Settings:
+    leader_arm_loop_period = 1 / 100
+
+    impedance_stiffness = 50
+    impedance_damping_ratio = 1.0
+    impedance_torque_limit = 30.0
+
 
 # ============================================================
 # LeaderArm
@@ -650,36 +690,6 @@ class LeaderArm:
             self.initialized = False
 
 
-# ============================================================
-# Data Structures & Settings (from leader_arm_teleop.py)
-# ============================================================
-@dataclass
-class Pose:
-    toros: np.typing.NDArray
-    right_arm: np.typing.NDArray
-    left_arm: np.typing.NDArray
-
-
-class Settings:
-    leader_arm_loop_period = 1 / 100
-
-    impedance_stiffness = 50
-    impedance_damping_ratio = 1.0
-    impedance_torque_limit = 30.0
-
-
-READY_POSE = {
-    "A": Pose(
-        toros=np.deg2rad([0.0, 45.0, -90.0, 45.0, 0.0, 0.0]),
-        right_arm=np.deg2rad([0.0, -5.0, 0.0, -120.0, 0.0, 70.0, 0.0]),
-        left_arm=np.deg2rad([0.0, 5.0, 0.0, -120.0, 0.0, 70.0, 0.0]),
-    ),
-    "M": Pose(
-        toros=np.deg2rad([0.0, 45.0, -90.0, 45.0, 0.0, 0.0]),
-        right_arm=np.deg2rad([0.0, -5.0, 0.0, -120.0, 0.0, 70.0, 0.0]),
-        left_arm=np.deg2rad([0.0, 5.0, 0.0, -120.0, 0.0, 70.0, 0.0]),
-    ),
-}
 
 
 # ============================================================
@@ -881,7 +891,7 @@ def move_leader_arm_to_pose(
     if duration <= 0:
         return True
 
-    print(f"\n[Leader Arm] Aligning posture to ready pose over {duration:.1f}s (Cosine S-curve)...")
+    print(f"[Leader Arm] Aligning posture to ready pose in progress ({duration:.1f}s)...")
 
     # 1. Read current motor positions
     ms_list = leader_arm.bus.get_motor_states(leader_arm.active_joint_ids)
@@ -925,30 +935,16 @@ def move_leader_arm_to_pose(
         leader_arm.bus.group_sync_write_send_torque(torque_cmd)
         leader_arm.bus.group_sync_write_send_position(pos_cmd)
 
-        if step % 10 == 0 or ratio >= 1.0:
-            deg_r = ", ".join([f"{np.rad2deg(cmd_q[i]):5.1f}" for i in range(7)])
-            deg_l = ", ".join([f"{np.rad2deg(cmd_q[i+7]):5.1f}" for i in range(7)])
-            sys.stdout.write(
-                f"\r  Progress: {ratio*100:5.1f}% [{elapsed:4.1f}/{duration:.1f}s] | R(deg): [{deg_r}] | L(deg): [{deg_l}]"
-            )
-            sys.stdout.flush()
-
         time.sleep(control_period)
 
-    print("\n[Leader Arm] Posture alignment complete.\n")
+    print("[Leader Arm] Posture alignment complete.")
     return True
 
 
 # ============================================================
 # Main
 # ============================================================
-def main(address, model_name, power, servo, control_mode, align_duration=4.0):
-    DECAY_TIME = 3.0            # Soft torque ramp-down time in seconds
-    MONITOR_HZ = 20.0           # Monitoring UI refresh rate (Hz)
-    MAX_RETRY_COUNT_TOOL = 10   # Maximum retry count for tool communication
-    MAX_RETRY_COUNT_JOINT = 10  # Maximum retry count for joint communication
-    USE_SOFT_STOP = True        # Behavior on hardware faults: True (Soft ramp-down) / False (Instant total power off)
-
+def main(address, model_name, power, servo, control_mode, align_duration=DEFAULT_ALIGN_DURATION):
     # ===== 1. CONNECT ROBOT & POWER ON 12V / SERVOS (FIRST) =====
     print("\n[Step 1/5] Connecting to Follower Robot & Powering On 12V / Servos...")
     robot = rby.create_robot(address, model_name)
