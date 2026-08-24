@@ -948,38 +948,15 @@ def main(address, model_name, power, servo, control_mode, align_duration=4.0):
     MAX_RETRY_COUNT_JOINT = 10  # Maximum retry count for joint communication
     USE_SOFT_STOP = True        # Behavior on hardware faults: True (Soft ramp-down) / False (Instant total power off)
 
-    # ===== 1. LEADER ARM SETUP & HEALTH CHECK (FIRST) =====
-    print("\n[Step 1/4] Initializing Leader Arm & Checking Hardware Status...")
-    leader_arm = LeaderArm(
-        control_period=Settings.leader_arm_loop_period,
-    )
-    leader_arm.set_max_retries(max_tool_retries=MAX_RETRY_COUNT_TOOL, max_joint_retries=MAX_RETRY_COUNT_JOINT)
-    active_ids = leader_arm.initialize(verbose=True)
-
-    if len(leader_arm.active_ids) != leader_arm.DEVICE_COUNT:
-        logging.error(
-            f"Mismatch in the number of devices detected. "
-            f"Expected {leader_arm.DEVICE_COUNT}, got {len(leader_arm.active_ids)}"
-        )
-        expected_ids = leader_arm.motor_ids + leader_arm.tool_ids
-        missing_ids = [dev_id for dev_id in expected_ids if dev_id not in leader_arm.active_ids]
-        logging.error(f"Missing Device IDs: {missing_ids}")
-        logging.error("Please check the connector status or motor malfunctions.")
-        leader_arm.close()
-        sys.exit(1)
-    print(f"[Step 1/4] Leader Arm Hardware OK (All {leader_arm.DEVICE_COUNT} devices active).")
-
-    # ===== 2. SETUP ROBOT & MOVE TO READY POSE =====
-    print("\n[Step 2/4] Connecting to Follower Robot & Powering On...")
+    # ===== 1. CONNECT ROBOT & POWER ON 12V / SERVOS (FIRST) =====
+    print("\n[Step 1/5] Connecting to Follower Robot & Powering On 12V / Servos...")
     robot = rby.create_robot(address, model_name)
     try:
         if not robot.connect():
             logging.error(f"Failed to connect robot {address}")
-            leader_arm.close()
             sys.exit(1)
     except Exception as e:
         logging.error(f"Failed to connect robot {address}: {e}")
-        leader_arm.close()
         sys.exit(1)
 
     supported_model = ["A", "M"]
@@ -1001,47 +978,69 @@ def main(address, model_name, power, servo, control_mode, align_duration=4.0):
         logging.error(
             f"Model {model.model_name} not supported (Supported: {supported_model})"
         )
-        leader_arm.close()
         sys.exit(1)
     if control_mode not in supported_control_mode:
         logging.error(
             f"Control mode {control_mode} not supported (Supported: {supported_control_mode})"
         )
-        leader_arm.close()
         sys.exit(1)
 
     position_mode = control_mode == "position"
 
-    # Smart Power & Control Manager State Validation
+    # Smart 12V Power & Control Manager State Validation
     try:
         if not robot.is_power_on(power):
             if not robot.power_on(power):
                 logging.error(f"Failed to turn power ({power}) on")
-                leader_arm.close()
                 sys.exit(1)
         if not robot.is_servo_on(servo):
             if not robot.servo_on(servo):
                 logging.error(f"Failed to servo ({servo}) on")
-                leader_arm.close()
                 sys.exit(1)
         robot.reset_fault_control_manager()
         if not robot.enable_control_manager():
             logging.error("Failed to enable control manager")
-            leader_arm.close()
             sys.exit(1)
         for arm in ["right", "left"]:
             if not robot.set_tool_flange_output_voltage(arm, 12):
                 logging.error(f"Failed to set tool flange output voltage ({arm}) as 12v")
-                leader_arm.close()
                 sys.exit(1)
         robot.set_parameter("joint_position_command.cutoff_frequency", "3")
-        print("Moving robot to ready pose...")
-        move_j(robot, READY_POSE[model.model_name], 5)
-        print("[Step 2/4] Robot ready pose reached.")
+        print("[Step 1/5] Robot 12V power & Servos are ON.")
     except Exception as e:
         logging.error(f"Error configuring robot power/servos: {e}")
+        sys.exit(1)
+
+    # ===== 2. LEADER ARM SETUP & HEALTH CHECK (Now powered via 12V) =====
+    print("\n[Step 2/5] Initializing Leader Arm & Checking Hardware Status...")
+    leader_arm = LeaderArm(
+        control_period=Settings.leader_arm_loop_period,
+    )
+    leader_arm.set_max_retries(max_tool_retries=MAX_RETRY_COUNT_TOOL, max_joint_retries=MAX_RETRY_COUNT_JOINT)
+    active_ids = leader_arm.initialize(verbose=True)
+
+    if len(leader_arm.active_ids) != leader_arm.DEVICE_COUNT:
+        logging.error(
+            f"Mismatch in the number of devices detected. "
+            f"Expected {leader_arm.DEVICE_COUNT}, got {len(leader_arm.active_ids)}"
+        )
+        expected_ids = leader_arm.motor_ids + leader_arm.tool_ids
+        missing_ids = [dev_id for dev_id in expected_ids if dev_id not in leader_arm.active_ids]
+        logging.error(f"Missing Device IDs: {missing_ids}")
+        logging.error("Please check the connector status or motor malfunctions.")
+        try:
+            robot.disable_control_manager()
+            robot.power_off("12v")
+        except Exception:
+            pass
         leader_arm.close()
         sys.exit(1)
+    print(f"[Step 2/5] Leader Arm Hardware OK (All {leader_arm.DEVICE_COUNT} devices active).")
+
+    # ===== 3. MOVE ROBOT TO READY POSE =====
+    print("\n[Step 3/5] Moving Robot to Ready Pose...")
+    move_j(robot, READY_POSE[model.model_name], 5)
+    print("[Step 3/5] Robot ready pose reached.")
 
     def robot_state_callback(state: rby.RobotState_A):
         nonlocal robot_q
@@ -1049,8 +1048,8 @@ def main(address, model_name, power, servo, control_mode, align_duration=4.0):
 
     robot.start_state_update(robot_state_callback, 1 / Settings.leader_arm_loop_period)
 
-    # ===== 3. SETUP GRIPPER =====
-    print("\n[Step 3/4] Initializing Gripper...")
+    # ===== 4. SETUP GRIPPER =====
+    print("\n[Step 4/5] Initializing Gripper...")
     gripper = Gripper()
     if not gripper.initialize():
         logging.error("Failed to initialize gripper")
@@ -1060,15 +1059,15 @@ def main(address, model_name, power, servo, control_mode, align_duration=4.0):
         sys.exit(1)
     gripper.homing()
     gripper.start()
-    print("[Step 3/4] Gripper initialized.")
+    print("[Step 4/5] Gripper initialized.")
 
-    # ===== 4. LEADER ARM POSTURE ALIGNMENT TO READY POSE =====
+    # ===== 5. LEADER ARM POSTURE ALIGNMENT TO READY POSE =====
     target_leader_ready_q = np.concatenate([
         READY_POSE[model.model_name].right_arm,
         READY_POSE[model.model_name].left_arm,
     ])
     if align_duration > 0:
-        print("\n[Step 4/4] Aligning Leader Arm Posture to Match Robot Ready Pose...")
+        print("\n[Step 5/5] Aligning Leader Arm Posture to Match Robot Ready Pose...")
         move_leader_arm_to_pose(
             leader_arm=leader_arm,
             target_q=target_leader_ready_q,
@@ -1076,20 +1075,20 @@ def main(address, model_name, power, servo, control_mode, align_duration=4.0):
             goal_torque=0.5,
             control_period=Settings.leader_arm_loop_period,
         )
-        print("[Step 4/4] Leader Arm alignment complete.")
+        print("[Step 5/5] Leader Arm alignment complete.")
     else:
-        print("\n[Step 4/4] Leader Arm posture alignment skipped (--align-duration 0).")
+        print("\n[Step 5/5] Leader Arm posture alignment skipped (--align-duration 0).")
 
     # ===== TELEOP PARAMETERS =====
-    ma_q_limit_barrier = 0.5
+    ma_q_limit_barrier = 0.0
     ma_min_q = np.deg2rad(
-        [-360, -30, 0, -135, -90, 35, -360, -360, 10, -90, -135, -90, 35, -360]
+        [-180, -60, -90, -150, -180, -90, -180, -180, 10, -90, -150, -180, -90, -180]
     )
     ma_max_q = np.deg2rad(
-        [360, -10, 90, -60, 90, 80, 360, 360, 30, 0, -60, 90, 80, 360]
+        [180, -10, 90, 0, 180, 90, 180, 180, 60, 90, 0, 180, 90, 180]
     )
-    ma_torque_limit = np.array([0.5,0.5,0.5,0.5,0.5,0.5,0.5] * 2)
-    ma_viscous_gain = np.array([0.02, 0.02, 0.02, 0.02, 0.01, 0.01, 0.002] * 2)
+    ma_torque_limit = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] * 2)
+    ma_viscous_gain = np.array([0.01, 0.01, 0.01, 0.01, 0.005, 0.005, 0.001] * 2)
     right_q = READY_POSE[model.model_name].right_arm.copy()
     left_q = READY_POSE[model.model_name].left_arm.copy()
     right_minimum_time = 1.0
@@ -1146,7 +1145,7 @@ def main(address, model_name, power, servo, control_mode, align_duration=4.0):
         ) / 1000.0
         gripper.set_target(gripper_target)
 
-        # 2. Leader Arm Torque Calculation
+        # 2. Leader Arm Torque Calculation (100% Gravity Compensation matching 20_state_check)
         ma_input = LeaderArm.ControlInput()
 
         torque = (
@@ -1165,7 +1164,7 @@ def main(address, model_name, power, servo, control_mode, align_duration=4.0):
             ma_input.target_operating_mode[0:7].fill(
                 rby.DynamixelBus.CurrentControlMode
             )
-            ma_input.target_torque[0:7] = torque[0:7] * 0.6
+            ma_input.target_torque[0:7] = torque[0:7] * 0.8
             right_q = state.q_joint[0:7]
         else:
             ma_input.target_operating_mode[0:7].fill(
@@ -1179,7 +1178,7 @@ def main(address, model_name, power, servo, control_mode, align_duration=4.0):
             ma_input.target_operating_mode[7:14].fill(
                 rby.DynamixelBus.CurrentControlMode
             )
-            ma_input.target_torque[7:14] = torque[7:14] * 0.6
+            ma_input.target_torque[7:14] = torque[7:14] * 0.8
             left_q = state.q_joint[7:14]
         else:
             ma_input.target_operating_mode[7:14].fill(
