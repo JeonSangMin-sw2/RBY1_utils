@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "arm6_servo_on_failure",
+      "version": 1,
+      "pattern": "(?:no data received:\\s*\\[\\s*['\\\"](?:right|left)_arm_6['\\\"]\\s*\\]|(?:right|left)_arm_6[^,\\r\\n]{0,160}(?:servo.?on|initializ\\w*)[^,\\r\\n]{0,160}(?:fail(?:ed|ure)?|no data|time\\s*out|timeout)|(?:servo.?on|initializ\\w*)[^,\\r\\n]{0,160}(?:fail(?:ed|ure)?|no data|time\\s*out|timeout)[^,\\r\\n]{0,160}(?:right|left)_arm_6)",
+      "observed": "Arm 6축 Servo On 실패 또는 데이터 미수신이 확인되었습니다: {excerpt}",
+      "possible_causes": [
+        "보드가 정상적으로 깨어나지 않았을 가능성이 있습니다.",
+        "코인셀이 방전되었을 가능성이 있습니다.",
+        "WY2 커넥터의 접촉 상태가 불량할 가능성이 있습니다."
+      ],
+      "checks": [
+        "Preset 명령을 실행해 보십시오.",
+        "코인셀 전압을 확인하십시오.",
+        "WY2 커넥터의 접촉 상태를 확인하십시오.",
+        "납땜부에 쇼트가 있는지 확인하십시오."
+      ],
+      "confidence_base": "medium",
+      "required_evidence": ["component"]
+    },
+    {
+      "id": "communication_no_data_timeout",
+      "version": 2,
+      "pattern": "(?:no\\s+data(?:\\s+(?:is\\s+)?(?:coming|comming|received))?|(?:can|motor|servo.?on|communication).*(?:time\\s*out|timeout)|(?:time\\s*out|timeout).*(?:can|motor|servo.?on|communication)|input error|(?:initialize|initializing|initialization).*motor.*(?:fail|no data|time\\s*out|timeout))",
+      "observed": "모터 초기화, 데이터 미수신 또는 통신 오류가 확인되었습니다: {excerpt}",
+      "possible_causes": ["CAN 통신이 불안정할 가능성이 있습니다."],
+      "checks": ["CAN선 상태를 확인하십시오. Power ON 상태에서 모터를 움직였을 때 엔코더 값이 변하는지 확인하십시오."],
+      "confidence_base": "medium",
+      "required_evidence": ["component"]
+    },
+    {
+      "id": "joint_state_update_timeout",
+      "version": 1,
+      "pattern": "timeout:\\s*joint\\b.*state update exceeded timeout",
+      "observed": "관절 상태 갱신 시간 초과가 확인되었습니다: {excerpt}",
+      "possible_causes": ["CAN 통신이 불안정하여 해당 관절의 상태 데이터가 갱신되지 않았을 가능성이 있습니다."],
+      "checks": ["CAN선 상태를 확인하십시오. Power ON 상태에서 모터를 움직였을 때 엔코더 값이 변하는지 확인하십시오."],
+      "confidence_base": "high",
+      "required_evidence": ["joint", "component"]
+    },
+    {
+      "id": "joint_position_limit_enable_abort",
+      "version": 1,
+      "pattern": "joint\\s+\\d+\\s+\\([^)]+\\)\\s+position\\b.*exceeds the (?:upper|lower) limit\\b.*enabling process aborted",
+      "observed": "관절 위치 제한 초과로 Control Manager Enable이 중단되었습니다: {excerpt}",
+      "possible_causes": ["해당 축이 지정된 범위를 넘어갔습니다."],
+      "checks": ["해당 팔을 안전한 범위 내로 옮기거나 Unlimit을 통해 Control Manager를 Enable하십시오."],
+      "confidence_base": "high",
+      "required_evidence": ["joint", "component"]
+    },
+    {
+      "id": "emo_switch_error",
+      "version": 1,
+      "pattern": "emo error:\\s*please check emo switch",
+      "observed": "EMO 스위치 오류가 확인되었습니다: {excerpt}",
+      "possible_causes": ["EMO가 눌려 있을 가능성이 있습니다."],
+      "checks": ["EMO가 눌려 있는지 확인하십시오."],
+      "confidence_base": "high",
+      "required_evidence": ["component"]
+    },
+    {
+      "id": "power_48v_state_unmatched_timeout",
+      "version": 1,
+      "pattern": "timeout:\\s*power command failed\\s*-\\s*unmatched power states:\\s*48v\\b",
+      "observed": "48V 전원 명령 후 상태 불일치가 확인되었습니다: {excerpt}",
+      "possible_causes": ["EMO가 눌려 있거나 SCB Reset 신호가 없거나 FORT 리모컨 배터리가 방전되었을 가능성이 있습니다."],
+      "checks": [
+        "EMO가 눌려 있는지 확인하십시오.",
+        "FORT를 사용하는 경우 리모컨 배터리 상태를 확인하십시오.",
+        "SCB Reset 신호를 전송해 보십시오."
+      ],
+      "confidence_base": "high",
+      "required_evidence": ["component"]
+    },
+    {
+      "id": "target_position_max_bound_exceeded",
+      "version": 1,
+      "pattern": "target position at index\\s+\\d+\\s+is\\s+[-+]?\\d+(?:\\.\\d+)?,\\s*which exceeds the maximum allowed bound\\s+[-+]?\\d+(?:\\.\\d+)?",
+      "observed": "관절 목표 위치의 허용 상한 초과가 확인되었습니다: {excerpt}",
+      "possible_causes": ["target position이 허용 범위 초과"],
+      "checks": ["해당 축 목표 값 제한하여 다시 제어나 명령"],
+      "confidence_base": "high",
+      "required_evidence": ["component"]
+    },
+    {
+      "id": "invalid_joint_state",
+      "version": 1,
+      "pattern": "invalid joint state",
+      "observed": "유효하지 않은 관절 상태가 확인되었습니다: {excerpt}",
+      "possible_causes": ["요청한 상태 전환이 당시 관절 상태와 맞지 않았을 가능성이 있습니다."],
+      "checks": ["표시된 관절 상태와 직전 명령을 확인하십시오."],
+      "confidence_base": "high",
+      "required_evidence": ["joint", "component"]
+    },
+    {
+      "id": "control_cancellation_failure",
+      "version": 1,
+      "pattern": "control.*cancel.*fail",
+      "observed": "제어 취소 실패가 확인되었습니다: {excerpt}",
+      "possible_causes": ["진행 중인 제어 작업이 취소 요청에 응답하지 않았을 가능성이 있습니다."],
+      "checks": ["연결된 제어 요청과 작업 상태를 확인하십시오."],
+      "confidence_base": "high",
+      "required_evidence": ["component", "command"]
+    },
+    {
+      "id": "scheduling_delay",
+      "version": 1,
+      "pattern": "schedul.*(delay|late|fail)",
+      "observed": "스케줄링 지연이 확인되었습니다: {excerpt}",
+      "possible_causes": ["호스트의 높은 CPU 부하 또는 스케줄링 지연과 관련되었을 가능성이 있습니다."],
+      "checks": ["CPU 부하와 반복되는 스케줄링 경고를 비교하십시오."],
+      "confidence_base": "medium",
+      "required_evidence": ["component"]
+    },
+    {
+      "id": "minor_major_fault",
+      "version": 1,
+      "pattern": "(MinorFault|MajorFault)",
+      "observed": "로봇 Fault가 확인되었습니다: {excerpt}",
+      "possible_causes": ["로봇의 Fault 대응 절차가 동작 중일 가능성이 있습니다."],
+      "checks": ["인접한 Fault 상태 및 전원 동작 로그를 확인하십시오."],
+      "confidence_base": "high",
+      "required_evidence": ["component"]
+    },
+    {
+      "id": "robot_state_timeout",
+      "version": 1,
+      "pattern": "robot state.*timeout",
+      "observed": "로봇 상태 갱신 시간 초과가 확인되었습니다: {excerpt}",
+      "possible_causes": ["해당 구간에서 로봇 상태 갱신 데이터가 수신되지 않았을 가능성이 있습니다."],
+      "checks": ["상태 서비스의 연속성과 로그 시각 기준을 확인하십시오."],
+      "confidence_base": "high",
+      "required_evidence": ["component"]
+    },
+    {
+      "id": "fault_reaction_power_action",
+      "version": 1,
+      "pattern": "fault.*(power off|power cycle|servo off)",
+      "observed": "Fault 대응 전원 동작이 확인되었습니다: {excerpt}",
+      "possible_causes": ["설정된 Fault 대응 절차에 포함된 전원 동작일 가능성이 있습니다."],
+      "checks": ["표시된 Fault와 설정된 대응 순서를 확인하십시오."],
+      "confidence_base": "medium",
+      "required_evidence": ["component"]
+    }
+  ]
+}
