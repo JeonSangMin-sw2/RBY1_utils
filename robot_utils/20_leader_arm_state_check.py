@@ -715,6 +715,9 @@ def main(address, model):
     def fmt(arr):
         return ", ".join([f"{x:7.3f}" for x in arr])
 
+    def fmt_deg(arr):
+        return ", ".join([f"{np.rad2deg(x):7.1f}" for x in arr])
+
     def fmt_int(arr):
         return ", ".join([f"{int(x):7d}" for x in arr])
 
@@ -740,7 +743,8 @@ def main(address, model):
 
                 header = f"--- Leader Arm State Monitor ({refresh_hz:.0f}Hz UI / 100Hz Control) | {datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]} ---"
                 line_idx = "index:        " + ", ".join([f"{i:7d}" for i in range(len(local_snapshot.q_joint))])
-                line_q = f"q (rad):      {fmt(local_snapshot.q_joint)}"
+                line_q_deg = f"q (deg):      {fmt_deg(local_snapshot.q_joint)}"
+                line_q_rad = f"q (rad):      {fmt(local_snapshot.q_joint)}"
                 line_current = f"current (A):  {fmt(local_snapshot.current)}"
                 line_temp = f"temp (C):     {fmt(local_snapshot.temperatures)}"
                 line_torque = f"torque (Nm):  {fmt(local_snapshot.torque_joint)}"
@@ -762,7 +766,8 @@ def main(address, model):
                     + header + "\n"
                     + "-" * len(header) + "\n"
                     + line_idx + "\n"
-                    + line_q + "\n"
+                    + line_q_deg + "\n"
+                    + line_q_rad + "\n"
                     + line_current + "\n"
                     + line_temp + "\n"
                     + line_torque + "\n"

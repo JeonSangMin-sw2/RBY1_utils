@@ -849,23 +849,137 @@ def move_j(robot, pose: Pose, minimum_time=5.0):
 
 
 # ============================================================
+# Leader Arm Posture Alignment (Cosine S-curve Interpolation)
+# ============================================================
+def move_leader_arm_to_pose(
+    leader_arm: LeaderArm,
+    target_q: np.ndarray,
+    duration: float = 3.0,
+    goal_torque: float = 0.5,
+    control_period: float = 0.05,
+) -> bool:
+    """Smoothly moves the leader arm from its current pose to target_q using cosine interpolation.
+
+    Args:
+        leader_arm: Initialized LeaderArm instance.
+        target_q: (14,) numpy array of target joint positions in radians.
+        duration: Duration of the motion in seconds (<=0 to skip).
+        goal_torque: Maximum torque limit (Nm) in CurrentBasedPositionControlMode.
+        control_period: Loop period in seconds (default 0.01s = 100Hz).
+    """
+    if not leader_arm.initialized:
+        logging.error("[move_leader_arm_to_pose] Leader arm is not initialized.")
+        return False
+
+    if len(target_q) != leader_arm.DOF:
+        logging.error(
+            f"[move_leader_arm_to_pose] target_q length mismatch: expected {leader_arm.DOF}, got {len(target_q)}"
+        )
+        return False
+
+    if duration <= 0:
+        return True
+
+    print(f"\n[Leader Arm] Aligning posture to ready pose over {duration:.1f}s (Cosine S-curve)...")
+
+    # 1. Read current motor positions
+    ms_list = leader_arm.bus.get_motor_states(leader_arm.active_joint_ids)
+    if not ms_list or len(ms_list) != len(leader_arm.active_joint_ids):
+        logging.error("[move_leader_arm_to_pose] Failed to read initial motor states from leader arm.")
+        return False
+
+    start_q = np.zeros(leader_arm.DOF, dtype=np.float64)
+    for mid, mstate in ms_list:
+        if mid < leader_arm.DOF:
+            start_q[mid] = mstate.position
+
+    # 2. Switch to CurrentBasedPositionControlMode with safe torque
+    target_mode = rby.DynamixelBus.CurrentBasedPositionControlMode
+    leader_arm.bus.group_sync_write_torque_enable(leader_arm.active_joint_ids, 0)
+    leader_arm.bus.group_sync_write_operating_mode(
+        [(i, target_mode) for i in leader_arm.active_joint_ids if i < leader_arm.DOF]
+    )
+    leader_arm.bus.group_sync_write_torque_enable(leader_arm.active_joint_ids, 1)
+
+    max_t = (
+        float(leader_arm.MAXIMUM_TORQUE[0])
+        if isinstance(leader_arm.MAXIMUM_TORQUE, (list, tuple, np.ndarray))
+        else float(leader_arm.MAXIMUM_TORQUE)
+    )
+    safe_torque = min(goal_torque, max_t)
+
+    # 3. Cosine S-curve interpolation loop
+    t0 = time.time()
+    steps = int(max(duration / control_period, 1))
+
+    for step in range(steps + 1):
+        elapsed = time.time() - t0
+        ratio = min(elapsed / duration, 1.0)
+        s = 0.5 * (1.0 - np.cos(np.pi * ratio))
+        cmd_q = start_q + s * (target_q - start_q)
+
+        pos_cmd = [(i, float(cmd_q[i])) for i in leader_arm.active_joint_ids if i < leader_arm.DOF]
+        torque_cmd = [(i, safe_torque) for i in leader_arm.active_joint_ids if i < leader_arm.DOF]
+
+        leader_arm.bus.group_sync_write_send_torque(torque_cmd)
+        leader_arm.bus.group_sync_write_send_position(pos_cmd)
+
+        if step % 10 == 0 or ratio >= 1.0:
+            deg_r = ", ".join([f"{np.rad2deg(cmd_q[i]):5.1f}" for i in range(7)])
+            deg_l = ", ".join([f"{np.rad2deg(cmd_q[i+7]):5.1f}" for i in range(7)])
+            sys.stdout.write(
+                f"\r  Progress: {ratio*100:5.1f}% [{elapsed:4.1f}/{duration:.1f}s] | R(deg): [{deg_r}] | L(deg): [{deg_l}]"
+            )
+            sys.stdout.flush()
+
+        time.sleep(control_period)
+
+    print("\n[Leader Arm] Posture alignment complete.\n")
+    return True
+
+
+# ============================================================
 # Main
 # ============================================================
-def main(address, model_name, power, servo, control_mode):
+def main(address, model_name, power, servo, control_mode, align_duration=4.0):
     DECAY_TIME = 3.0            # Soft torque ramp-down time in seconds
     MONITOR_HZ = 20.0           # Monitoring UI refresh rate (Hz)
     MAX_RETRY_COUNT_TOOL = 10   # Maximum retry count for tool communication
     MAX_RETRY_COUNT_JOINT = 10  # Maximum retry count for joint communication
     USE_SOFT_STOP = True        # Behavior on hardware faults: True (Soft ramp-down) / False (Instant total power off)
 
-    # ===== SETUP ROBOT =====
+    # ===== 1. LEADER ARM SETUP & HEALTH CHECK (FIRST) =====
+    print("\n[Step 1/4] Initializing Leader Arm & Checking Hardware Status...")
+    leader_arm = LeaderArm(
+        control_period=Settings.leader_arm_loop_period,
+    )
+    leader_arm.set_max_retries(max_tool_retries=MAX_RETRY_COUNT_TOOL, max_joint_retries=MAX_RETRY_COUNT_JOINT)
+    active_ids = leader_arm.initialize(verbose=True)
+
+    if len(leader_arm.active_ids) != leader_arm.DEVICE_COUNT:
+        logging.error(
+            f"Mismatch in the number of devices detected. "
+            f"Expected {leader_arm.DEVICE_COUNT}, got {len(leader_arm.active_ids)}"
+        )
+        expected_ids = leader_arm.motor_ids + leader_arm.tool_ids
+        missing_ids = [dev_id for dev_id in expected_ids if dev_id not in leader_arm.active_ids]
+        logging.error(f"Missing Device IDs: {missing_ids}")
+        logging.error("Please check the connector status or motor malfunctions.")
+        leader_arm.close()
+        sys.exit(1)
+    print(f"[Step 1/4] Leader Arm Hardware OK (All {leader_arm.DEVICE_COUNT} devices active).")
+
+    # ===== 2. SETUP ROBOT & MOVE TO READY POSE =====
+    print("\n[Step 2/4] Connecting to Follower Robot & Powering On...")
     robot = rby.create_robot(address, model_name)
     try:
         if not robot.connect():
             logging.error(f"Failed to connect robot {address}")
+            leader_arm.close()
             sys.exit(1)
     except Exception as e:
         logging.error(f"Failed to connect robot {address}: {e}")
+        leader_arm.close()
         sys.exit(1)
 
     supported_model = ["A", "M"]
@@ -887,11 +1001,13 @@ def main(address, model_name, power, servo, control_mode):
         logging.error(
             f"Model {model.model_name} not supported (Supported: {supported_model})"
         )
+        leader_arm.close()
         sys.exit(1)
     if control_mode not in supported_control_mode:
         logging.error(
             f"Control mode {control_mode} not supported (Supported: {supported_control_mode})"
         )
+        leader_arm.close()
         sys.exit(1)
 
     position_mode = control_mode == "position"
@@ -901,23 +1017,30 @@ def main(address, model_name, power, servo, control_mode):
         if not robot.is_power_on(power):
             if not robot.power_on(power):
                 logging.error(f"Failed to turn power ({power}) on")
+                leader_arm.close()
                 sys.exit(1)
         if not robot.is_servo_on(servo):
             if not robot.servo_on(servo):
                 logging.error(f"Failed to servo ({servo}) on")
+                leader_arm.close()
                 sys.exit(1)
         robot.reset_fault_control_manager()
         if not robot.enable_control_manager():
             logging.error("Failed to enable control manager")
+            leader_arm.close()
             sys.exit(1)
         for arm in ["right", "left"]:
             if not robot.set_tool_flange_output_voltage(arm, 12):
                 logging.error(f"Failed to set tool flange output voltage ({arm}) as 12v")
+                leader_arm.close()
                 sys.exit(1)
         robot.set_parameter("joint_position_command.cutoff_frequency", "3")
+        print("Moving robot to ready pose...")
         move_j(robot, READY_POSE[model.model_name], 5)
+        print("[Step 2/4] Robot ready pose reached.")
     except Exception as e:
         logging.error(f"Error configuring robot power/servos: {e}")
+        leader_arm.close()
         sys.exit(1)
 
     def robot_state_callback(state: rby.RobotState_A):
@@ -926,35 +1049,36 @@ def main(address, model_name, power, servo, control_mode):
 
     robot.start_state_update(robot_state_callback, 1 / Settings.leader_arm_loop_period)
 
-    # ===== SETUP GRIPPER =====
+    # ===== 3. SETUP GRIPPER =====
+    print("\n[Step 3/4] Initializing Gripper...")
     gripper = Gripper()
     if not gripper.initialize():
         logging.error("Failed to initialize gripper")
         robot.stop_state_update()
         robot.power_off("12v")
+        leader_arm.close()
         sys.exit(1)
     gripper.homing()
     gripper.start()
+    print("[Step 3/4] Gripper initialized.")
 
-    # ===== LEADER ARM SETUP =====
-    leader_arm = LeaderArm(
-        control_period=Settings.leader_arm_loop_period,
-    )
-    leader_arm.set_max_retries(max_tool_retries=MAX_RETRY_COUNT_TOOL, max_joint_retries=MAX_RETRY_COUNT_JOINT)
-    active_ids = leader_arm.initialize(verbose=True)
-
-    if len(leader_arm.active_ids) != leader_arm.DEVICE_COUNT:
-        logging.error(
-            f"Mismatch in the number of devices detected. "
-            f"Expected {leader_arm.DEVICE_COUNT}, got {len(leader_arm.active_ids)}"
+    # ===== 4. LEADER ARM POSTURE ALIGNMENT TO READY POSE =====
+    target_leader_ready_q = np.concatenate([
+        READY_POSE[model.model_name].right_arm,
+        READY_POSE[model.model_name].left_arm,
+    ])
+    if align_duration > 0:
+        print("\n[Step 4/4] Aligning Leader Arm Posture to Match Robot Ready Pose...")
+        move_leader_arm_to_pose(
+            leader_arm=leader_arm,
+            target_q=target_leader_ready_q,
+            duration=align_duration,
+            goal_torque=0.5,
+            control_period=Settings.leader_arm_loop_period,
         )
-        expected_ids = leader_arm.motor_ids + leader_arm.tool_ids
-        missing_ids = [dev_id for dev_id in expected_ids if dev_id not in leader_arm.active_ids]
-        logging.error(f"Missing Device IDs: {missing_ids}")
-        logging.error("Please check the connector status or motor malfunctions.")
-        gripper.stop()
-        robot.stop_state_update()
-        sys.exit(1)
+        print("[Step 4/4] Leader Arm alignment complete.")
+    else:
+        print("\n[Step 4/4] Leader Arm posture alignment skipped (--align-duration 0).")
 
     # ===== TELEOP PARAMETERS =====
     ma_q_limit_barrier = 0.5
@@ -964,10 +1088,10 @@ def main(address, model_name, power, servo, control_mode):
     ma_max_q = np.deg2rad(
         [360, -10, 90, -60, 90, 80, 360, 360, 30, 0, -60, 90, 80, 360]
     )
-    ma_torque_limit = np.array([3.5, 3.5, 3.5, 1.5, 1.5, 1.5, 1.5] * 2)
+    ma_torque_limit = np.array([0.5,0.5,0.5,0.5,0.5,0.5,0.5] * 2)
     ma_viscous_gain = np.array([0.02, 0.02, 0.02, 0.02, 0.01, 0.01, 0.002] * 2)
-    right_q = None
-    left_q = None
+    right_q = READY_POSE[model.model_name].right_arm.copy()
+    left_q = READY_POSE[model.model_name].left_arm.copy()
     right_minimum_time = 1.0
     left_minimum_time = 1.0
     last_collision_log_time = 0.0
@@ -991,6 +1115,9 @@ def main(address, model_name, power, servo, control_mode):
 
     def fmt(arr):
         return ", ".join([f"{x:7.3f}" for x in arr])
+
+    def fmt_deg(arr):
+        return ", ".join([f"{np.rad2deg(x):7.1f}" for x in arr])
 
     def fmt_int(arr):
         return ", ".join([f"{int(x):7d}" for x in arr])
@@ -1186,7 +1313,8 @@ def main(address, model_name, power, servo, control_mode):
 
                 header = f"--- Teleop & Leader Arm Monitor ({refresh_hz:.0f}Hz UI / 100Hz Control) | {datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]} ---"
                 line_idx = "index:        " + ", ".join([f"{i:7d}" for i in range(len(local_snapshot.q_joint))])
-                line_q = f"q (rad):      {fmt(local_snapshot.q_joint)}"
+                line_q_deg = f"q (deg):      {fmt_deg(local_snapshot.q_joint)}"
+                line_q_rad = f"q (rad):      {fmt(local_snapshot.q_joint)}"
                 line_current = f"current (A):  {fmt(local_snapshot.current)}"
                 line_temp = f"temp (C):     {fmt(local_snapshot.temperatures)}"
                 line_torque = f"torque (Nm):  {fmt(local_snapshot.torque_joint)}"
@@ -1215,7 +1343,8 @@ def main(address, model_name, power, servo, control_mode):
                     + header + "\n"
                     + "-" * len(header) + "\n"
                     + line_idx + "\n"
-                    + line_q + "\n"
+                    + line_q_deg + "\n"
+                    + line_q_rad + "\n"
                     + line_current + "\n"
                     + line_temp + "\n"
                     + line_torque + "\n"
@@ -1426,6 +1555,12 @@ if __name__ == "__main__":
         choices=["position", "impedance"],
         help="Control mode: 'position' or 'impedance' (default: 'position')",
     )
+    parser.add_argument(
+        "--align-duration",
+        type=float,
+        default=4.0,
+        help="Duration (seconds) for leader arm posture alignment to ready pose (default: 4.0, 0 to skip)",
+    )
     args = parser.parse_args()
 
     main(
@@ -1434,4 +1569,5 @@ if __name__ == "__main__":
         power=args.power,
         servo=args.servo,
         control_mode=args.mode,
+        align_duration=args.align_duration,
     )
