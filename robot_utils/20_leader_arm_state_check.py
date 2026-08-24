@@ -593,9 +593,10 @@ class LeaderArm:
             id_torque = []
 
             for i in range(self.DOF):
-                if self.recovery_sync_flag or state.operating_mode[i] != user_input.target_operating_mode[i]:
+                if self.recovery_sync_flag or self.state.operating_mode[i] != user_input.target_operating_mode[i]:
                     changed_ids.append(i)
                     changed_id_modes.append((i, user_input.target_operating_mode[i]))
+                    self.state.operating_mode[i] = user_input.target_operating_mode[i]
 
                 target_mode = user_input.target_operating_mode[i]
                 max_t = float(self.MAXIMUM_TORQUE[i]) if isinstance(self.MAXIMUM_TORQUE, (list, tuple, np.ndarray)) else float(self.MAXIMUM_TORQUE)
