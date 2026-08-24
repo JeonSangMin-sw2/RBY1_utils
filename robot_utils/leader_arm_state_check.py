@@ -502,12 +502,10 @@ class LeaderArm:
 
                 # 4. Compute Kinematics & Dynamics
                 try:
-                    q_urdf = np.concatenate([self.state.q_joint[self.DOF // 2:], self.state.q_joint[:self.DOF // 2]])
-                    self.dyn_state.set_q(q_urdf)
+                    self.dyn_state.set_q(self.state.q_joint)
                     self.robot.compute_forward_kinematics(self.dyn_state)
 
-                    grav_urdf = self.robot.compute_gravity_term(self.dyn_state)
-                    self.state.gravity_term = np.concatenate([grav_urdf[self.DOF // 2:], grav_urdf[:self.DOF // 2]]) * self.TORQUE_SCALING
+                    self.state.gravity_term = self.robot.compute_gravity_term(self.dyn_state) * self.TORQUE_SCALING
 
                     self.state.T_right = self.robot.compute_transformation(self.dyn_state, self.kBaseLinkId, self.kRightLinkId)
                     self.state.T_left = self.robot.compute_transformation(self.dyn_state, self.kBaseLinkId, self.kLeftLinkId)
@@ -597,7 +595,8 @@ class LeaderArm:
                     changed_id_modes.append((i, user_input.target_operating_mode[i]))
 
                 target_mode = user_input.target_operating_mode[i]
-                clipped_torque = float(np.clip(user_input.target_torque[i], -self.MAXIMUM_TORQUE, self.MAXIMUM_TORQUE))
+                max_t = float(self.MAXIMUM_TORQUE[i]) if isinstance(self.MAXIMUM_TORQUE, (list, tuple, np.ndarray)) else float(self.MAXIMUM_TORQUE)
+                clipped_torque = float(np.clip(user_input.target_torque[i], -max_t, max_t))
                 if target_mode == rby.DynamixelBus.CurrentControlMode:
                     id_torque.append((i, clipped_torque))
                 elif target_mode == rby.DynamixelBus.CurrentBasedPositionControlMode:
