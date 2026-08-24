@@ -982,28 +982,55 @@ def main(address, model_name, power, servo, control_mode, align_duration=DEFAULT
         )
         sys.exit(1)
 
-    position_mode = control_mode == "position"
+    position_mode = (control_mode == "position")
 
-    # Smart 12V Power & Control Manager State Validation
+    # Smart 12V Power, Servo & Control Manager State Validation
     try:
+        # Reset any lingering fault in control manager
+        robot.reset_fault_control_manager()
+
+        cm_state = robot.get_control_manager_state()
+        is_cm_enabled = (cm_state.state == rby.ControlManagerState.State.Enabled)
+        is_12v_on = robot.is_power_on("12v")
+
+        # Major Fault prevention: Power cannot be toggled while Control Manager is Enabled
+        if is_cm_enabled and not is_12v_on:
+            print("Control manager is Enabled but 12V is OFF. Temporarily disabling control manager to power ON 12V safely...")
+            robot.disable_control_manager()
+            time.sleep(0.5)
+            is_cm_enabled = False
+
+        # Turn ON Power
         if not robot.is_power_on(power):
+            print(f"Powering ON power lines ({power})...")
             if not robot.power_on(power):
                 logging.error(f"Failed to turn power ({power}) on")
                 sys.exit(1)
+            # Power stabilization & Dynamixel MCU boot delay (1.0s)
+            print("Waiting 1.0s for 12V power stabilization & Leader Arm motor bootup...")
+            time.sleep(1.0)
+
+        # Turn ON Servos
         if not robot.is_servo_on(servo):
+            print(f"Turning ON servos ({servo})...")
             if not robot.servo_on(servo):
                 logging.error(f"Failed to servo ({servo}) on")
                 sys.exit(1)
+            time.sleep(0.3)
+
+        # Enable Control Manager
         robot.reset_fault_control_manager()
         if not robot.enable_control_manager():
             logging.error("Failed to enable control manager")
             sys.exit(1)
+
         for arm in ["right", "left"]:
             if not robot.set_tool_flange_output_voltage(arm, 12):
                 logging.error(f"Failed to set tool flange output voltage ({arm}) as 12v")
                 sys.exit(1)
+
         robot.set_parameter("joint_position_command.cutoff_frequency", "3")
-        print("[Step 1/5] Robot 12V power & Servos are ON.")
+        print("[Step 1/5] Robot 12V power & Servos are ON and Control Manager is Enabled.")
     except Exception as e:
         logging.error(f"Error configuring robot power/servos: {e}")
         sys.exit(1)
