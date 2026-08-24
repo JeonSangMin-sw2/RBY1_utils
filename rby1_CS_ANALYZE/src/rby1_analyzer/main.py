@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import sys
+
+from fastapi import Depends, FastAPI
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+
+from rby1_analyzer.api.deps import bearer_token
+from rby1_analyzer.api.routes import router
+from rby1_analyzer.api.routes.charts import router as chart_router
+from rby1_analyzer.api.routes.v2 import router as v2_router
+from rby1_analyzer.api.routes.v3 import router as v3_router
+from rby1_analyzer.charts import SQLiteChartRepository
+from rby1_analyzer.core.config import Settings
+from rby1_analyzer.core.security import SessionAuthority
+from rby1_analyzer.jobs.manager import JobManager
+from rby1_analyzer.jobs.runner import ProcessJobRunner
+from rby1_analyzer.storage.cases import CaseStore
+
+
+@dataclass(slots=True)
+class RuntimeContext:
+    port: int
+    authority: SessionAuthority
+    cases: CaseStore
+    jobs: JobManager
+
+
+def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
+    if runtime is None:
+        settings = Settings.default()
+        runtime = RuntimeContext(0, SessionAuthority(), CaseStore(settings.data_root), JobManager())
+    import_runner = ProcessJobRunner(runtime.cases)
+    app = FastAPI(title="RB-Y1 CS Log Analyzer V4", version="4.1.4")
+    app.add_event_handler("shutdown", import_runner.shutdown)
+    app.state.runtime = runtime
+    app.state.chart_repository = SQLiteChartRepository(runtime.cases)
+    app.state.import_runner = import_runner
+    app.include_router(router)
+    app.include_router(chart_router, dependencies=[Depends(bearer_token)])
+    app.include_router(v2_router)
+    app.include_router(v3_router)
+    runtime_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+    frontend_dist = runtime_root / "frontend" / "dist"
+    if frontend_dist.is_dir():
+        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+    else:
+        @app.get("/", include_in_schema=False, response_class=HTMLResponse)
+        def development_index() -> str:
+            return (
+                "<h1>RB-Y1 CS Analyzer V4</h1>"
+                "<p>Frontend build not found. Run npm --prefix frontend run build.</p>"
+            )
+    return app

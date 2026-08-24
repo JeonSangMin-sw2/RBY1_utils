@@ -1,0 +1,161 @@
+name: Build packages
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: Ubuntu 22.04 amd64
+            suffix: ubuntu22.04-amd64
+          - os: windows-2022
+            label: Windows x64
+            suffix: windows-x64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python dependencies
+        run: python -m pip install ".[test,package]"
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Check Python
+        run: |
+          python -m ruff check src tests
+          python -m pytest -q
+
+      - name: Check and build frontend
+        run: |
+          npm --prefix frontend run typecheck
+          npm --prefix frontend run lint
+          npm --prefix frontend run build
+
+      - name: Install Playwright Chromium
+        if: runner.os == 'Linux'
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify desktop, mobile, and WebGL interactions
+        if: runner.os == 'Linux'
+        working-directory: frontend
+        run: npx playwright test
+
+      - name: Preserve Playwright screenshots
+        if: runner.os == 'Linux' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v4-playwright-visual-verification
+          path: frontend/test-results/*.png
+          if-no-files-found: warn
+
+      - name: Build native package
+        run: pyinstaller --clean --noconfirm packaging/rby1-cs-analyzer-v4.spec
+
+      - name: Build standalone executable
+        run: pyinstaller --clean --noconfirm --distpath dist-onefile --workpath build-onefile packaging/rby1-cs-analyzer-v4-onefile.spec
+
+      - name: Smoke test Ubuntu package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: packaging/smoke/ubuntu2204_smoke.sh dist/rby1-cs-analyzer-v4 tests/fixtures/representative
+
+      - name: Smoke test Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: packaging/smoke/windows_smoke.ps1 -PackageDir dist/rby1-cs-analyzer-v4 -Fixtures tests/fixtures/representative
+
+      - name: Smoke test Ubuntu standalone executable
+        if: runner.os == 'Linux'
+        shell: bash
+        run: packaging/smoke/ubuntu2204_onefile_smoke.sh dist-onefile/rby1-cs-analyzer-v4
+
+      - name: Smoke test Windows standalone executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: packaging/smoke/windows_onefile_smoke.ps1 -Launcher dist-onefile/rby1-cs-analyzer-v4.exe
+
+      - name: Archive Ubuntu package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          mkdir -p release
+          archive="rby1-cs-analyzer-v4_${version}_${{ matrix.suffix }}.tar.gz"
+          tar -C dist -czf "release/$archive" rby1-cs-analyzer-v4
+          cd release
+          sha256sum "$archive" > "$archive.sha256"
+          cd ..
+          onefile_archive="rby1-cs-analyzer-v4_${version}_${{ matrix.suffix }}-onefile.tar.gz"
+          tar -C dist-onefile -czf "release/$onefile_archive" rby1-cs-analyzer-v4
+          cd release
+          sha256sum "$onefile_archive" > "$onefile_archive.sha256"
+
+      - name: Archive Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])").Trim()
+          New-Item -ItemType Directory -Force release | Out-Null
+          $archive = "rby1-cs-analyzer-v4_${version}_${{ matrix.suffix }}.zip"
+          Compress-Archive -Path dist/rby1-cs-analyzer-v4 -DestinationPath "release/$archive"
+          $hash = (Get-FileHash "release/$archive" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $archive" | Set-Content -NoNewline "release/$archive.sha256"
+          $onefileArchive = "rby1-cs-analyzer-v4_${version}_${{ matrix.suffix }}-onefile.zip"
+          Compress-Archive -Path dist-onefile/rby1-cs-analyzer-v4.exe -DestinationPath "release/$onefileArchive"
+          $onefileHash = (Get-FileHash "release/$onefileArchive" -Algorithm SHA256).Hash.ToLower()
+          "$onefileHash  $onefileArchive" | Set-Content -NoNewline "release/$onefileArchive.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rby1-cs-analyzer-v4-${{ matrix.suffix }}
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rby1-cs-analyzer-v4-*
+          path: release
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --generate-notes --title "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"
+          fi
