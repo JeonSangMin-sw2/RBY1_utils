@@ -14,7 +14,7 @@ from rby1_analyzer.analysis import AnalysisCounts, analyze_upload
 from rby1_analyzer.core.states import JobState
 from rby1_analyzer.storage.cases import CaseStore
 from rby1_analyzer.storage.content import StoredContent
-from rby1_analyzer.v2.incidents.builder import rebuild_incidents
+from rby1_analyzer.incidents.builder import rebuild_incidents
 
 from .manager import JobManager
 
@@ -142,6 +142,16 @@ def _run_import(data_root: str, case_id: str, job_id: str, refs: list[ImportRef]
             emit_progress(completed_bytes, force=True)
         report_status("building_incidents", None)
         counts.incidents = rebuild_incidents(db, case_id, job_id=job_id)
+
+        # Write consolidated chronological timeline stream
+        try:
+            from rby1_analyzer.api.routes.csv_analysis import _ensure_timeline_files, generate_csv_meta
+            runtime_stub = type("RuntimeStub", (), {"cases": cases})()
+            _ensure_timeline_files(runtime_stub, case_id)
+            generate_csv_meta(cases, case_id)
+        except Exception:
+            pass
+
         emit_progress(total, force=True)
         with db.connect() as connection:
             connection.execute(

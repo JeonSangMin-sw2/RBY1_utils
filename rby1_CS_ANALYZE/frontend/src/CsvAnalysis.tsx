@@ -12,8 +12,22 @@ import { CanvasRenderer } from "echarts/renderers";
 import { ApiClient } from "./api";
 import { csvSignalDisplayValue, csvSignalUnit } from "./csvSignalUnits";
 import { groupJoints, sortJoints } from "./jointGroups";
+import { RobotViewer, type RobotModelDescriptor } from "./RobotViewer";
 
 type CsvSeriesMeta = { name: string; kind: "continuous" | "discrete" };
+type LinkedIncident = {
+  id: string;
+  title: string;
+  severity: string;
+  fault_level?: "major" | "minor" | null;
+  summary?: string;
+  start_time?: number;
+  start_raw?: string;
+  log_time_display?: string;
+  delta_seconds?: number;
+  csv_sample_time?: number;
+  csv_time_display?: string;
+};
 type CsvArtifact = {
   id: number;
   name: string;
@@ -23,6 +37,8 @@ type CsvArtifact = {
   sample_count: number;
   available_series: CsvSeriesMeta[];
   detected_joints: string[];
+  robot_model?: RobotModelDescriptor;
+  linked_incidents?: LinkedIncident[];
 };
 type CsvListPayload = { csvs: CsvArtifact[] };
 type CsvSeries = { name: string; kind: "continuous" | "discrete"; nan_count: number; points: [number, number][] };
@@ -59,8 +75,9 @@ type CsvChartPayload = {
   system_state_contract: SystemStateContract;
   dense_series?: { name: string; required_points: number; suggested_window_seconds: number }[];
   series: CsvSeries[];
+  linked_incidents?: LinkedIncident[];
 };
-type SignalCategory = "position" | "velocity" | "current" | "torque" | "state" | "gain" | "system";
+type SignalCategory = "position" | "velocity" | "current" | "torque" | "temperature" | "state" | "gain" | "system";
 type SemanticPoint = { rawValue: number; name: string; label: string };
 type DisplaySeries = CsvSeries & { lane?: number; semanticPoints?: SemanticPoint[] };
 type LaneChart = { series: DisplaySeries[]; labels: Map<number, string> };
@@ -81,6 +98,7 @@ const CATEGORY_META: { key: SignalCategory; label: string; description: string }
   { key: "velocity", label: "속도", description: "현재 속도와 목표 속도" },
   { key: "current", label: "전류", description: "모터 측정 전류" },
   { key: "torque", label: "토크", description: "측정 토크와 피드포워드 토크" },
+  { key: "temperature", label: "온도", description: "모터 및 드라이브 측정 온도" },
   { key: "state", label: "상태 비트", description: "모터 상태 비트 해석" },
   { key: "gain", label: "피드백 게인", description: "목표 피드백 게인" },
   { key: "system", label: "전원·제어", description: "전원 및 Control Manager 상태" },
@@ -97,22 +115,36 @@ const SYSTEM_SERIES = [
 
 const SERIES_COLORS = ["#65c8b3", "#f0b85b", "#e66e73", "#6ea8df", "#d7dc82", "#b9a0d8"];
 const UINT32_RANGE = 2 ** 32;
-const SELECTED_JOINTS_STORAGE_KEY = "rby1-csv-selected-joints-v2";
 
-function loadSelectedJoints(): Record<string, string[]> {
-  try {
-    const raw = window.sessionStorage.getItem(SELECTED_JOINTS_STORAGE_KEY);
-    if (raw === null) return {};
-    const stored = JSON.parse(raw);
-    if (!stored || typeof stored !== "object" || Array.isArray(stored)) return {};
-    return Object.fromEntries(Object.entries(stored).flatMap(([key, value]) => (
-      Array.isArray(value)
-        ? [[key, value.filter((item): item is string => typeof item === "string")]]
-        : []
-    )));
-  } catch {
-    return {};
+function normalizeModel(value?: RobotModelDescriptor): RobotModelDescriptor {
+  const supportedVersion = value?.version === "v1.0" || value?.version === "v1.1" || value?.version === "v1.2" || value?.version === "v1.3"
+    ? value.version
+    : "v1.2";
+  const confidence = value?.confidence === "conflict" ? "conflict" : (value?.confidence ?? "assumed");
+  return {
+    model: value?.model === "m" ? "m" : "a",
+    version: supportedVersion,
+    confidence,
+    reason: value?.reason ?? "모델 정보가 없어 A Type V1.2로 가정",
+  };
+}
+
+function interpolate(points: [number, number][], time: number): number {
+  if (!points.length) return 0;
+  if (time <= points[0][0]) return points[0][1];
+  if (time >= points[points.length - 1][0]) return points[points.length - 1][1];
+  let low = 0;
+  let high = points.length - 1;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (points[middle][0] <= time) low = middle;
+    else high = middle;
   }
+  const [leftTime, leftValue] = points[low];
+  const [rightTime, rightValue] = points[high];
+  if (rightTime <= leftTime) return leftValue;
+  const ratio = (time - leftTime) / (rightTime - leftTime);
+  return leftValue + (rightValue - leftValue) * ratio;
 }
 
 function motorStateMask(value: number): number {
@@ -162,6 +194,10 @@ function jointFromSeries(name: string): string | null {
     "_vel",
     "_cur",
     "_tq",
+    "_temperature",
+    "_temp",
+    "_motor_temp",
+    "_drive_temp",
   ];
   const suffix = suffixes.find((item) => name.endsWith(item));
   return suffix ? name.slice(0, -suffix.length) : null;
@@ -171,9 +207,10 @@ function namesFor(category: SignalCategory, joint: string, available: Set<string
   const candidates: Record<Exclude<SignalCategory, "system">, string[]> = {
     position: [`${joint}_pos`, `${joint}_target_pos`],
     velocity: [`${joint}_vel`, `${joint}_target_vel`],
-    current: [`${joint}_cur`],
-    torque: [`${joint}_tq`, `${joint}_target_ff_tq`],
-    state: [`${joint}_state`],
+    current: [`${joint}_cur`, `${joint}_current`],
+    torque: [`${joint}_tq`, `${joint}_target_ff_tq`, `${joint}_torque`],
+    temperature: [`${joint}_temperature`, `${joint}_temp`, `${joint}_motor_temp`, `${joint}_drive_temp`],
+    state: [`${joint}_state`, `${joint}_motor_state`],
     gain: [`${joint}_target_fb_gain`],
   };
   return (category === "system" ? SYSTEM_SERIES : candidates[category]).filter((name) => available.has(name));
@@ -191,16 +228,16 @@ function eligibleJointsFor(category: SignalCategory, joints: string[], available
     : joints.filter((name) => namesFor(category, name, available).length > 0);
 }
 
-function selectedJointsFor(eligibleJoints: string[], selectedJoints?: string[]): string[] {
-  if (selectedJoints === undefined) return eligibleJoints.slice(0, 1);
-  const valid = eligibleJoints.filter((name) => selectedJoints.includes(name));
-  return valid.length || selectedJoints.length === 0 ? valid : eligibleJoints.slice(0, 1);
-}
-
 function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "--";
   if (seconds < 1) return `${Math.round(seconds * 1000)} ms`;
-  return `${seconds.toFixed(seconds < 10 ? 3 : 1)} s`;
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hrs > 0) {
+    return `${hrs}:${String(mins).padStart(2, "0")}:${secs.toFixed(3).padStart(6, "0")}`;
+  }
+  return `${String(mins).padStart(2, "0")}:${secs.toFixed(3).padStart(6, "0")}`;
 }
 
 function formatAxisTime(value: number, start: number): string {
@@ -442,6 +479,10 @@ function CsvPlot({
   onRemove,
   zoomRange,
   onZoomRangeChange,
+  incidentMarks = [],
+  selectedIncidentId,
+  cursorTime,
+  onCursorChange,
 }: {
   category: SignalCategory;
   selectedNames: string[];
@@ -453,10 +494,15 @@ function CsvPlot({
   onRemove?: () => void;
   zoomRange: ZoomRange;
   onZoomRangeChange: (range: ZoomRange) => void;
+  incidentMarks?: LinkedIncident[];
+  selectedIncidentId?: string | null;
+  cursorTime?: number;
+  onCursorChange?: (time: number) => void;
 }) {
   const chartNode = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof init> | null>(null);
   const zoomCallbackRef = useRef(onZoomRangeChange);
+  const cursorCallbackRef = useRef(onCursorChange);
   const series = useMemo(() => {
     if (!payload) return [];
     const selected = new Set(selectedNames);
@@ -490,6 +536,10 @@ function CsvPlot({
   }, [onZoomRangeChange]);
 
   useEffect(() => {
+    cursorCallbackRef.current = onCursorChange;
+  }, [onCursorChange]);
+
+  useEffect(() => {
     if (!chartNode.current) return;
     const chart = init(chartNode.current);
     chartRef.current = chart;
@@ -500,10 +550,43 @@ function CsvPlot({
       zoomCallbackRef.current({ start: range.start, end: range.end });
     };
     chart.on("datazoom", handleZoom);
+
+    // Track mouse dragging to prevent clicks during zoom/pan
+    let isDragging = false;
+    let downPos = { x: 0, y: 0 };
+    const handleMouseDown = (e: { offsetX: number; offsetY: number }) => {
+      isDragging = false;
+      downPos = { x: e.offsetX, y: e.offsetY };
+    };
+    const handleMouseMove = (e: { offsetX: number; offsetY: number }) => {
+      if (Math.abs(e.offsetX - downPos.x) > 4 || Math.abs(e.offsetY - downPos.y) > 4) {
+        isDragging = true;
+      }
+    };
+    const handleMouseUp = (event: { offsetX: number; offsetY: number }) => {
+      if (isDragging) return;
+      const pointInPixel = [event.offsetX, event.offsetY];
+      if (chart.containPixel("grid", pointInPixel)) {
+        const pointInGrid = chart.convertFromPixel({ seriesIndex: 0 }, pointInPixel);
+        if (pointInGrid && typeof pointInGrid[0] === "number") {
+          cursorCallbackRef.current?.(pointInGrid[0]);
+        }
+      }
+    };
+    chart.getZr().on("mousedown", handleMouseDown);
+    chart.getZr().on("mousemove", handleMouseMove);
+    chart.getZr().on("mouseup", handleMouseUp);
+
     const resize = () => chart.resize();
     window.addEventListener("resize", resize);
+    const observer = new ResizeObserver(() => chart.resize());
+    observer.observe(chartNode.current);
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", resize);
+      chart.getZr().off("mousedown", handleMouseDown);
+      chart.getZr().off("mousemove", handleMouseMove);
+      chart.getZr().off("mouseup", handleMouseUp);
       chart.off("datazoom", handleZoom);
       chart.dispose();
       chartRef.current = null;
@@ -517,8 +600,43 @@ function CsvPlot({
       chart.clear();
       return;
     }
+    const laneMode = Boolean(lanes);
     const laneCount = lanes?.labels.size ?? 0;
-    const laneMode = category === "state" || category === "system";
+
+    // Single clean orange dashed line for selected incident
+    const selectedIncident = incidentMarks.find((inc) => inc.id === selectedIncidentId);
+    const incidentTimeVal = selectedIncident ? (selectedIncident.csv_sample_time ?? selectedIncident.start_time) : undefined;
+    const selectedIncidentMark = typeof incidentTimeVal === "number" && incidentTimeVal >= payload.start && incidentTimeVal <= payload.end ? [{
+      name: selectedIncident?.title ?? "오류 발생 지점",
+      xAxis: incidentTimeVal,
+      lineStyle: { color: "#ff7a00", width: 2, type: "dashed" as const },
+      label: {
+        show: true,
+        position: "insideEndTop" as const,
+        formatter: `⚠️ ${selectedIncident?.title ?? "오류 발생 지점"}`,
+        color: "#ffffff",
+        fontSize: 11,
+        fontWeight: "bold" as const,
+        backgroundColor: "rgba(211, 84, 0, 0.92)",
+        padding: [3, 7],
+        borderRadius: 3,
+        borderColor: "#ff7a00",
+        borderWidth: 1,
+      },
+    }] : [];
+
+    const playbackMark = typeof cursorTime === "number" && cursorTime >= payload.start && cursorTime <= payload.end ? [{
+      name: "재생 위치",
+      xAxis: cursorTime,
+      lineStyle: { color: "#f4c15d", width: 2, type: "solid" as const },
+      label: { show: false },
+    }] : [];
+
+    const markLineData = [
+      ...playbackMark,
+      ...selectedIncidentMark,
+    ];
+
     chart.setOption({
       animation: false,
       backgroundColor: "transparent",
@@ -534,8 +652,8 @@ function CsvPlot({
       grid: {
         left: category === "system" || category === "state" ? 190 : signalUnit ? 84 : 58,
         right: 24,
-        top: 44,
-        bottom: 62,
+        top: 36,
+        bottom: 50,
       },
       tooltip: {
         trigger: "axis",
@@ -545,18 +663,26 @@ function CsvPlot({
           : (params: SystemTooltipParam | SystemTooltipParam[]) => signalTooltip(params, payload.start, signalUnit?.symbol),
       },
       dataZoom: [
-        { type: "inside", filterMode: "none", start: zoomRange.start, end: zoomRange.end },
+        {
+          type: "inside",
+          filterMode: "none",
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
+          moveOnMouseWheel: false,
+          start: zoomRange.start,
+          end: zoomRange.end,
+        },
         {
           type: "slider",
           start: zoomRange.start,
           end: zoomRange.end,
-          bottom: 8,
-          height: 22,
-          zoomLock: true,
+          bottom: 4,
+          height: 20,
+          zoomLock: false,
           brushSelect: false,
           showDataShadow: false,
           showDetail: false,
-          handleSize: 0,
+          handleSize: 14,
           moveHandleSize: 8,
           borderColor: "#394148",
           fillerColor: "rgba(101,200,179,.16)",
@@ -595,24 +721,34 @@ function CsvPlot({
         sampling: false,
         lineStyle: laneMode ? { width: 2 } : undefined,
         data: item.points,
-        markLine: index === 0 ? {
+        markLine: index === 0 && markLineData.length > 0 ? {
+          silent: false,
+          symbol: ["none", "none"],
+          lineStyle: {
+            color: "#ff7a00",
+            width: 2,
+            type: "solid",
+          },
+          data: markLineData,
+        } : index === 0 ? {
           silent: true,
           symbol: ["none", "none"],
-          label: { formatter: "CSV 종료", color: "#f0b85b", fontSize: 11 },
+          label: { formatter: `CSV 종료 (${(payload.end - payload.start).toFixed(3)}s)`, color: "#f0b85b", fontSize: 11 },
           lineStyle: { color: "#f0b85b", width: 1.2, type: "dashed" },
           data: [{ xAxis: payload.end }],
         } : undefined,
       })),
     }, { notMerge: true, lazyUpdate: true });
-  }, [category, displayed, lanes, payload, signalUnit, zoomRange]);
+  }, [category, cursorTime, displayed, incidentMarks, lanes, payload, selectedIncidentId, signalUnit, zoomRange]);
 
-  const plotLabel = kind === "primary" ? "기본 Plot" : `비교 Plot ${comparisonIndex ?? 1}`;
-
-  return <section className={`csvPlot csvPlot-${kind === "primary" ? "primary" : "secondary csvPlot-comparison"}`} aria-label={plotLabel}>
+  return <section className={`csvPlot csvPlot-${kind === "primary" ? "primary" : "secondary csvPlot-comparison"}`} aria-label={categoryLabel}>
     <div className="csvChartHeader">
       <div>
-        <h3><b className="plotPriority">{plotLabel}</b>{categoryLabel}<span>{selectedNames.length}개 신호</span></h3>
-        <p className="selectedSeriesText">{selectedNames.join(" · ") || "선택 가능한 신호가 없습니다."}</p>
+        <h3>
+          {categoryLabel}
+          <span>{selectedNames.length}개 신호</span>
+          {kind === "comparison" && <b className="plotPriority">비교 {comparisonIndex ?? 1}</b>}
+        </h3>
       </div>
       {onRemove && <button type="button" className="textButton danger" aria-label={`비교 Plot 삭제: ${categoryLabel}`} onClick={onRemove}>삭제</button>}
     </div>
@@ -623,7 +759,7 @@ function CsvPlot({
       data-zoom-end={zoomRange.end.toFixed(3)}
       data-y-unit={signalUnit?.symbol ?? ""}
       data-y-scale={signalUnit?.scale ?? 1}
-      style={{ height: lanes ? Math.min(1200, Math.max(440, lanes.labels.size * 30 + 120)) : undefined }}
+      style={{ height: lanes ? Math.min(1200, Math.max(260, lanes.labels.size * 30 + 120)) : undefined }}
       role="img"
       aria-label={`${kind === "comparison" ? "비교 " : ""}CSV ${categoryLabel} 그래프${signalUnit ? `, Y축 ${signalUnit.axisLabel}` : ""}: ${
         lanes ? [...lanes.labels.values()].join(", ") : selectedNames.join(", ")
@@ -634,23 +770,65 @@ function CsvPlot({
       {!loading && !error && !displayed.length && <div className="chartLoading">선택한 항목에 표시할 샘플이 없습니다.</div>}
       <div className={!loading && !error && displayed.length ? "csvChart" : "csvChart isHidden"} ref={chartNode} />
     </div>
-
   </section>;
 }
 
-export function CsvAnalysis({ client, caseId }: { client: ApiClient; caseId: string }) {
+export type IncidentSummary = {
+  id: string;
+  title: string;
+  severity: string;
+  start_time?: number;
+  end_time?: number;
+  start_raw?: string;
+  end_raw?: string;
+  meaning?: string;
+  affected_joints?: string[];
+  fault_level?: "major" | "minor" | null;
+};
+
+export function CsvAnalysis({
+  client,
+  caseId,
+  incidents,
+  selectedArtifactId,
+  onSelectArtifactId,
+}: {
+  client: ApiClient;
+  caseId: string;
+  incidents?: IncidentSummary[];
+  selectedArtifactId?: number | null;
+  onSelectArtifactId?: (id: number) => void;
+}) {
   const [listResult, setListResult] = useState<{ caseId: string; csvs: CsvArtifact[]; error?: string } | null>(null);
-  const [artifactId, setArtifactId] = useState(0);
+  const [artifactId, setArtifactId] = useState(selectedArtifactId ?? 0);
   const [category, setCategory] = useState<SignalCategory>("position");
   const [comparisonCategories, setComparisonCategories] = useState<SignalCategory[]>([]);
   const [comparisonCandidate, setComparisonCandidate] = useState<SignalCategory | "">("");
-  const [selectedJointsByArtifact, setSelectedJointsByArtifact] = useState<Record<string, string[]>>(loadSelectedJoints);
+  const [selectedJointNames, setSelectedJointNames] = useState<string[]>(() => {
+    try {
+      const raw = window.sessionStorage.getItem("rby1_selected_joints_global");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  });
   const [zoomRange, setZoomRange] = useState<ZoomRange>({ start: 0, end: 100 });
-  const [chartResult, setChartResult] = useState<{
-    requestKey: string;
-    payload: CsvChartPayload | null;
-    error?: string;
-  } | null>(null);
+  const [artifactPayloads, setArtifactPayloads] = useState<Record<number, CsvChartPayload>>({});
+  const [fetchingArtifactId, setFetchingArtifactId] = useState<number | null>(null);
+  const [artifactFetchError, setArtifactFetchError] = useState<string>("");
+
+  // Incident selection for marking on plot
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+
+  // 3D Simulation view state & playback
+  const [show3DView, setShow3DView] = useState(false);
+  const [cursorTime, setCursorTime] = useState(0);
+  const [speed, setSpeed] = useState(1);
+  const [playing, setPlaying] = useState(false);
+  const cursorRef = useRef(cursorTime);
+
+  useEffect(() => {
+    cursorRef.current = cursorTime;
+  }, [cursorTime]);
 
   useEffect(() => {
     let active = true;
@@ -658,7 +836,11 @@ export function CsvAnalysis({ client, caseId }: { client: ApiClient; caseId: str
       .then((result) => {
         if (!active) return;
         setListResult({ caseId, csvs: result.csvs });
-        setArtifactId(result.csvs[0]?.id ?? 0);
+        const targetId = (selectedArtifactId && result.csvs.some((item) => item.id === selectedArtifactId))
+          ? selectedArtifactId
+          : (result.csvs[0]?.id ?? 0);
+        setArtifactId(targetId);
+        onSelectArtifactId?.(targetId);
         setZoomRange({ start: 0, end: 100 });
       })
       .catch((reason: unknown) => {
@@ -668,12 +850,19 @@ export function CsvAnalysis({ client, caseId }: { client: ApiClient; caseId: str
   }, [caseId, client]);
 
   useEffect(() => {
+    if (selectedArtifactId && selectedArtifactId !== artifactId && listResult?.csvs.some((item) => item.id === selectedArtifactId)) {
+      setArtifactId(selectedArtifactId);
+      setZoomRange({ start: 0, end: 100 });
+    }
+  }, [artifactId, listResult?.csvs, selectedArtifactId]);
+
+  useEffect(() => {
     try {
-      window.sessionStorage.setItem(SELECTED_JOINTS_STORAGE_KEY, JSON.stringify(selectedJointsByArtifact));
+      window.sessionStorage.setItem("rby1_selected_joints_global", JSON.stringify(selectedJointNames));
     } catch {
       void 0;
     }
-  }, [selectedJointsByArtifact]);
+  }, [selectedJointNames]);
 
   const csvs = listResult?.caseId === caseId ? listResult.csvs : [];
   const listLoading = listResult?.caseId !== caseId;
@@ -709,12 +898,12 @@ export function CsvAnalysis({ client, caseId }: { client: ApiClient; caseId: str
     () => sortJoints([...new Set(plotCategoryEntries.flatMap((item) => item.eligibleJoints))]),
     [plotCategoryEntries],
   );
-  const selectionKey = `${caseId}:${resolvedArtifactId}`;
-  const storedSelection = selectedJointsByArtifact[selectionKey];
-  const resolvedSelectorJoints = useMemo(
-    () => selectedJointsFor(selectorEligibleJoints, storedSelection),
-    [selectorEligibleJoints, storedSelection],
-  );
+  const resolvedSelectorJoints = useMemo(() => {
+    if (!selectorEligibleJoints.length) return [];
+    if (!selectedJointNames.length) return selectorEligibleJoints;
+    const matched = selectorEligibleJoints.filter((j) => selectedJointNames.includes(j));
+    return matched.length > 0 ? matched : selectorEligibleJoints;
+  }, [selectedJointNames, selectorEligibleJoints]);
   const plots = useMemo(() => plotCategoryEntries.map((entry) => {
     const selected = entry.eligibleJoints.filter((joint) => resolvedSelectorJoints.includes(joint));
     const names = entry.category === "system"
@@ -722,11 +911,7 @@ export function CsvAnalysis({ client, caseId }: { client: ApiClient; caseId: str
       : selected.flatMap((joint) => namesFor(entry.category, joint, available));
     return { category: entry.category, selectedNames: [...new Set(names)] };
   }), [available, plotCategoryEntries, resolvedSelectorJoints]);
-  const requestedNames = useMemo(
-    () => [...new Set(plots.flatMap((plot) => plot.selectedNames))],
-    [plots],
-  );
-  const requestKey = `${caseId}:${resolvedArtifactId}:${requestedNames.join("|")}`;
+
   const jointGroups = useMemo(() => groupJoints(selectorEligibleJoints), [selectorEligibleJoints]);
   const comparisonOptions = useMemo(() => categories.filter((item) => (
     item.key !== resolvedCategory && !resolvedComparisonCategories.includes(item.key)
@@ -739,170 +924,379 @@ export function CsvAnalysis({ client, caseId }: { client: ApiClient; caseId: str
     const next = checked
       ? selectorEligibleJoints.filter((joint) => joint === name || resolvedSelectorJoints.includes(joint))
       : resolvedSelectorJoints.filter((joint) => joint !== name);
-    setSelectedJointsByArtifact((current) => ({ ...current, [selectionKey]: next }));
+    setSelectedJointNames(next);
   }
 
   function setSelectedJoints(next: string[]) {
-    setSelectedJointsByArtifact((current) => ({ ...current, [selectionKey]: next }));
+    setSelectedJointNames(next);
+  }
+
+  function handleIncidentClick(inc: LinkedIncident) {
+    setSelectedIncidentId((prev) => (prev === inc.id ? null : inc.id));
+    const targetTime = inc.csv_sample_time ?? inc.start_time;
+    if (typeof targetTime === "number") {
+      setCursorTime(targetTime);
+    }
   }
 
   useEffect(() => {
-    if (!resolvedArtifactId || !requestedNames.length) return;
+    if (!resolvedArtifactId) return;
+    if (artifactPayloads[resolvedArtifactId]) return;
     let active = true;
-    const params = new URLSearchParams({ max_points: "2000", skip_dense: "true" });
-    requestedNames.forEach((name) => params.append("series", name));
-    client.json<CsvChartPayload>(`/api/v3/cases/${caseId}/csvs/${resolvedArtifactId}/chart?${params}`)
-      .then((result) => { if (active) setChartResult({ requestKey, payload: result }); })
+    setFetchingArtifactId(resolvedArtifactId);
+    setArtifactFetchError("");
+    client.json<CsvChartPayload>(`/api/v3/cases/${caseId}/csvs/${resolvedArtifactId}/chart?max_points=2000&skip_dense=true`)
+      .then((result) => {
+        if (!active) return;
+        setArtifactPayloads((prev) => ({ ...prev, [resolvedArtifactId]: result }));
+        setCursorTime(result.start);
+        setFetchingArtifactId(null);
+      })
       .catch((reason: unknown) => {
         if (!active) return;
-        setChartResult({ requestKey, payload: null, error: reason instanceof Error ? reason.message : String(reason) });
-    });
+        setArtifactFetchError(reason instanceof Error ? reason.message : String(reason));
+        setFetchingArtifactId(null);
+      });
     return () => { active = false; };
-  }, [caseId, client, requestKey, requestedNames, resolvedArtifactId]);
+  }, [caseId, client, resolvedArtifactId, artifactPayloads]);
 
-  const payload = chartResult?.requestKey === requestKey ? chartResult.payload : null;
-  const chartLoading = Boolean(resolvedArtifactId && requestedNames.length && chartResult?.requestKey !== requestKey);
-  const chartError = chartResult?.requestKey === requestKey ? chartResult.error ?? "" : "";
+  const payload = resolvedArtifactId ? artifactPayloads[resolvedArtifactId] ?? null : null;
+  const chartLoading = Boolean(resolvedArtifactId && fetchingArtifactId === resolvedArtifactId && !payload);
+  const chartError = artifactFetchError;
   const seriesByPlot = useMemo(() => plots.map((plot) => {
     const selected = new Set(plot.selectedNames);
     return payload?.series.filter((item) => selected.has(item.name)) ?? [];
   }), [payload, plots]);
 
+  const activeIncidents: LinkedIncident[] = useMemo(() => {
+    if (payload?.linked_incidents && payload.linked_incidents.length > 0) {
+      return payload.linked_incidents;
+    }
+    if (csv?.linked_incidents && csv.linked_incidents.length > 0) {
+      return csv.linked_incidents;
+    }
+    return [];
+  }, [csv?.linked_incidents, payload?.linked_incidents]);
+
+  // 3D Robot model & pose calculation
+  const baseModel = normalizeModel(csv?.robot_model);
+  const activeModel: RobotModelDescriptor = baseModel;
+
+  const allPositionSeries = useMemo(() => {
+    if (!payload) return [];
+    return joints
+      .map((joint) => payload.series.find((s) => s.name === `${joint}_pos`))
+      .filter((item): item is CsvSeries => Boolean(item));
+  }, [payload, joints]);
+
+  const pose = useMemo(() => Object.fromEntries(allPositionSeries.map((item) => [
+    item.name.slice(0, -"_pos".length),
+    interpolate(item.points, cursorTime),
+  ])), [allPositionSeries, cursorTime]);
+
+  const playbackAvailable = Boolean(payload && allPositionSeries.length > 0);
+  const start = payload?.start ?? csv?.min_sample_time ?? 0;
+  const end = payload?.end ?? csv?.max_sample_time ?? start;
+  const cursorLabel = `${formatDuration(cursorTime - start)} / ${formatDuration(end - start)}`;
+
+  useEffect(() => {
+    if (!playing || !payload || !playbackAvailable) return;
+    let frame = 0;
+    let previous = performance.now();
+    let renderedAt = previous;
+    const tick = (now: number) => {
+      frame = window.requestAnimationFrame(tick);
+      if (now - renderedAt < 32) return;
+      const elapsed = Math.min((now - previous) / 1000, 0.1) * speed;
+      previous = now;
+      renderedAt = now;
+      const next = cursorRef.current + elapsed;
+      if (next >= payload.end) {
+        setCursorTime(payload.end);
+        setPlaying(false);
+        window.cancelAnimationFrame(frame);
+        return;
+      }
+      setCursorTime(next);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [payload, playbackAvailable, playing, speed]);
+
+  function startPlayback() {
+    if (!payload || !playbackAvailable) return;
+    if (cursorRef.current >= payload.end) setCursorTime(payload.start);
+    setPlaying(true);
+  }
+
   if (listLoading) return <section className="csvWorkspace"><div className="csvEmpty">CSV 목록을 불러오는 중입니다.</div></section>;
   if (listError) return <section className="csvWorkspace"><div className="csvEmpty errorText">{listError}</div></section>;
   if (!csvs.length) return <section className="csvWorkspace"><div className="csvEmpty"><strong>분석할 Fault CSV가 없습니다.</strong><span>상단의 파일 가져오기 또는 드래그앤드롭으로 CSV를 추가하십시오.</span></div></section>;
 
-  return <section className="csvWorkspace" aria-label="Fault CSV 독립 분석">
-    <header className="csvWorkspaceHeader">
-      <div><h2>CSV 전체 신호 분석</h2><p>사건 연결 여부와 관계없이 Fault CSV의 전체 시간 구간을 조회합니다.</p></div>
-      <label><span>CSV 파일</span><select aria-label="분석할 CSV 파일" value={resolvedArtifactId} onChange={(event) => {
-        setArtifactId(Number(event.target.value));
-        setZoomRange({ start: 0, end: 100 });
-      }}>
-        {csvs.map((item) => <option value={item.id} key={item.id}>{item.member || item.name}</option>)}
-      </select></label>
-    </header>
-
-    {selectorEligibleJoints.length > 0 && <section className="jointSelector" aria-labelledby="joint-selector-title">
-      <div className="jointSelectorHead">
-        <div><h3 id="joint-selector-title">조인트 선택</h3><span>{resolvedSelectorJoints.length} / {selectorEligibleJoints.length}개 선택</span></div>
-        <div>
-          <button type="button" className="textButton" onClick={() => setSelectedJoints(selectorEligibleJoints)}>전체 선택</button>
-          <button type="button" className="textButton" onClick={() => setSelectedJoints(selectorEligibleJoints.slice(0, 1))}>첫 조인트만</button>
-          <button type="button" className="textButton" onClick={() => setSelectedJoints([])}>선택 해제</button>
+  return <section className="csvWorkspace" aria-label="Fault CSV 신호 분석 & 3D 시각화">
+    {/* 1. Full-width Header */}
+    <header className="csvHeader">
+      <div className="csvHeaderLeft">
+        <h2>CSV 신호 분석 & 3D 시각화</h2>
+        <p>사건 발생 여부와 관계없이 Fault CSV의 전체 시간 구간 및 3D 동작을 검토합니다.</p>
+      </div>
+      <div className="csvHeaderControls">
+        <label className="csvFileSelectLabel">
+          <span>CSV 파일</span>
+          <select aria-label="분석할 CSV 파일" value={resolvedArtifactId} onChange={(event) => {
+            const nextId = Number(event.target.value);
+            setArtifactId(nextId);
+            onSelectArtifactId?.(nextId);
+            setZoomRange({ start: 0, end: 100 });
+            setPlaying(false);
+          }}>
+            {csvs.map((item) => <option value={item.id} key={item.id}>{item.member || item.name}</option>)}
+          </select>
+        </label>
+        <div className="headerStatBadgeGroup">
+          <div className="headerStatBadge"><span>샘플</span><strong>{(csv?.sample_count ?? 0).toLocaleString()}</strong></div>
+          <div className="headerStatBadge"><span>기록 구간</span><strong>{formatDuration((csv?.max_sample_time ?? 0) - (csv?.min_sample_time ?? 0))}</strong></div>
         </div>
       </div>
-      <div className="jointGroupActions" role="group" aria-label="CSV 조인트 그룹 선택">
-        {jointGroups.map((group) => {
-          const groupSelected = group.joints.every((joint) => resolvedSelectorJoints.includes(joint));
-          return <button
-            type="button"
-            className={`textButton${groupSelected ? " active" : ""}`}
-            aria-pressed={groupSelected}
-            aria-label={`CSV ${group.label} 그룹 선택 전환`}
-            onClick={() => {
-              const groupSet = new Set(group.joints);
-              setSelectedJoints(groupSelected
-                ? resolvedSelectorJoints.filter((joint) => !groupSet.has(joint))
-                : selectorEligibleJoints.filter((joint) => groupSet.has(joint) || resolvedSelectorJoints.includes(joint)));
-            }}
-            key={group.key}
-          >{group.label}</button>;
-        })}
-      </div>
-      <div className="jointGroupList">
-        {jointGroups.map((group) => <section className={`jointGroupBlock jointGroup-${group.key}`} aria-label={`${group.label} 조인트`} key={group.key}>
-          <h4>{group.label}<span>{group.joints.length}</span></h4>
-          <div className="jointChecklist">
-            {group.joints.map((item) => <label key={item}>
-              <input
-                type="checkbox"
-                checked={resolvedSelectorJoints.includes(item)}
-                onChange={(event) => toggleJoint(item, event.currentTarget.checked)}
-              />
-              <span>{item}</span>
-            </label>)}
+    </header>
+
+    {/* 2. Full-width Joint Selector */}
+    {selectorEligibleJoints.length > 0 && (
+      <section className="jointSelector" aria-labelledby="joint-selector-title">
+        <div className="jointSelectorHead">
+          <div><h3 id="joint-selector-title">조인트 선택</h3><span>{resolvedSelectorJoints.length} / {selectorEligibleJoints.length}개 선택</span></div>
+        </div>
+        <div className="jointGroupActions" role="group" aria-label="CSV 조인트 그룹 선택">
+          {jointGroups.map((group) => {
+            const groupSelected = group.joints.every((joint) => resolvedSelectorJoints.includes(joint));
+            return (
+              <button
+                type="button"
+                className={`textButton${groupSelected ? " active" : ""}`}
+                aria-pressed={groupSelected}
+                aria-label={`CSV ${group.label} 그룹 선택 전환`}
+                onClick={() => {
+                  const groupSet = new Set(group.joints);
+                  setSelectedJoints(groupSelected
+                    ? resolvedSelectorJoints.filter((joint) => !groupSet.has(joint))
+                    : selectorEligibleJoints.filter((joint) => groupSet.has(joint) || resolvedSelectorJoints.includes(joint)));
+                }}
+                key={group.key}
+              >{group.label}</button>
+            );
+          })}
+        </div>
+        <details className="jointDetailAccordion">
+          <summary><span>상세 조인트 개별 선택 (접기 / 펼치기)</span></summary>
+          <div className="jointGroupList">
+            {jointGroups.map((group) => (
+              <section className={`jointGroupBlock jointGroup-${group.key}`} aria-label={`${group.label} 조인트`} key={group.key}>
+                <h4>{group.label}<span>{group.joints.filter((j) => resolvedSelectorJoints.includes(j)).length} / {group.joints.length}</span></h4>
+                <div className="jointChecklist">
+                  {group.joints.map((item) => (
+                    <label key={item}>
+                      <input
+                        type="checkbox"
+                        checked={resolvedSelectorJoints.includes(item)}
+                        onChange={(event) => toggleJoint(item, event.currentTarget.checked)}
+                      />
+                      <span>{item}</span>
+                    </label>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
-        </section>)}
+        </details>
+      </section>
+    )}
+
+    {/* 3. Section Detected Errors Banner (Placed below Joint Selector) */}
+    {activeIncidents.length > 0 ? (
+      <div className="csvIncidentListBanner">
+        <span className="csvIncidentBadge">⚠️ 이 CSV 구간 감지 에러 ({activeIncidents.length}건 · 클릭하여 위치 표시)</span>
+        <div className="csvIncidentTags">
+          {activeIncidents.map((inc) => (
+            <button
+              type="button"
+              key={inc.id}
+              className={`incidentTag ${selectedIncidentId === inc.id ? "selected" : ""}`}
+              title={`${inc.summary || inc.title} (클릭하여 오류 지점 표시)`}
+              onClick={() => handleIncidentClick(inc)}
+            >
+              <span className="timeIndexBadge">
+                <span className="csvTimeTag">CSV {inc.csv_time_display ?? `${(inc.csv_sample_time ?? 0).toFixed(3)}s`}</span>
+                <span className="logTimeTag">Log {inc.log_time_display || inc.start_raw}</span>
+              </span>
+              <span className="incidentDesc">
+                {inc.fault_level === "major" ? "[Major]" : inc.fault_level === "minor" ? "[Minor]" : `[${inc.severity}]`} {inc.title}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
-    </section>}
-
-    <div className="csvStats">
-      <div><span>샘플</span><strong>{(csv?.sample_count ?? 0).toLocaleString()}</strong></div>
-      <div><span>기록 구간</span><strong>{formatDuration((csv?.max_sample_time ?? 0) - (csv?.min_sample_time ?? 0))}</strong></div>
-      <div className="csvSourceName"><span>원본</span><strong>{csv?.member || csv?.name}</strong></div>
-    </div>
-
-    <nav className="signalCategoryTabs" aria-label="CSV 신호 분류">
-      {categories.map((item) => <button className={item.key === resolvedCategory ? "active" : ""} key={item.key} onClick={() => {
-        setCategory(item.key);
-        setComparisonCategories((current) => current.filter((candidate) => candidate !== item.key));
-      }}>
-        <strong>{item.label}</strong><span>{item.description}</span>
-      </button>)}
-    </nav>
-
-    {plots[0] && <CsvPlot
-      category={plots[0].category}
-      selectedNames={plots[0].selectedNames}
-      payload={payload}
-      loading={chartLoading}
-      error={chartError}
-      kind="primary"
-      zoomRange={zoomRange}
-      onZoomRangeChange={setZoomRange}
-    />}
-
-    <section className="secondaryPlotControl" aria-labelledby="secondary-plot-title">
-      <div>
-        <h3 id="secondary-plot-title">비교 Plot</h3>
-        <p>필요한 신호 분류를 여러 개 추가하고 같은 시간 구간에서 비교합니다.</p>
+    ) : (
+      <div className="csvIncidentListBanner cleanBanner">
+        <span>✓ 이 CSV 구간에서는 기록된 에러 사건이 없습니다. (정상 동작 구간)</span>
       </div>
-      <div className="comparisonPlotActions">
-        <label><span>추가할 신호</span><select
-          aria-label="비교 Plot에 추가할 신호"
-          value={resolvedComparisonCandidate}
-          disabled={!comparisonOptions.length}
-          onChange={(event) => setComparisonCandidate(event.target.value as SignalCategory | "")}
-        >
-          {!comparisonOptions.length && <option value="">추가 가능한 분류 없음</option>}
-          {comparisonOptions.map((item) => <option value={item.key} key={item.key}>{item.label} · {item.description}</option>)}
-        </select></label>
-        <button
-          type="button"
-          className="textButton"
-          disabled={!resolvedComparisonCandidate}
-          onClick={() => {
-            if (!resolvedComparisonCandidate) return;
-            setComparisonCategories((current) => [...current, resolvedComparisonCandidate]);
-          }}
-        >Plot 추가</button>
+    )}
+
+    {/* 4. Plot & Simulation Workspace */}
+    <div className={`csvWorkspaceSplit ${show3DView ? "splitView" : "fullWidth"}`}>
+      {/* Left Area: Vertical Signal Category Tab Bar attached directly to the left of 2D Plot */}
+      <div className="plotsWithCategoryLayout">
+        <nav className="plotCategoryNav" aria-label="CSV 신호 분류">
+          {/* 3D View Toggle Button placed directly above the signal category box */}
+          <div className="plotCategory3DTopToggle">
+            <button
+              type="button"
+              className={`btnToggle3D ${show3DView ? "active" : ""}`}
+              onClick={() => setShow3DView((prev) => !prev)}
+              title="3D 로봇 자세 시뮬레이터 및 재생 컨트롤을 열고 닫습니다"
+            >
+              <span className="btn3DIcon">🤖</span>
+              <span className="btn3DText">3D 시각화 {show3DView ? "ON" : "OFF"}</span>
+            </button>
+          </div>
+
+          <div className="plotCategoryNavHeader">
+            <span>신호 분류</span>
+          </div>
+          <div className="plotCategoryNavList">
+            {categories.map((item) => {
+              const isActive = item.key === resolvedCategory;
+              return (
+                <button
+                  type="button"
+                  className={`plotCategoryNavBtn ${isActive ? "active" : ""}`}
+                  key={item.key}
+                  onClick={() => {
+                    setCategory(item.key);
+                    setComparisonCategories((current) => current.filter((candidate) => candidate !== item.key));
+                  }}
+                >
+                  <strong>{item.label}</strong>
+                  <small>{item.description}</small>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="plotComparisonNavSection">
+            <span className="comparisonNavTitle">비교 Plot</span>
+            <select
+              aria-label="비교 Plot에 추가할 신호"
+              value={resolvedComparisonCandidate}
+              disabled={!comparisonOptions.length}
+              onChange={(event) => setComparisonCandidate(event.target.value as SignalCategory | "")}
+            >
+              {!comparisonOptions.length && <option value="">추가 불가</option>}
+              {comparisonOptions.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}
+            </select>
+            <button
+              type="button"
+              className="textButton addComparisonBtn"
+              disabled={!resolvedComparisonCandidate}
+              onClick={() => {
+                if (!resolvedComparisonCandidate) return;
+                setComparisonCategories((current) => [...current, resolvedComparisonCandidate]);
+              }}
+            >+ 추가</button>
+          </div>
+        </nav>
+
+        {/* 2D Plots Box */}
+        <div className="csvPlotsContainer">
+          <div className={`csvPlotsBox ${plots.length > 1 ? "hasMultiplePlots" : ""}`}>
+            {plots[0] && <CsvPlot
+              category={plots[0].category}
+              selectedNames={plots[0].selectedNames}
+              payload={payload}
+              loading={chartLoading}
+              error={chartError}
+              kind="primary"
+              zoomRange={zoomRange}
+              onZoomRangeChange={setZoomRange}
+              incidentMarks={activeIncidents}
+              selectedIncidentId={selectedIncidentId}
+              cursorTime={show3DView ? cursorTime : undefined}
+              onCursorChange={setCursorTime}
+            />}
+
+            {plots.slice(1).map((plot, index) => <CsvPlot
+              category={plot.category}
+              selectedNames={plot.selectedNames}
+              payload={payload}
+              loading={chartLoading}
+              error={chartError}
+              kind="comparison"
+              comparisonIndex={index + 1}
+              onRemove={() => setComparisonCategories((current) => current.filter((item) => item !== plot.category))}
+              zoomRange={zoomRange}
+              onZoomRangeChange={setZoomRange}
+              incidentMarks={activeIncidents}
+              selectedIncidentId={selectedIncidentId}
+              cursorTime={show3DView ? cursorTime : undefined}
+              onCursorChange={setCursorTime}
+              key={plot.category}
+            />)}
+          </div>
+
+          <div className="csvPlotSummaries">
+            {plots.map((plot, index) => <StateSummary
+              category={plot.category}
+              series={seriesByPlot[index] ?? []}
+              definitions={payload?.motor_state_bits ?? []}
+              contract={payload?.motor_state_contract}
+              systemContract={payload?.system_state_contract}
+              key={plot.category}
+            />)}
+          </div>
+        </div>
       </div>
-    </section>
 
-    {plots.slice(1).map((plot, index) => <CsvPlot
-      category={plot.category}
-      selectedNames={plot.selectedNames}
-      payload={payload}
-      loading={chartLoading}
-      error={chartError}
-      kind="comparison"
-      comparisonIndex={index + 1}
-      onRemove={() => setComparisonCategories((current) => current.filter((item) => item !== plot.category))}
-      zoomRange={zoomRange}
-      onZoomRangeChange={setZoomRange}
-      key={plot.category}
-    />)}
-
-    <div className="csvPlotSummaries">
-      {plots.map((plot, index) => <StateSummary
-        category={plot.category}
-        series={seriesByPlot[index] ?? []}
-        definitions={payload?.motor_state_bits ?? []}
-        contract={payload?.motor_state_contract}
-        systemContract={payload?.system_state_contract}
-        key={plot.category}
-      />)}
+      {/* Right Area: 3D Simulation (Only when show3DView is true) */}
+      {show3DView && (
+        <div className="simulationColumn">
+          <div className="simulationDockSticky">
+            <section className="simulationDock" aria-label="3D 로봇 자세 시뮬레이션">
+              <div className="simViewerContainer">
+                <RobotViewer
+                  model={activeModel}
+                  jointValues={pose}
+                  cursorLabel={cursorLabel}
+                />
+              </div>
+              <div className="simControlBar">
+                <div className="playbackControls" aria-label="자세 재생 제어">
+                  <button type="button" className="textButton" disabled={!playbackAvailable} onClick={() => { setPlaying(false); setCursorTime(start); }}>처음</button>
+                  <button type="button" className={`textButton playbackPrimary ${playing ? "playing" : ""}`} disabled={!playbackAvailable} onClick={() => {
+                    if (playing) setPlaying(false);
+                    else startPlayback();
+                  }}>{playing ? "일시정지" : "▶ 재생"}</button>
+                  <button type="button" className="textButton" disabled={!playing} onClick={() => setPlaying(false)}>정지</button>
+                  <label className="speedSelectLabel">
+                    <span>속도</span>
+                    <select aria-label="재생 속도" value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
+                      <option value={0.2}>0.2x</option>
+                      <option value={0.5}>0.5x</option>
+                      <option value={0.7}>0.7x</option>
+                      <option value={1.0}>1.0x</option>
+                      <option value={1.2}>1.2x</option>
+                      <option value={1.5}>1.5x</option>
+                      <option value={2.0}>2.0x</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="playbackTime">
+                  <span>재생 시간</span>
+                  <strong>{cursorLabel}</strong>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
     </div>
   </section>;
 }

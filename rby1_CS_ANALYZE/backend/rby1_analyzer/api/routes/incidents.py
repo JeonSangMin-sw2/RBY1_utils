@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from rby1_analyzer.api.deps import bearer_token
 from rby1_analyzer.charts import ChartPoint, ChartSeries, DenseWindowError, window_series
-from rby1_analyzer.v2.incidents.builder import IncidentRebuildBusy, rebuild_incidents
+from rby1_analyzer.incidents.builder import IncidentRebuildBusy, ensure_fault_links, rebuild_incidents
 
 
 router = APIRouter(
@@ -40,8 +40,11 @@ def _ensure_incidents(db, case_id: str) -> None:
         try:
             rebuild_incidents(db, case_id)
         except IncidentRebuildBusy:
-                                                                                         
             return
+    try:
+        ensure_fault_links(db, case_id)
+    except Exception:
+        pass
 
 
 def _json_list(value: str | None) -> list[str]:
@@ -491,8 +494,34 @@ def incident_chart(
                 "series": [],
                 "message": "사건 시각과 일치하는 Fault CSV가 확인되지 않았습니다.",
             }
-        start = float(anchor) - window_seconds
-        end = float(anchor) + window_seconds
+
+        bounds = connection.execute(
+            "SELECT MIN(sample_time) AS min_t, MAX(sample_time) AS max_t FROM chart_samples WHERE artifact_id=?",
+            (link["artifact_id"],),
+        ).fetchone()
+        if bounds is None or bounds["min_t"] is None or bounds["max_t"] is None:
+            return {
+                "matched": False,
+                "anchor": anchor,
+                "start": None,
+                "end": None,
+                "series": [],
+                "message": "연결된 Fault CSV에 샘플 데이터가 없습니다.",
+            }
+
+        min_t = float(bounds["min_t"])
+        max_t = float(bounds["max_t"])
+
+        if min_t > 1_000_000_000:
+            start = float(anchor) - window_seconds
+            end = float(anchor) + window_seconds
+            chart_anchor = float(anchor)
+        else:
+            delta = float(link["delta_seconds"]) if link["delta_seconds"] is not None else 0.0
+            chart_anchor = round(max(min_t, min(max_t, max_t - delta)), 3)
+            start = max(min_t, chart_anchor - window_seconds)
+            end = min(max_t, chart_anchor + window_seconds)
+
         available_rows = connection.execute(
             "SELECT name,kind FROM chart_samples WHERE artifact_id=? GROUP BY name,kind ORDER BY name",
             (link["artifact_id"],),
@@ -533,7 +562,7 @@ def incident_chart(
         ) from error
     return {
         "matched": True,
-        "anchor": float(anchor),
+        "anchor": chart_anchor,
         "start": start,
         "end": end,
         "csv": dict(link),

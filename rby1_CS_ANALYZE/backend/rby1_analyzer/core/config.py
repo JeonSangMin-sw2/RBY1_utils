@@ -27,6 +27,14 @@ def default_data_root(
     )
     if configured:
         return Path(configured).expanduser()
+
+    for candidate in (
+        Path.cwd() / "data",
+        Path(__file__).resolve().parents[3] / "data",
+    ):
+        if candidate.is_dir():
+            return candidate
+
     if (os.name if platform_name is None else platform_name) == "nt":
         local_app_data = environment.get("LOCALAPPDATA")
         base = Path(local_app_data) if local_app_data else user_home / "AppData" / "Local"

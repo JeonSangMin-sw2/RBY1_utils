@@ -30,7 +30,6 @@ def _server_config(app: object, host: str, port: int) -> uvicorn.Config:
 
 
 def open_standalone_ui(url: str) -> bool:
-                                                                                        
     for browser_name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
         executable = shutil.which(browser_name)
         if executable is None:
@@ -42,10 +41,31 @@ def open_standalone_ui(url: str) -> bool:
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
+            return True
         except OSError:
             continue
-        return True
-    webbrowser.open(url)
+
+    # WSL support: open browser on Windows host
+    if shutil.which("wslview"):
+        try:
+            subprocess.Popen(["wslview", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            return True
+        except OSError:
+            pass
+
+    if shutil.which("cmd.exe"):
+        try:
+            # Escape & for cmd.exe
+            cmd_url = url.replace("^", "^^").replace("&", "^&")
+            subprocess.Popen(["cmd.exe", "/c", "start", cmd_url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            return True
+        except OSError:
+            pass
+
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
     return False
 
 
@@ -92,10 +112,12 @@ def main() -> None:
     )
     runtime = RuntimeContext(port, authority, CaseStore(settings.data_root), JobManager())
     url = f"http://127.0.0.1:{port}/#bootstrap={authority.bootstrap_token}"
+    print(f"\n=======================================================", flush=True)
+    print(f"  RB-Y1 CS Analyzer V4 Server running at:", flush=True)
+    print(f"  {url}", flush=True)
+    print(f"=======================================================\n", flush=True)
     if not args.no_open_browser:
         open_standalone_ui(url)
-    else:
-        print(url, flush=True)
     config = _server_config(create_app(runtime), settings.host, port)
     try:
         uvicorn.Server(config).run(sockets=[sock])

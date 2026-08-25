@@ -8,7 +8,7 @@ import URDFLoader, { type URDFRobot } from "urdf-loader";
 export type RobotModelDescriptor = {
   model: "a" | "m";
   version: "v1.0" | "v1.1" | "v1.2" | "v1.3";
-  confidence: "detected" | "inferred" | "assumed";
+  confidence: "detected" | "inferred" | "assumed" | "conflict";
   reason: string;
 };
 
@@ -267,7 +267,7 @@ export function RobotViewer({
       <div>
         <strong>{modelLabel(model)}</strong>
         <span className={`modelConfidence confidence-${model.confidence}`} title={model.reason}>
-          {model.confidence === "detected" ? "로그 확인" : model.confidence === "inferred" ? "신호 추론" : "기본 가정"}
+          {model.confidence === "detected" ? "로그 확인" : model.confidence === "conflict" ? "⚠️ 다중 버전 감지" : model.confidence === "inferred" ? "신호 추론" : "기본 가정"}
         </span>
       </div>
       <div className="cameraButtons" aria-label="3D 카메라 시점">

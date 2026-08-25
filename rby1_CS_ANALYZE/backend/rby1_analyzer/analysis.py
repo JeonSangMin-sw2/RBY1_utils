@@ -407,7 +407,7 @@ def _parse_csv(
     cancel_check: Callable[[], None] | None,
     progress_callback: Callable[[int], None] | None,
 ) -> AnalysisCounts:
-    wall_offset, fault_wall = _fault_wall_alignment(stream, cancel_check)
+    wall_offset, fault_wall = _fault_wall_alignment(stream, member_name or source_name, cancel_check)
     rows: list[tuple[int, float, str, float, str]] = []
     observation_rows: list[tuple[object, ...]] = []
     samples = 0
@@ -454,9 +454,9 @@ def _parse_csv(
 
 def _fault_wall_alignment(
     stream: TextIO,
+    filename: str | None,
     cancel_check: Callable[[], None] | None,
 ) -> tuple[float | None, TimeObservation | None]:
-                                                                                     
     if not stream.seekable():
         return None, None
     stream.seek(0)
@@ -480,6 +480,18 @@ def _fault_wall_alignment(
             except ValueError:
                 continue
     stream.seek(0)
+    if fault_wall is None and filename:
+        m = re.search(
+            r"(\d{4})[-_](\d{2})[-_](\d{2})[_\sT-](\d{2})[-_:](\d{2})[-_:](\d{2})(?:[-_.](\d{1,6}))?",
+            filename,
+        )
+        if m:
+            millis = m.group(7) or "000"
+            iso_str = f"{m.group(1)}-{m.group(2)}-{m.group(3)}T{m.group(4)}:{m.group(5)}:{m.group(6)}.{millis}"
+            parsed = parse_fault_time({"wall_time": iso_str}, 0)
+            if parsed:
+                fault_wall_observation = parsed[0]
+                fault_wall = fault_wall_observation.value
     if fault_wall is None or last_sample is None:
         return None, fault_wall_observation
     return fault_wall - last_sample, fault_wall_observation

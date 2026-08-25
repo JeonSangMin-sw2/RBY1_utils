@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
+import re
 from typing import Any
 
 from rby1_analyzer.storage.database import Database
+from rby1_analyzer.timeline.time import parse_fault_time
 
 from .rules import IncidentRuleMatch, classify_event, extract_entities
 
@@ -295,8 +297,8 @@ def _incident_actions(cluster: IncidentCluster) -> tuple[list[str], list[str], l
     return checks, remedies, gaps
 
 
-def _pair_fault_csv(
-    connection,
+def _link_fault_csvs(
+    connection: sqlite3.Connection,
     incident_rows: list[tuple[int, float | None, float | None, str | None]],
 ) -> None:
     fault_rows = connection.execute(
@@ -306,37 +308,90 @@ def _pair_fault_csv(
         "ORDER BY t.value,t.id"
     ).fetchall()
     for fault in fault_rows:
-        best: tuple[float, int] | None = None
         fault_time = float(fault["value"])
-        for incident_id, start, end, basis in incident_rows:
-            if start is None or basis not in {"log_wall", "request_header_epoch"}:
+        artifact_id = int(fault["artifact_id"])
+        bounds = connection.execute(
+            "SELECT MIN(sample_time) AS min_t, MAX(sample_time) AS max_t FROM chart_samples WHERE artifact_id=?",
+            (artifact_id,),
+        ).fetchone()
+        min_t = float(bounds["min_t"]) if bounds and bounds["min_t"] is not None else 0.0
+        max_t = float(bounds["max_t"]) if bounds and bounds["max_t"] is not None else 5.0
+        duration = max_t - min_t if max_t > min_t else 5.0
+
+        for incident_id, start, end, _basis in incident_rows:
+            if start is None:
                 continue
             anchor = end if end is not None else start
             delta = fault_time - float(anchor)
-            distance = abs(delta)
-            if distance > 5.0:
-                continue
-            if best is None or distance < best[0]:
-                best = (distance, incident_id)
-        if best is None:
-            continue
-        distance, incident_id = best
-        confidence = "high" if distance <= 1.5 else "medium"
-        connection.execute(
-            "INSERT INTO incident_csv_links(incident_id,artifact_id,delta_seconds,confidence,reason) "
-            "VALUES (?,?,?,?,?)",
-            (
-                incident_id,
-                int(fault["artifact_id"]),
-                fault_time - next(
-                    float(end if end is not None else start)
-                    for row_id, start, end, _basis in incident_rows
-                    if row_id == incident_id and start is not None
-                ),
-                confidence,
-                f"Fault CSV 헤더 시각과 사건 시각 차이가 {distance:.3f}초입니다.",
-            ),
-        )
+            if -1.0 <= delta <= duration + 1.0:
+                csv_timeline_pos = max(min_t, min(max_t, max_t - delta))
+                confidence = "high" if 0 <= delta <= duration else "medium"
+                connection.execute(
+                    "INSERT OR REPLACE INTO incident_csv_links(incident_id,artifact_id,delta_seconds,confidence,reason) "
+                    "VALUES (?,?,?,?,?)",
+                    (
+                        incident_id,
+                        artifact_id,
+                        delta,
+                        confidence,
+                        f"CSV 타임라인 {csv_timeline_pos:.3f}s (delta: {delta:+.3f}s)",
+                    ),
+                )
+
+
+def ensure_fault_links(db: Database, case_id: str) -> None:
+    with db.connect() as connection:
+        csv_artifacts = connection.execute(
+            "SELECT a.id, a.original_name, p.member_name "
+            "FROM artifacts a "
+            "LEFT JOIN provenance p ON p.artifact_id=a.id "
+            "WHERE a.case_id=? AND (a.original_name LIKE '%.csv' OR p.member_name LIKE '%.csv' OR a.kind='member')",
+            (case_id,),
+        ).fetchall()
+
+        repaired = False
+        for art in csv_artifacts:
+            art_id = int(art["id"])
+            obs = connection.execute(
+                "SELECT 1 FROM time_observations WHERE artifact_id=? AND basis='fault_wall' AND value IS NOT NULL LIMIT 1",
+                (art_id,),
+            ).fetchone()
+            if obs is None:
+                filename = str(art["member_name"] or art["original_name"] or "")
+                m = re.search(
+                    r"(\d{4})[-_](\d{2})[-_](\d{2})[_\sT-](\d{2})[-_:](\d{2})[-_:](\d{2})(?:[-_.](\d{1,6}))?",
+                    filename,
+                )
+                if m:
+                    millis = m.group(7) or "000"
+                    iso_str = f"{m.group(1)}-{m.group(2)}-{m.group(3)}T{m.group(4)}:{m.group(5)}:{m.group(6)}.{millis}"
+                    parsed = parse_fault_time({"wall_time": iso_str}, 0)
+                    if parsed and parsed[0].value is not None:
+                        val = parsed[0].value
+                        connection.execute(
+                            "INSERT INTO time_observations(artifact_id,basis,value,raw,source_sequence,precision,timezone_known,parse_status) "
+                            "VALUES (?, 'fault_wall', ?, ?, 0, 'decimal', 0, 'parsed')",
+                            (art_id, val, iso_str),
+                        )
+                        repaired = True
+
+        link_count = connection.execute(
+            "SELECT COUNT(*) AS count FROM incident_csv_links l "
+            "JOIN incidents i ON i.id=l.incident_id WHERE i.case_id=?",
+            (case_id,),
+        ).fetchone()
+
+        if repaired or link_count is None or link_count["count"] == 0:
+            incident_rows = connection.execute(
+                "SELECT id, start_time, end_time, time_basis FROM incidents WHERE case_id=?",
+                (case_id,),
+            ).fetchall()
+            incident_tuples = [
+                (int(r["id"]), r["start_time"], r["end_time"], r["time_basis"])
+                for r in incident_rows
+            ]
+            if incident_tuples:
+                _link_fault_csvs(connection, incident_tuples)
 
 
 def rebuild_incidents(db: Database, case_id: str, *, job_id: str | None = None) -> int:
@@ -462,7 +517,7 @@ def rebuild_incidents(db: Database, case_id: str, *, job_id: str | None = None) 
                     "VALUES (?,?,?,?,?)",
                     action_rows,
                 )
-            _pair_fault_csv(connection, persisted)
+            _link_fault_csvs(connection, persisted)
             connection.execute(
                 "UPDATE analysis_runs SET completed_at=? WHERE id=?",
                 (datetime.now(timezone.utc).isoformat(), run_id),

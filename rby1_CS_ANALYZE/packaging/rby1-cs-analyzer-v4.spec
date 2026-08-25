@@ -8,12 +8,13 @@ a = Analysis(
         str(root / "packaging" / "entrypoints" / "launcher_entry.py"),
         str(root / "packaging" / "entrypoints" / "cli_entry.py"),
     ],
-    pathex=[str(root / "src")],
+    pathex=[str(root / "backend")],
     binaries=[],
     datas=[
         (str(root / "frontend" / "dist"), "frontend/dist"),
+        (str(root / "config"), "config"),
         (
-            str(root / "src" / "rby1_analyzer" / "diagnostics" / "rules"),
+            str(root / "backend" / "rby1_analyzer" / "diagnostics" / "rules"),
             "rby1_analyzer/diagnostics/rules",
         ),
     ],

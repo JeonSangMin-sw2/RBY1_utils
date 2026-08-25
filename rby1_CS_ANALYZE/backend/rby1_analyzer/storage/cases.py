@@ -32,6 +32,7 @@ class CaseStore:
         self.root = (data_root / "cases").resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self._verified: dict[Path, tuple[int, int, str]] = {}
+        self._verified_cases: set[str] = set()
         self._verification_lock = threading.Lock()
 
     def paths(self, case_id: str) -> CasePaths:
@@ -57,8 +58,13 @@ class CaseStore:
         if not paths.database.is_file():
             raise FileNotFoundError(case_id)
         database = Database(paths.database)
-        self._verify_artifacts(database)
-        align_naive_log_wall_times(database)
+        with self._verification_lock:
+            already_verified = case_id in self._verified_cases
+        if not already_verified:
+            self._verify_artifacts(database)
+            align_naive_log_wall_times(database)
+            with self._verification_lock:
+                self._verified_cases.add(case_id)
         return database
 
     def _verify_artifacts(self, database: Database) -> None:

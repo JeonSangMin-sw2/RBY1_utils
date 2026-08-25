@@ -4,6 +4,15 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+data/
+cases/
+*.sqlite
+*.sqlite3
+*.db
+*.log
+*.jsonl
+rby1-cs-analyzer-v4
+
 frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
@@ -23,3 +32,4 @@ tests/corpus_oracles/
 !.env.example
 .DS_Store
 Thumbs.db
+

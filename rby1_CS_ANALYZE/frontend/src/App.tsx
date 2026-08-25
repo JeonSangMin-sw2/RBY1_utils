@@ -1,17 +1,19 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import { LineChart } from "echarts/charts";
-import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
-import { init, use as registerECharts } from "echarts/core";
-import { CanvasRenderer } from "echarts/renderers";
-import { ApiClient, ApiError, exchangeBootstrap, ProgressRecord } from "./api";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { ApiClient, exchangeBootstrap, ProgressRecord } from "./api";
 import { CsvAnalysis } from "./CsvAnalysis";
 import { collectDroppedFiles, filterSupportedFiles } from "./dropFiles";
 import { confirmedLogMessage } from "./logText";
 import "./styles.css";
 
-const RobotVisualization = lazy(() => import("./RobotVisualization").then((module) => ({ default: module.RobotVisualization })));
-
-type CaseItem = { case_id: string; created_at: string };
+type CaseItem = {
+  case_id: string;
+  created_at: string;
+  display_name?: string;
+  filename_jsonl?: string;
+  model?: string;
+  period?: string;
+  event_count?: number;
+};
 type CountItem = { severity?: string; family?: string; title?: string; count: number; occurrences?: number };
 type Overview = {
   case_id: string;
@@ -115,50 +117,10 @@ type IncidentDetail = {
   csv_links: CsvLink[];
 };
 type WarningItem = { id: number; code: string; message: string; member_name?: string };
-type ChartSeries = { name: string; kind: string; nan_count: number; points: [number, number][] };
-type ChartPayload = {
-  matched: boolean;
-  anchor?: number;
-  start?: number;
-  end?: number;
-  message?: string;
-  available_series?: string[];
-  csv?: { artifact_id: number; delta_seconds: number; confidence: string; reason: string };
-  series: ChartSeries[];
-};
 type JobProgress = { processed: number; total: number; percent: number };
 const UPLOAD_PROGRESS_SHARE = 10;
 type DisplayTime = { date: string; clock: string };
-type AnalysisTab = "incidents" | "csv" | "visualization";
-
-registerECharts([LineChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
-
-const BASE_CHART_PRESETS: Record<string, string[]> = {
-  "전원 / 제어": ["power_5v", "power_12v", "power_24v", "power_48v", "control_manager_state", "control_state"],
-  "바퀴 위치": ["right_wheel_pos", "right_wheel_target_pos", "left_wheel_pos", "left_wheel_target_pos"],
-  "바퀴 전류": ["right_wheel_cur", "left_wheel_cur", "right_wheel_tq", "left_wheel_tq"],
-};
-
-function chartPresets(joints: string[]): Record<string, string[]> {
-  const affected = joints.slice(0, 4);
-  if (!affected.length) return BASE_CHART_PRESETS;
-  return {
-    "영향 축 위치": affected.flatMap((joint) => [`${joint}_pos`, `${joint}_target_pos`]),
-    "영향 축 속도": affected.flatMap((joint) => [`${joint}_vel`, `${joint}_target_vel`]),
-    "영향 축 전류 / 토크": affected.flatMap((joint) => [`${joint}_cur`, `${joint}_tq`]),
-    ...BASE_CHART_PRESETS,
-  };
-}
-
-function denseWindowSuggestion(error: unknown): number | null {
-  if (!(error instanceof ApiError) || !error.detail || typeof error.detail !== "object") return null;
-  const outer = error.detail as { detail?: unknown };
-  if (!outer.detail || typeof outer.detail !== "object") return null;
-  const detail = outer.detail as { code?: string; suggested_window_seconds?: number };
-  return detail.code === "too_dense_requires_zoom" && typeof detail.suggested_window_seconds === "number"
-    ? detail.suggested_window_seconds
-    : null;
-}
+type AnalysisTab = "incidents" | "csv";
 
 const SEVERITY_LABELS: Record<string, string> = {
   critical: "고심각도 오류",
@@ -337,154 +299,12 @@ function citation(event: Evidence): string {
   return `${event.source_name}${member}:${event.line} · sha256:${event.raw_digest}`;
 }
 
-function FaultChart({
-  client,
-  caseId,
-  incidentId,
-  joints,
-}: {
-  client: ApiClient;
-  caseId: string;
-  incidentId: string;
-  joints: string[];
-}) {
-  const node = useRef<HTMLDivElement>(null);
-  const presets = useMemo(() => chartPresets(joints), [joints]);
-  const defaultPreset = Object.keys(presets)[0];
-  const [preset, setPreset] = useState(defaultPreset);
-  const [windowSeconds, setWindowSeconds] = useState(5);
-  const [retry, setRetry] = useState(0);
-  const [chartResult, setChartResult] = useState<{
-    requestKey: string;
-    payload: ChartPayload | null;
-    error?: string;
-    suggestedWindow?: number;
-  } | null>(null);
-  const selectedSeries = presets[preset] ?? presets[defaultPreset];
-  const requestKey = `${caseId}:${incidentId}:${preset}:${windowSeconds}`;
-
-  useEffect(() => {
-    if (!incidentId) return;
-    let active = true;
-    const params = new URLSearchParams({ window_seconds: String(windowSeconds) });
-    selectedSeries.forEach((name) => params.append("series", name));
-    client.json<ChartPayload>(`/api/v2/cases/${caseId}/incidents/${incidentId}/chart?${params}`)
-      .then((result) => {
-        if (active) setChartResult({ requestKey, payload: result });
-      })
-      .catch((reason: unknown) => {
-        if (!active) return;
-        const suggestedWindow = denseWindowSuggestion(reason);
-        setChartResult({
-          requestKey,
-          payload: null,
-          error: suggestedWindow
-            ? "선택한 구간의 데이터가 너무 많습니다. 더 짧은 구간으로 다시 조회하십시오."
-            : "Fault 신호를 불러오지 못했습니다.",
-          suggestedWindow: suggestedWindow ?? undefined,
-        });
-      });
-    return () => { active = false; };
-  }, [caseId, client, incidentId, requestKey, retry, selectedSeries, windowSeconds]);
-
-  const payload = chartResult?.requestKey === requestKey ? chartResult.payload : null;
-  const message = chartResult?.requestKey !== requestKey
-    ? "Fault 신호를 불러오는 중입니다."
-    : chartResult.error
-      ?? (!payload?.matched
-        ? payload?.message ?? "일치하는 Fault CSV가 없습니다."
-        : !payload.series.some((item) => item.points.length)
-          ? "연결된 CSV에 선택 항목의 샘플이 없습니다."
-          : "");
-
-  useEffect(() => {
-    if (!node.current || !payload?.matched || payload.anchor === undefined) return;
-    const chart = init(node.current);
-    const anchor = payload.anchor;
-    chart.setOption({
-      animation: false,
-      backgroundColor: "transparent",
-      color: ["#65c8b3", "#f0b85b", "#e66e73", "#6ea8df", "#d7dc82", "#b9a0d8"],
-      legend: { type: "scroll", textStyle: { color: "#c8d0d5", fontSize: 11 }, top: 0, left: 0, right: 0 },
-      grid: { left: 48, right: 16, top: 40, bottom: 32 },
-      tooltip: {
-        trigger: "axis",
-        valueFormatter: (value: unknown) => Number(value).toFixed(3),
-        axisPointer: { type: "line" },
-      },
-      xAxis: {
-        type: "value",
-        min: payload.start,
-        max: payload.end,
-        axisLabel: { color: "#aab4bc", fontSize: 11, formatter: (value: number) => `${(value - anchor).toFixed(1)}s` },
-        splitLine: { lineStyle: { color: "#252b31" } },
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { color: "#aab4bc", fontSize: 11 },
-        splitLine: { lineStyle: { color: "#252b31" } },
-      },
-      series: payload.series.map((item, index) => ({
-        name: item.name,
-        type: "line",
-        step: item.kind === "discrete" ? "end" : false,
-        showSymbol: false,
-        sampling: false,
-        data: item.points,
-        markLine: index === 0 ? {
-          silent: true,
-          symbol: ["none", "none"],
-          label: { formatter: "사건", color: "#f0b85b", fontSize: 11 },
-          lineStyle: { color: "#f0b85b", width: 1.5, type: "dashed" },
-          data: [{ xAxis: anchor }],
-        } : undefined,
-      })),
-    });
-    const resize = () => chart.resize();
-    window.addEventListener("resize", resize);
-    return () => {
-      window.removeEventListener("resize", resize);
-      chart.dispose();
-    };
-  }, [payload]);
-
-  const pointCount = payload?.series.reduce((total, item) => total + item.points.length, 0) ?? 0;
-  return <section className="chartPanel" aria-label="Fault CSV 신호">
-    <div className="panelTitleRow">
-      <div>
-        <h2>Fault 신호</h2>
-        <p>{payload?.matched ? `사건 기준 ±${windowSeconds}초 · ${pointCount.toLocaleString()}개 표시점` : "사건 시각과 CSV 헤더 시각을 비교합니다"}</p>
-      </div>
-      <div className="chartControls">
-        <select aria-label="Fault 차트 시간 범위" value={windowSeconds} onChange={(event) => setWindowSeconds(Number(event.target.value))}>
-          <option value={1}>±1초</option>
-          <option value={2}>±2초</option>
-          <option value={5}>±5초</option>
-          <option value={10}>±10초</option>
-        </select>
-        <select aria-label="Fault 차트 항목" value={preset} onChange={(event) => setPreset(event.target.value)}>
-          {Object.keys(presets).map((name) => <option key={name}>{name}</option>)}
-        </select>
-      </div>
-    </div>
-    {payload?.matched && <div className="csvMatchLine">
-      <span className={`matchDot confidence-${payload.csv?.confidence ?? "low"}`} />
-      CSV 시각 일치 · 차이 {Math.abs(payload.csv?.delta_seconds ?? 0).toFixed(3)}초
-    </div>}
-    {message && <div className="chartEmpty">
-      <p>{message}</p>
-      {chartResult?.suggestedWindow ? <button className="textButton" onClick={() => setWindowSeconds(Math.max(0.2, chartResult.suggestedWindow ?? 1))}>권장 구간으로 다시 보기</button>
-        : chartResult?.error && <button className="textButton" onClick={() => setRetry((value) => value + 1)}>다시 시도</button>}
-    </div>}
-    <div className={message ? "chart isEmpty" : "chart"} ref={node} />
-  </section>;
-}
-
 export default function App() {
   const [client, setClient] = useState<ApiClient | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [caseId, setCaseId] = useState("");
+  const [selectedArtifactId, setSelectedArtifactId] = useState<number | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loadedDetail, setLoadedDetail] = useState<{
@@ -515,13 +335,42 @@ export default function App() {
   const [displayLimit, setDisplayLimit] = useState(500);
   const [activeTab, setActiveTab] = useState<AnalysisTab>("incidents");
   const [dragActive, setDragActive] = useState(false);
+  const [timelineInfo, setTimelineInfo] = useState<{
+    jsonl_path: string;
+    log_path: string;
+    filename_jsonl: string;
+    filename_log: string;
+    event_count: number;
+    size_bytes_jsonl: number;
+  } | null>(null);
+  const [showLoadModal, setShowLoadModal] = useState(false);
   const loadCaseRequest = useRef(0);
+
+  useEffect(() => {
+    if (!client || !caseId) {
+      setTimelineInfo(null);
+      return;
+    }
+    client.json<{
+      jsonl_path: string;
+      log_path: string;
+      filename_jsonl: string;
+      filename_log: string;
+      event_count: number;
+      size_bytes_jsonl: number;
+    }>(`/api/v3/cases/${caseId}/timeline/info`)
+      .then(setTimelineInfo)
+      .catch(() => setTimelineInfo(null));
+  }, [caseId, client]);
+
+
 
   useEffect(() => {
     exchangeBootstrap()
       .then(async (api) => {
         if (!api) return;
-        setCases((await api.json<{ cases: CaseItem[] }>("/api/cases")).cases);
+        const result = await api.json<{ cases: CaseItem[] }>("/api/cases");
+        setCases(result.cases);
         setClient(api);
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
@@ -549,6 +398,7 @@ export default function App() {
       ]);
       if (requestId !== loadCaseRequest.current) return;
       setCaseId(id);
+      try { localStorage.setItem("rby1_active_case_id", id); } catch {}
       setOverview(overviewResult);
       setIncidents(incidentResult.incidents);
       setWarnings(warningResult.warnings);
@@ -796,34 +646,60 @@ export default function App() {
         <div><p>LOCAL INCIDENT CONSOLE</p><h1>RB-Y1 CS 로그 분석기</h1></div>
       </div>
       <div className="topActions">
-        <select aria-label="저장된 분석 열기" value={caseId} onChange={(event) => {
-          if (event.target.value) void loadCase(client, event.target.value);
-        }}>
-          <option value="">저장된 분석 열기</option>
-          {cases.map((item) => <option value={item.case_id} key={item.case_id}>
-            {new Date(item.created_at).toLocaleString("ko-KR")} · {item.case_id.slice(0, 8)}
-          </option>)}
-        </select>
-        <label className={`importButton${importDisabled ? " disabled" : ""}`} aria-disabled={importDisabled}>
-          파일 가져오기
-          <input aria-label="분석할 로그 파일 가져오기" type="file" multiple disabled={importDisabled} accept=".log,.csv,.zip,.tar,.gz,.tar.gz,.tgz" onChange={selectFiles} />
-        </label>
-        <label className={`importButton${importDisabled ? " disabled" : ""}`} aria-disabled={importDisabled}>
-          폴더 가져오기
-          <input
-            ref={(element) => {
-              element?.setAttribute("webkitdirectory", "");
-              element?.setAttribute("directory", "");
-            }}
-            aria-label="분석할 로그 폴더 가져오기"
-            type="file"
-            multiple
-            disabled={importDisabled}
-            onChange={selectFiles}
-          />
-        </label>
+        <button
+          type="button"
+          className={`textButton newCaseButton${!caseId ? " active" : ""}`}
+          onClick={() => {
+            setCaseId("");
+            setShowLoadModal(false);
+          }}
+          title="새 파일/폴더를 분석하기 위해 초기 화면으로 이동합니다"
+        >
+          ➕ 새 파일 열기
+        </button>
+        <button
+          type="button"
+          className="textButton loadDatasetButton"
+          onClick={() => setShowLoadModal(true)}
+          title="기존에 분석되어 저장된 통합 파일 목록을 엽니다"
+        >
+          📂 기존 통합파일 불러오기{cases.length > 0 ? ` (${cases.length})` : ""}
+        </button>
       </div>
     </header>
+
+    {showLoadModal && (
+      <div className="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="load-modal-title" onClick={() => setShowLoadModal(false)}>
+        <div className="modalDialog" onClick={(event) => event.stopPropagation()}>
+          <div className="modalHeader">
+            <h3 id="load-modal-title">📂 기존 통합 파일 불러오기</h3>
+            <button type="button" className="textButton closeButton" onClick={() => setShowLoadModal(false)}>✕</button>
+          </div>
+          <div className="modalBody">
+            {cases.length === 0 ? (
+              <p className="muted">저장된 기존 통합 파일이 없습니다. 새 파일 열기로 분석을 시작하십시오.</p>
+            ) : (
+              <div className="savedCasesList">
+                {cases.map((c) => (
+                  <button
+                    key={c.case_id}
+                    type="button"
+                    className={`savedCaseCard${c.case_id === caseId ? " activeCard" : ""}`}
+                    onClick={() => {
+                      setShowLoadModal(false);
+                      void loadCase(client!, c.case_id);
+                    }}
+                  >
+                    <strong>{c.display_name || c.case_id}</strong>
+                    <span>{c.period ? `기간: ${c.period}` : new Date(c.created_at).toLocaleString("ko-KR")} · {c.event_count ? `${c.event_count.toLocaleString()}건` : ""}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
 
     {(busy || error || importNotice) && <div className={error ? "statusBar errorBar" : importNotice && !busy ? "statusBar noticeBar" : "statusBar"} role="status" aria-live="polite">
       <div className="statusContent">
@@ -838,11 +714,30 @@ export default function App() {
       {activeJob && <button className="textButton danger" onClick={() => void cancelActiveJob()}>분석 취소</button>}
     </div>}
 
-    {caseId && <nav className="analysisTabs" aria-label="분석 화면">
-      <button className={activeTab === "incidents" ? "active" : ""} onClick={() => setActiveTab("incidents")}>로그</button>
-      <button className={activeTab === "csv" ? "active" : ""} onClick={() => setActiveTab("csv")}>CSV</button>
-      <button className={activeTab === "visualization" ? "active" : ""} onClick={() => setActiveTab("visualization")}>시각화</button>
-    </nav>}
+    {caseId && <div className="tabsBarContainer">
+      <nav className="analysisTabs" aria-label="분석 화면">
+        <button className={activeTab === "incidents" ? "active" : ""} onClick={() => { setActiveTab("incidents"); setTimeout(() => window.dispatchEvent(new Event("resize")), 10); }}>사건 분석 (로그)</button>
+        <button className={activeTab === "csv" ? "active" : ""} onClick={() => { setActiveTab("csv"); setTimeout(() => window.dispatchEvent(new Event("resize")), 10); }}>Fault CSV 분석 & 3D 시각화</button>
+      </nav>
+      <div className="timelineExportActions">
+        <a
+          className="timelineDownloadLink"
+          href={`/api/v3/cases/${caseId}/timeline/download?format=jsonl`}
+          download={timelineInfo?.filename_jsonl ?? `case_${caseId}_timeline_consolidated.jsonl`}
+          title="시간순으로 정렬된 전체 이벤트 통합본 파일 (JSONL) 다운로드"
+        >
+          📥 통합 JSONL
+        </a>
+        <a
+          className="timelineDownloadLink"
+          href={`/api/v3/cases/${caseId}/timeline/download?format=log`}
+          download={timelineInfo?.filename_log ?? `case_${caseId}_timeline_consolidated.log`}
+          title="시간순으로 정렬된 전체 통합 로그 파일 (LOG) 다운로드"
+        >
+          📥 통합 LOG
+        </a>
+      </div>
+    </div>}
 
     {activeTab === "incidents" && <section className="triageBand" aria-label="장애 분석 요약">
       <button
@@ -876,154 +771,167 @@ export default function App() {
           onChange={selectFiles}
         /></label>
       </div>
+      {cases.length > 0 && (
+        <div className="savedCasesSection">
+          <h3>📂 이전에 분석된 통합본 목록 ({cases.length}개)</h3>
+          <div className="savedCasesList">
+            {cases.slice(0, 8).map((c) => (
+              <button
+                key={c.case_id}
+                type="button"
+                className="savedCaseCard"
+                onClick={() => void loadCase(client!, c.case_id)}
+              >
+                <strong>{c.display_name || c.case_id}</strong>
+                <span>{c.period ? `기간: ${c.period}` : new Date(c.created_at).toLocaleString("ko-KR")} · {c.event_count ? `${c.event_count.toLocaleString()}건` : ""}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </section> : <>
       {warnings.length > 0 && <details className="warningDrawer">
         <summary><strong>가져오기 경고 {warnings.length}건</strong><span>손상되거나 제외된 파일 확인</span></summary>
         <div className="warningList">{warnings.map((item) => <div key={item.id}><code>{item.code}</code><span>{item.member_name ?? item.message}</span></div>)}</div>
       </details>}
 
-      {activeTab === "incidents" && <>
-      <section className="layerSummary" aria-label="이슈 발생 계층별 집계">
-        <div className="layerSummaryTitle"><strong>이슈 발생 계층</strong><span>선택한 계층의 사건만 표시</span></div>
-        {(overview?.layer_counts ?? []).map((item) => <button
-          type="button"
-          className={`layerMetric layer-${item.layer}${!faultOnly && layer === item.layer ? " active" : ""}`}
-          aria-pressed={!faultOnly && layer === item.layer}
-          onClick={() => resetIncidentFilters(item.layer)}
-          key={item.layer}
-        >
-          <span>{item.label}</span><strong>{item.count}</strong>
-        </button>)}
-        {!overview?.layer_counts?.length && <p>분류할 사건이 없습니다.</p>}
-      </section>
-      <div className="investigationGrid">
-        <section className="incidentPanel" aria-label="장애 사건 목록">
-          <div className="panelTitleRow">
-            <div><h2>장애 사건</h2><p>전체 {incidents.length}건 · 조건 일치 {filtered.length}건{visible.length < filtered.length ? ` · ${visible.length}건 표시` : ""}</p></div>
-          </div>
-          <div className="filters">
-            <input aria-label="장애 사건 검색" placeholder="오류, 축, 구성요소 검색" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(""); setDisplayLimit(500); }} />
-            <select aria-label="심각도 필터" value={severity} onChange={(event) => { setSeverity(event.target.value); setSelectedId(""); setDisplayLimit(500); }}>
-              <option value="all">모든 심각도</option>
-              {severities.map((item) => <option value={item} key={item}>{SEVERITY_LABELS[item] ?? item}</option>)}
-            </select>
-            <select aria-label="오류 유형 필터" value={family} onChange={(event) => { setFamily(event.target.value); setSelectedId(""); setDisplayLimit(500); }}>
-              <option value="all">모든 오류 유형</option>
-              {families.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-            </select>
-          </div>
-          <div className="incidentList" aria-label="분석된 장애 사건" tabIndex={0} onKeyDown={(event) => {
-            if (event.key === "ArrowDown") { event.preventDefault(); moveSelection(1); }
-            if (event.key === "ArrowUp") { event.preventDefault(); moveSelection(-1); }
-          }}>
-            {visible.length === 0 && <div className="listEmpty">조건에 맞는 장애 사건이 없습니다.</div>}
-            {visible.map((item, index) => {
-              const time = incidentTime(item);
-              const visualClass = incidentVisualClass(item);
-              return <button
-                id={`incident-${item.id}`}
-                key={item.id}
-                aria-current={item.id === activeSelectedId ? "true" : undefined}
-                className={`incidentRow ${visualClass}${item.id === activeSelectedId ? " selected" : ""}`}
-                onClick={() => setSelectedId(item.id)}
-              >
-                <time><span>{time.date}</span><strong>{wholeSecond(time.clock)}</strong></time>
-                <span className="incidentIndex">{String(index + 1).padStart(2, "0")}</span>
-                <div className="incidentMain">
-                  <div className="incidentTitle"><span>{incidentBadge(item)}</span><strong>{item.title}</strong></div>
-                  <p>{item.primary_cause ?? item.meaning}</p>
-                  <small>{assets(item)}</small>
-                </div>
-                <div className="incidentFlags">
-                  {item.occurrence_count > 1 && <span>반복 {item.occurrence_count}</span>}
-                  {item.csv_linked && <span className="csvFlag">CSV</span>}
-                </div>
-              </button>;
-            })}
-            {visible.length < filtered.length && <button className="loadMoreButton" onClick={() => setDisplayLimit((value) => value + 500)}>
-              다음 {Math.min(500, filtered.length - visible.length)}건 더 보기
-            </button>}
-          </div>
+      <div className={`tabContainer ${activeTab === "incidents" ? "tabActive" : "tabHidden"}`}>
+        <section className="layerSummary" aria-label="이슈 발생 계층별 집계">
+          <div className="layerSummaryTitle"><strong>이슈 발생 계층</strong><span>선택한 계층의 사건만 표시</span></div>
+          {(overview?.layer_counts ?? []).map((item) => <button
+            type="button"
+            className={`layerMetric layer-${item.layer}${!faultOnly && layer === item.layer ? " active" : ""}`}
+            aria-pressed={!faultOnly && layer === item.layer}
+            onClick={() => resetIncidentFilters(item.layer)}
+            key={item.layer}
+          >
+            <span>{item.label}</span><strong>{item.count}</strong>
+          </button>)}
+          {!overview?.layer_counts?.length && <p>분류할 사건이 없습니다.</p>}
         </section>
-
-        <section className="incidentDetailPanel" aria-label="선택 사건 상세">
-          {selected ? <>
-            <div className="selectedHeader">
-              <div className={`severityPillar ${incidentVisualClass(selected)}`}><span>{incidentBadge(selected)}</span></div>
-              <div>
-                <p>{rangeText(selected)} · 핵심 근거 {selected.event_count}건{detail ? ` · 표시 로그 ${incidentTimeline.length}건` : ""}</p>
-                <h2>{selected.title}</h2>
-                <span>{assets(selected)}</span>
-              </div>
-              <button className="textButton" onClick={() => void copyPrimaryCitation()}>근거 복사</button>
+        <div className="investigationGrid">
+          <section className="incidentPanel" aria-label="장애 사건 목록">
+            <div className="panelTitleRow">
+              <div><h2>장애 사건</h2><p>전체 {incidents.length}건 · 조건 일치 {filtered.length}건{visible.length < filtered.length ? ` · ${visible.length}건 표시` : ""}</p></div>
             </div>
-            <section className="meaningBlock">
-              <h3>무슨 일이 발생했나</h3>
-              <p>{selected.meaning}</p>
-            </section>
-            <section className="evidenceSequence">
-              <div className="sectionHead"><h3>발생 순서</h3><span>사건 직전 2분의 명령·처리 결과 포함</span></div>
-              {!detail && !detailError && <div className="loadingLine">사건 근거를 불러오는 중입니다.</div>}
-              {detailError && <div className="detailError"><p>{detailError}</p><button className="textButton" onClick={() => { setDetailFailure(null); setDetailRetry((value) => value + 1); }}>다시 시도</button></div>}
-              {detail?.timeline_truncated && <div className="timelineNotice">관련 로그가 많아 최대 2,000건까지만 표시합니다.</div>}
-              {incidentTimeline.map((item) => {
-                const shown = evidenceTime(item);
-                const isPrimary = item.id === detail?.incident.primary_event_id;
-                return <details className={`evidenceRow role-${item.role}${isPrimary ? " primaryEvidence" : ""}`} key={item.id} open={isPrimary}>
-                  <summary>
-                    <time><span>{shown.date}</span><strong>{shown.clock}</strong></time>
-                    <span className="roleLabel">{ROLE_LABELS[item.role] ?? item.role}</span>
-                    <div><strong>{item.component ?? "미분류 구성요소"}</strong>{isPrimary && <span className="primaryEvidenceBadge">대표 장애 로그</span>}<p>{confirmedLogMessage(item.excerpt, item)}</p></div>
-                  </summary>
-                  <div className="rawEvidence">
-                    <p>{item.relation}</p>
-                    <dl><dt>원본</dt><dd>{item.source_name}{item.member_name ? ` / ${item.member_name}` : ""}</dd><dt>위치</dt><dd>줄 {item.line}, 바이트 {item.byte_offset}</dd><dt>해시</dt><dd>{item.raw_digest}</dd></dl>
+            <div className="filters">
+              <input aria-label="장애 사건 검색" placeholder="오류, 축, 구성요소 검색" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(""); setDisplayLimit(500); }} />
+              <select aria-label="심각도 필터" value={severity} onChange={(event) => { setSeverity(event.target.value); setSelectedId(""); setDisplayLimit(500); }}>
+                <option value="all">모든 심각도</option>
+                {severities.map((item) => <option value={item} key={item}>{SEVERITY_LABELS[item] ?? item}</option>)}
+              </select>
+              <select aria-label="오류 유형 필터" value={family} onChange={(event) => { setFamily(event.target.value); setSelectedId(""); setDisplayLimit(500); }}>
+                <option value="all">모든 오류 유형</option>
+                {families.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+              </select>
+            </div>
+            <div className="incidentList" aria-label="분석된 장애 사건" tabIndex={0} onKeyDown={(event) => {
+              if (event.key === "ArrowDown") { event.preventDefault(); moveSelection(1); }
+              if (event.key === "ArrowUp") { event.preventDefault(); moveSelection(-1); }
+            }}>
+              {visible.length === 0 && <div className="listEmpty">조건에 맞는 장애 사건이 없습니다.</div>}
+              {visible.map((item, index) => {
+                const time = incidentTime(item);
+                const visualClass = incidentVisualClass(item);
+                return <button
+                  id={`incident-${item.id}`}
+                  key={item.id}
+                  aria-current={item.id === activeSelectedId ? "true" : undefined}
+                  className={`incidentRow ${visualClass}${item.id === activeSelectedId ? " selected" : ""}`}
+                  onClick={() => setSelectedId(item.id)}
+                >
+                  <time><span>{time.date}</span><strong>{wholeSecond(time.clock)}</strong></time>
+                  <span className="incidentIndex">{String(index + 1).padStart(2, "0")}</span>
+                  <div className="incidentMain">
+                    <div className="incidentTitle"><span>{incidentBadge(item)}</span><strong>{item.title}</strong></div>
+                    <p>{item.primary_cause ?? item.meaning}</p>
+                    <small>{assets(item)}</small>
                   </div>
-                </details>;
+                  <div className="incidentFlags">
+                    {item.occurrence_count > 1 && <span>반복 {item.occurrence_count}</span>}
+                    {item.csv_linked && <span className="csvFlag">CSV</span>}
+                  </div>
+                </button>;
               })}
-            </section>
-          </> : <div className="panelEmpty">왼쪽에서 장애 사건을 선택하십시오.</div>}
-        </section>
+              {visible.length < filtered.length && <button className="loadMoreButton" onClick={() => setDisplayLimit((value) => value + 500)}>
+                다음 {Math.min(500, filtered.length - visible.length)}건 더 보기
+              </button>}
+            </div>
+          </section>
 
-        <aside className="responsePanel" aria-label="원인 및 대응 절차">
-          <div className="panelTitleRow"><div><h2>판단 및 대응</h2><p>근거와 추정을 분리한 점검 순서</p></div></div>
-          {selected && detail ? <div className="responseScroll">
-            <section className="confidenceStrip">
-              <span>진단 신뢰도</span><strong className={`confidence-${selected.confidence}`}>{CONFIDENCE_LABELS[selected.confidence] ?? selected.confidence}</strong>
-              <p>{selected.confidence_reason}</p>
-            </section>
-            <section className="responseSection causeSection">
-              <h3>가능한 원인</h3>
-              {detail.hypotheses.length ? <ol>{detail.hypotheses.map((item) => <li key={`${item.rank}-${item.text}`}><span>{item.rank}</span><p>{item.text}</p></li>)}</ol> : <p className="muted">현재 근거로 제시할 원인 후보가 없습니다.</p>}
-            </section>
-            <section className="responseSection checkSection">
-              <h3>확인할 항목</h3>
-              {detail.checks.length ? <ol>{detail.checks.map((item) => <li key={`${item.priority}-${item.text}`}><span>{item.priority}</span><p>{item.text}</p></li>)}</ol> : <p className="muted">현재 근거로 제시할 확인 항목이 없습니다.</p>}
-            </section>
-            <section className="responseSection remedySection">
-              <h3>대응 방법</h3>
-              {detail.remedies.length ? <ol>{detail.remedies.map((item) => <li key={`${item.priority}-${item.text}`}><span>{item.priority}</span><p>{item.text}</p></li>)}</ol> : <p className="muted">현재 근거로 제시할 대응 방법이 없습니다.</p>}
-            </section>
-            {detail.evidence_gaps.length > 0 && <section className="responseSection gapSection">
-              <h3>추가로 필요한 근거</h3>
-              <ul>{detail.evidence_gaps.map((item) => <li key={item.text}>{item.text}</li>)}</ul>
-            </section>}
-            <section className="csvEvidence">
-              <h3>Fault CSV 연결</h3>
-              {detail.csv_links.length ? detail.csv_links.map((item) => <div key={item.artifact_id}><strong>{item.original_name}</strong><p>{item.reason}</p></div>) : <p>사건 시각과 일치하는 Fault CSV가 확인되지 않았습니다.</p>}
-            </section>
-          </div> : <p className="muted responsePlaceholder">사건을 선택하면 원인 후보와 점검 순서가 표시됩니다.</p>}
-        </aside>
+          <section className="incidentDetailPanel" aria-label="선택 사건 상세">
+            {selected ? <>
+              <div className="selectedHeader">
+                <div className={`severityPillar ${incidentVisualClass(selected)}`}><span>{incidentBadge(selected)}</span></div>
+                <div>
+                  <p>{rangeText(selected)} · 핵심 근거 {selected.event_count}건{detail ? ` · 표시 로그 ${incidentTimeline.length}건` : ""}</p>
+                  <h2>{selected.title}</h2>
+                  <span>{assets(selected)}</span>
+                </div>
+                <button className="textButton" onClick={() => void copyPrimaryCitation()}>근거 복사</button>
+              </div>
+              <section className="meaningBlock">
+                <h3>무슨 일이 발생했나</h3>
+                <p>{selected.meaning}</p>
+              </section>
+              <section className="evidenceSequence">
+                <div className="sectionHead"><h3>발생 순서</h3><span>사건 직전 2분의 명령·처리 결과 포함</span></div>
+                {!detail && !detailError && <div className="loadingLine">사건 근거를 불러오는 중입니다.</div>}
+                {detailError && <div className="detailError"><p>{detailError}</p><button className="textButton" onClick={() => { setDetailFailure(null); setDetailRetry((value) => value + 1); }}>다시 시도</button></div>}
+                {detail?.timeline_truncated && <div className="timelineNotice">관련 로그가 많아 최대 2,000건까지만 표시합니다.</div>}
+                {incidentTimeline.map((item) => {
+                  const shown = evidenceTime(item);
+                  const isPrimary = item.id === detail?.incident.primary_event_id;
+                  return <details className={`evidenceRow role-${item.role}${isPrimary ? " primaryEvidence" : ""}`} key={item.id} open={isPrimary}>
+                    <summary>
+                      <time><span>{shown.date}</span><strong>{shown.clock}</strong></time>
+                      <span className="roleLabel">{ROLE_LABELS[item.role] ?? item.role}</span>
+                      <div><strong>{item.component ?? "미분류 구성요소"}</strong>{isPrimary && <span className="primaryEvidenceBadge">대표 장애 로그</span>}<p>{confirmedLogMessage(item.excerpt, item)}</p></div>
+                    </summary>
+                    <div className="rawEvidence">
+                      <p>{item.relation}</p>
+                      <dl><dt>원본</dt><dd>{item.source_name}{item.member_name ? ` / ${item.member_name}` : ""}</dd><dt>위치</dt><dd>줄 {item.line}, 바이트 {item.byte_offset}</dd><dt>해시</dt><dd>{item.raw_digest}</dd></dl>
+                    </div>
+                  </details>;
+                })}
+              </section>
+            </> : <div className="panelEmpty">왼쪽에서 장애 사건을 선택하십시오.</div>}
+          </section>
 
-        <div className="chartDock">
-          {activeSelectedId ? <FaultChart key={activeSelectedId} client={client} caseId={caseId} incidentId={activeSelectedId} joints={selected?.affected_joints ?? []} /> : <div className="panelEmpty">선택된 사건이 없습니다.</div>}
+          <aside className="responsePanel" aria-label="원인 및 대응 절차">
+            <div className="panelTitleRow"><div><h2>판단 및 대응</h2><p>근거와 추정을 분리한 점검 순서</p></div></div>
+            {selected && detail ? <div className="responseScroll">
+              <section className="confidenceStrip">
+                <span>진단 신뢰도</span><strong className={`confidence-${selected.confidence}`}>{CONFIDENCE_LABELS[selected.confidence] ?? selected.confidence}</strong>
+                <p>{selected.confidence_reason}</p>
+              </section>
+              <section className="responseSection causeSection">
+                <h3>가능한 원인</h3>
+                {detail.hypotheses.length ? <ol>{detail.hypotheses.map((item) => <li key={`${item.rank}-${item.text}`}><span>{item.rank}</span><p>{item.text}</p></li>)}</ol> : <p className="muted">현재 근거로 제시할 원인 후보가 없습니다.</p>}
+              </section>
+              <section className="responseSection checkSection">
+                <h3>확인할 항목</h3>
+                {detail.checks.length ? <ol>{detail.checks.map((item) => <li key={`${item.priority}-${item.text}`}><span>{item.priority}</span><p>{item.text}</p></li>)}</ol> : <p className="muted">현재 근거로 제시할 확인 항목이 없습니다.</p>}
+              </section>
+              <section className="responseSection remedySection">
+                <h3>대응 방법</h3>
+                {detail.remedies.length ? <ol>{detail.remedies.map((item) => <li key={`${item.priority}-${item.text}`}><span>{item.priority}</span><p>{item.text}</p></li>)}</ol> : <p className="muted">현재 근거로 제시할 대응 방법이 없습니다.</p>}
+              </section>
+              {detail.evidence_gaps.length > 0 && <section className="responseSection gapSection">
+                <h3>추가로 필요한 근거</h3>
+                <ul>{detail.evidence_gaps.map((item) => <li key={item.text}>{item.text}</li>)}</ul>
+              </section>}
+              <section className="csvEvidence">
+                <h3>Fault CSV 연결</h3>
+                {detail.csv_links.length ? detail.csv_links.map((item) => <div key={item.artifact_id}><strong>{item.original_name}</strong><p>{item.reason}</p></div>) : <p>사건 시각과 일치하는 Fault CSV가 확인되지 않았습니다.</p>}
+              </section>
+            </div> : <p className="muted responsePlaceholder">사건을 선택하면 원인 후보와 점검 순서가 표시됩니다.</p>}
+          </aside>
         </div>
       </div>
-      </>}
-      {activeTab === "csv" && <CsvAnalysis client={client} caseId={caseId} />}
-      {activeTab === "visualization" && <Suspense fallback={<section className="visualizationWorkspace"><div className="csvEmpty">시각화 화면을 준비하는 중입니다.</div></section>}>
-        <RobotVisualization client={client} caseId={caseId} />
-      </Suspense>}
+      <div className={`tabContainer ${activeTab === "csv" ? "tabActive" : "tabHidden"}`}>
+        <CsvAnalysis client={client} caseId={caseId} incidents={incidents} selectedArtifactId={selectedArtifactId} onSelectArtifactId={setSelectedArtifactId} />
+      </div>
     </>}
   </main>;
 }

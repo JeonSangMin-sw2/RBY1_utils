@@ -19,17 +19,18 @@ RB-Y1 RPC 로그, Fault CSV, ZIP/TAR/GZIP 묶음을 로컬에서 분석하는 CS
 로컬에서 수행되며 서버는 `127.0.0.1`에만 바인딩됩니다. 텔레메트리나 외부 런타임 네트워크
 의존성은 없습니다.
 
-## 데이터 경로
+## 폴더 구조 및 실행
 
-- Ubuntu: `~/.local/share/rby1-cs-analyzer-v4`
-- Windows: `%LOCALAPPDATA%\RB-Y1 CS Analyzer V4`
+```text
+rby1_CS_ANALYZE/
+├── config/                      # 오류 가이드 및 규칙 설정 (error_guide.yaml)
+├── data/                        # 통합 데이터셋 및 분석 케이스 저장소 (cases/)
+├── frontend/                    # React / Vite 프론트엔드 UI
+├── backend/                     # Python 장애 분석 백엔드 패키지
+└── main.py                      # 루트 메인 실행 파일
+```
 
-V4 데이터 경로가 아직 없고 동일 사용자 계정에 V3 또는 V2 데이터가 있으면 기존 경로를 자동으로
-사용합니다. `RBY1_CS_ANALYZER_V4_DATA_ROOT` 환경 변수로 별도 저장 위치를 지정할 수 있습니다.
-
-## 개발 실행
-
-Python 3.10 이상과 Node.js가 필요합니다.
+### 실행 방법
 
 ```bash
 python -m venv .venv
@@ -37,7 +38,12 @@ python -m venv .venv
 pip install -e '.[test]'
 npm --prefix frontend ci
 npm --prefix frontend run build
-PYTHONPATH=src python -m rby1_analyzer.launcher
+
+# 루트 실행 파일로 실행 (권장)
+python main.py
+
+# 또는 모듈 직접 실행 시 (backend 경로 지정)
+PYTHONPATH=backend python -m rby1_analyzer.launcher
 ```
 
 Chrome/Chromium이 설치되어 있으면 주소창이 없는 독립 프로그램 창으로 열립니다. Chrome이 없으면

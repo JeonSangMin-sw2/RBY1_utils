@@ -29,5 +29,8 @@
     "globals": "latest",
     "typescript": "latest",
     "typescript-eslint": "latest"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.1.5"
   }
 }

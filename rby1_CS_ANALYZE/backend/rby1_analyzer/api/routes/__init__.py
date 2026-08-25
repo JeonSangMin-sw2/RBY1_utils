@@ -42,9 +42,10 @@ def create_case(request: Request, _token: Bearer) -> CaseResponse:
 
 
 @router.get("/cases")
-def list_cases(request: Request, _token: Bearer) -> dict[str, list[dict[str, str]]]:
-    cases: list[dict[str, str]] = []
+def list_cases(request: Request, _token: Bearer) -> dict[str, list[dict[str, Any]]]:
+    cases: list[dict[str, Any]] = []
     store = request.app.state.runtime.cases
+    from rby1_analyzer.api.routes.csv_analysis import _format_case_timeline_stem
     for case_dir in sorted(store.root.iterdir(), reverse=True):
         if not case_dir.is_dir():
             continue
@@ -52,9 +53,26 @@ def list_cases(request: Request, _token: Bearer) -> dict[str, list[dict[str, str
             db = store.open(case_dir.name)
             with db.connect() as connection:
                 row = connection.execute("SELECT id,created_at FROM cases LIMIT 1").fetchone()
-            if row is not None:
-                cases.append({"case_id": row["id"], "created_at": row["created_at"]})
-        except (ValueError, FileNotFoundError):
+                if row is None:
+                    continue
+                case_id = row["id"]
+                count_row = connection.execute(
+                    "SELECT COUNT(*) as count FROM events WHERE artifact_id IN (SELECT id FROM artifacts WHERE case_id=?)",
+                    (case_id,),
+                ).fetchone()
+                event_count = int(count_row["count"]) if count_row else 0
+                stem, model_slug, period = _format_case_timeline_stem(connection, case_id)
+                display_name = f"{stem}.jsonl"
+                cases.append({
+                    "case_id": case_id,
+                    "created_at": row["created_at"],
+                    "display_name": display_name,
+                    "filename_jsonl": display_name,
+                    "model": model_slug,
+                    "period": period,
+                    "event_count": event_count,
+                })
+        except Exception:
             continue
     return {"cases": cases}
 

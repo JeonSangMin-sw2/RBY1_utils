@@ -9,6 +9,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(root / "frontend" / "dist"), "frontend/dist"),
+        (str(root / "config"), "config"),
         (
             str(root / "src" / "rby1_analyzer" / "diagnostics" / "rules"),
             "rby1_analyzer/diagnostics/rules",
