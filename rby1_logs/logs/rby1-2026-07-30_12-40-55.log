@@ -1,0 +1,327 @@
+[07/30/26 12:40:55.487308] [info] [00:00:08.626940] [App] App main
+[07/30/26 12:40:55.487332] [info] [00:00:08.627289] [App] RBY1 Model: rby1m, Model Version: v1.3
+[07/30/26 12:40:55.487336] [info] [00:00:08.627305] [App] RBY1 Version: 0.10.4
+[07/30/26 12:40:55.487397] [info] [00:00:08.627364] [App] RBY1-SDK Version: 0.9.1 - a3274bb
+[07/30/26 12:40:55.509807] [info] [00:00:08.649252] [RobotApp] Using default model: /root/exe/app/models/rby1m/urdf/model_v1.3.urdf
+[07/30/26 12:40:55.512122] [info] [00:00:08.651796] [RobotApp] Building robot ...
+[07/30/26 12:40:55.513537] [info] [00:00:08.653103] [RobotApp] Link Names: ["ee_finger_l1", "ee_finger_r2", "ee_left", "link_torso_5", "ee_finger_l2", "wheel_fl_link", "ee_finger_r1", "ee_right", "wheel_rl_link", "link_left_arm_6", "link_torso_4", "link_right_arm_3", "link_torso_0", "link_right_arm_4", "link_right_arm_0", "link_left_arm_2", "link_right_arm_5", "link_left_arm_0", "link_torso_1", "base", "link_left_arm_3", "link_torso_3", "wheel_rr_link", "wheel_fr_link", "link_head_0", "link_torso_2", "link_head_1", "link_right_arm_1", "link_left_arm_1", "link_left_arm_4", "link_right_arm_2", "link_head_2", "link_left_arm_5", "link_right_arm_6"]
+[07/30/26 12:40:55.513560] [info] [00:00:08.653517] [RobotApp] Joint Names: ["left_arm_6", "left_arm_2", "right_arm_6", "head_0", "wheel_fr", "left_arm_3", "wheel_fl", "left_arm_5", "wheel_rr", "torso_4", "wheel_rl", "right_arm_5", "head_1", "torso_0", "right_arm_2", "torso_3", "left_arm_1", "torso_1", "right_arm_3", "torso_2", "torso_5", "left_arm_0", "right_arm_4", "right_arm_0", "left_arm_4", "right_arm_1"]
+[07/30/26 12:40:56.836042] [info] [00:00:09.975995] [RobotApp] Server listening on 0.0.0.0:50051
+[07/30/26 12:41:05.910882] [debug] [00:00:19.050832] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:41:05.911739] [debug] [00:00:19.051705] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785382865 nanos: 909613181 } }
+[07/30/26 12:41:25.514062] [debug] [00:00:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.992 ms, max: 2.003 ms, count: 15000)
+[07/30/26 12:41:25.669043] [debug] [00:00:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:41:55.514053] [debug] [00:01:08.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:41:55.669038] [debug] [00:01:08.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:42:25.514048] [debug] [00:01:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:42:25.669037] [debug] [00:01:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:42:55.514045] [debug] [00:02:08.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:42:55.669037] [debug] [00:02:08.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:43:25.514046] [debug] [00:02:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:43:25.669036] [debug] [00:02:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:43:55.514045] [debug] [00:03:08.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:43:55.669036] [debug] [00:03:08.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:44:18.551621] [debug] [00:03:31.691578] [Service] Server method called: /rb.api.RobotInfoService/GetRobotModel
+[07/30/26 12:44:18.551671] [debug] [00:03:31.691638] [Service::RobotInfoService::GetRobotModel] Requested: request_header { request_timestamp { seconds: 1785383004 nanos: 741881145 } }
+[07/30/26 12:44:18.556395] [debug] [00:03:31.696358] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[07/30/26 12:44:18.556614] [debug] [00:03:31.696581] [Service::RobotStateService::GetRobotStateStream] Requested: request_header { request_timestamp { seconds: 1785383004 nanos: 747002453 } } update_rate: 100
+[07/30/26 12:44:25.514047] [debug] [00:03:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:44:25.669036] [debug] [00:03:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:44:55.514045] [debug] [00:04:08.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:44:55.669036] [debug] [00:04:08.809002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:45:25.514047] [debug] [00:04:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:45:25.669036] [debug] [00:04:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:45:55.514045] [debug] [00:05:08.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:45:55.669036] [debug] [00:05:08.809002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:45:59.836847] [debug] [00:05:12.976802] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:45:59.836883] [debug] [00:05:12.976851] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383106 nanos: 36072848 } }
+[07/30/26 12:45:59.837566] [debug] [00:05:12.977526] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:45:59.837613] [debug] [00:05:12.977582] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383106 nanos: 36894121 } }
+[07/30/26 12:45:59.838196] [debug] [00:05:12.978161] [Service] Server method called: /rb.api.PowerService/PowerCommand
+[07/30/26 12:45:59.838340] [debug] [00:05:12.978308] [Service::PowerService::PowerCommand] Requested: request_header { request_timestamp { seconds: 1785383106 nanos: 37603109 } } name: ".*" command: COMMAND_POWER_ON
+[07/30/26 12:45:59.838348] [info] [00:05:12.978316] [Hardware::ExecutePowerCommand] Started: device name = .*, command = PowerOn
+[07/30/26 12:46:01.098210] [error] [00:05:14.238173] [Hardware::ExecutePowerCommand] EMO Error: Please check EMO Switch
+[07/30/26 12:46:01.098235] [error] [00:05:14.238191] [Hardware::ExecutePowerCommand] Timeout: Power command failed - unmatched power states: 48v
+[07/30/26 12:46:01.098241] [debug] [00:05:14.238210] [Service::PowerService::PowerCommand] Result: Failed
+[07/30/26 12:46:11.488468] [debug] [00:05:24.628416] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:46:11.488501] [debug] [00:05:24.628468] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383117 nanos: 688620777 } }
+[07/30/26 12:46:11.489223] [debug] [00:05:24.629185] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:46:11.489248] [debug] [00:05:24.629217] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383117 nanos: 689444305 } }
+[07/30/26 12:46:11.489951] [debug] [00:05:24.629916] [Service] Server method called: /rb.api.PowerService/PowerCommand
+[07/30/26 12:46:11.489972] [debug] [00:05:24.629940] [Service::PowerService::PowerCommand] Requested: request_header { request_timestamp { seconds: 1785383117 nanos: 690230858 } } name: ".*" command: COMMAND_POWER_ON
+[07/30/26 12:46:11.489977] [info] [00:05:24.629945] [Hardware::ExecutePowerCommand] Started: device name = .*, command = PowerOn
+[07/30/26 12:46:12.750210] [error] [00:05:25.890175] [Hardware::ExecutePowerCommand] EMO Error: Please check EMO Switch
+[07/30/26 12:46:12.750236] [error] [00:05:25.890191] [Hardware::ExecutePowerCommand] Timeout: Power command failed - unmatched power states: 48v
+[07/30/26 12:46:12.750242] [debug] [00:05:25.890211] [Service::PowerService::PowerCommand] Result: Failed
+[07/30/26 12:46:18.978556] [debug] [00:05:32.118514] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:46:18.978591] [debug] [00:05:32.118559] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383125 nanos: 179385475 } }
+[07/30/26 12:46:18.979167] [debug] [00:05:32.119132] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:46:18.979193] [debug] [00:05:32.119161] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383125 nanos: 180104818 } }
+[07/30/26 12:46:18.979758] [debug] [00:05:32.119724] [Service] Server method called: /rb.api.PowerService/PowerCommand
+[07/30/26 12:46:18.979777] [debug] [00:05:32.119745] [Service::PowerService::PowerCommand] Requested: request_header { request_timestamp { seconds: 1785383125 nanos: 180745012 } } name: ".*" command: COMMAND_POWER_ON
+[07/30/26 12:46:18.979781] [info] [00:05:32.119750] [Hardware::ExecutePowerCommand] Started: device name = .*, command = PowerOn
+[07/30/26 12:46:19.292045] [info] [00:05:32.432009] [Hardware::ExecutePowerCommand] Power command succeeded
+[07/30/26 12:46:19.292053] [debug] [00:05:32.432022] [Service::PowerService::PowerCommand] Result: Success
+[07/30/26 12:46:19.292801] [debug] [00:05:32.432764] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:46:19.292826] [debug] [00:05:32.432794] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383125 nanos: 493718847 } }
+[07/30/26 12:46:19.293858] [debug] [00:05:32.433824] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:46:19.293886] [debug] [00:05:32.433854] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383125 nanos: 494819645 } }
+[07/30/26 12:46:19.294753] [debug] [00:05:32.434718] [Service] Server method called: /rb.api.PowerService/JointCommand
+[07/30/26 12:46:19.294773] [debug] [00:05:32.434741] [Service::PowerService::JointCommand] Requested: request_header { request_timestamp { seconds: 1785383125 nanos: 495702697 } } name: ".*" command: COMMAND_SERVO_ON
+[07/30/26 12:46:22.404223] [debug] [00:05:35.544183] [Service::PowerService::JointCommand] Result: Success
+[07/30/26 12:46:22.405024] [debug] [00:05:35.544987] [Service] Server method called: /rb.api.RobotStateService/GetControlManagerState
+[07/30/26 12:46:22.405058] [debug] [00:05:35.545027] [Service::RobotStateService::GetControlManagerState] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 606173075 } }
+[07/30/26 12:46:22.405567] [debug] [00:05:35.545532] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:46:22.405587] [debug] [00:05:35.545555] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 606793657 } }
+[07/30/26 12:46:22.406302] [debug] [00:05:35.546267] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:46:22.406324] [debug] [00:05:35.546292] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 607558686 } }
+[07/30/26 12:46:22.407287] [debug] [00:05:35.547249] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:46:22.407333] [debug] [00:05:35.547301] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 608566654 } }
+[07/30/26 12:46:22.407822] [debug] [00:05:35.547787] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:46:22.407837] [debug] [00:05:35.547805] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 609108320 } }
+[07/30/26 12:46:22.408353] [debug] [00:05:35.548319] [Service] Server method called: /rb.api.ControlManagerService/ControlManagerCommand
+[07/30/26 12:46:22.408559] [debug] [00:05:35.548526] [Service::ControlManagerService::ControlManagerCommand] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 609609161 } } command: COMMAND_ENABLE unlimited_mode_enabled { }
+[07/30/26 12:46:22.408565] [info] [00:05:35.548534] [ControlManager::Enable] Enable request received. Starting the enabling process...
+[07/30/26 12:46:22.409049] [info] [00:05:35.549017] [ControlManager::Enable] Control Manager successfully enabled
+[07/30/26 12:46:22.409343] [debug] [00:05:35.549308] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:46:22.409453] [debug] [00:05:35.549420] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 610643779 } } name: "cartesian_command.cutoff_frequency" parameter: "{\"value\":5,\"write_db\":true}"
+[07/30/26 12:46:22.418108] [debug] [00:05:35.558072] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:46:22.418126] [debug] [00:05:35.558095] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 619399578 } } name: "default.acceleration_limit_scaling" parameter: "{\"value\":1.0,\"write_db\":true}"
+[07/30/26 12:46:22.424250] [debug] [00:05:35.564219] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:46:22.424263] [debug] [00:05:35.564232] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 625569746 } } name: "default.angular_acceleration_limit" parameter: "{\"value\":10,\"write_db\":true}"
+[07/30/26 12:46:22.430305] [debug] [00:05:35.570269] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:46:22.430323] [debug] [00:05:35.570291] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 631614669 } } name: "default.linear_acceleration_limit" parameter: "{\"value\":20,\"write_db\":true}"
+[07/30/26 12:46:22.436122] [debug] [00:05:35.576086] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:46:22.436137] [debug] [00:05:35.576107] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383128 nanos: 637415404 } } name: "joint_position_command.cutoff_frequency" parameter: "{\"value\":5,\"write_db\":true}"
+[07/30/26 12:46:22.451657] [debug] [00:05:35.591621] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:46:22.452386] [debug] [00:05:35.592351] [Service::RobotCommandService::RobotCommand] Requested: robot_command { component_based_command { body_command { joint_position_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 500000000 } position: -0.0030679615757712823 position: 0.80951279702086842 position: -1.50666909529341 position: 0.79931789995286606 position: 7.2142660816403918e-05 position: -0.00027338271467268856 position: -0.020002501956885046 position: -0.26053372708307215 position: -0.000205037036004516... [truncated]
+[07/30/26 12:46:22.452393] [debug] [00:05:35.592362] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:46:22.452628] [debug] [00:05:35.592595] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:46:22.459069] [info] [00:05:35.599035] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:46:24.217081] [debug] [00:05:37.357041] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:46:24.217172] [info] [00:05:37.357135] [ControlInterface] Control completed successfully.
+[07/30/26 12:46:24.217181] [debug] [00:05:37.357144] [ControlInterface::ExecutionStats] Average Control Time: 0.001 ms (max: 0.037 ms, min: 0.001 ms, sigma: 0.001 ms, count: 880)
+[07/30/26 12:46:24.218151] [debug] [00:05:37.358113] [Service] Server method called: /rb.api.PowerService/ToolFlangePowerCommand
+[07/30/26 12:46:24.218183] [debug] [00:05:37.358152] [Service::PowerService::ToolFlangePowerCommand] Requested: request_header { request_timestamp { seconds: 1785383130 nanos: 419462095 } } name: "right" command: COMMAND_POWER_12V
+[07/30/26 12:46:24.218188] [debug] [00:05:37.358158] [Service::PowerService::ToolFlangePowerCommand] Result: Success
+[07/30/26 12:46:24.218465] [debug] [00:05:37.358429] [Service] Server method called: /rb.api.PowerService/ToolFlangePowerCommand
+[07/30/26 12:46:24.218481] [debug] [00:05:37.358450] [Service::PowerService::ToolFlangePowerCommand] Requested: request_header { request_timestamp { seconds: 1785383130 nanos: 419956880 } } name: "left" command: COMMAND_POWER_12V
+[07/30/26 12:46:24.218490] [debug] [00:05:37.358459] [Service::PowerService::ToolFlangePowerCommand] Result: Success
+[07/30/26 12:46:25.514048] [debug] [00:05:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:46:25.669037] [debug] [00:05:38.809002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:46:35.896937] [debug] [00:05:49.036894] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:46:35.897019] [debug] [00:05:49.036985] [Service::RobotCommandService::RobotCommand] Requested: robot_command { component_based_command { body_command { joint_position_command { command_header { control_hold_time { seconds: 1 } } minimum_time { seconds: 4 } position: 0 position: 0.78539816339744828 position: -1.3962634015954636 position: 0.78539816339744828 position: 0 position: 0 position: 0 position: -0.26179938779914941 position: 0 position: -2.0943951023931953 position: 0 position: 0.52359877559829882 position: 0 position: 0 position: 0... [truncated]
+[07/30/26 12:46:35.897023] [debug] [00:05:49.036992] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:46:35.897193] [debug] [00:05:49.037160] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:46:35.903078] [info] [00:05:49.043039] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:46:41.161080] [debug] [00:05:54.301041] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:46:41.161138] [info] [00:05:54.301103] [ControlInterface] Control completed successfully.
+[07/30/26 12:46:41.161147] [debug] [00:05:54.301111] [ControlInterface::ExecutionStats] Average Control Time: 0.001 ms (max: 0.026 ms, min: 0.001 ms, sigma: 0.000 ms, count: 2630)
+[07/30/26 12:46:41.161980] [debug] [00:05:54.301942] [Service] Server method called: /rb.api.RobotCommandService/RobotCommandStream
+[07/30/26 12:46:41.162004] [debug] [00:05:54.301973] [Service::RobotCommandService::RobotCommandStream] Stream is created
+[07/30/26 12:46:41.220534] [debug] [00:05:54.360497] [Service::RobotCommandService::RobotCommandStream] Requested: robot_command { component_based_command { mobility_command { se2_velocity_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } velocity { linear { } } acceleration_limit { linear { x: 1 y: 1 } angular: 1 } } } body_command { joint_impedance_control_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } position: -0.00010239642101350683 position: 0.78512512237190357 ... [truncated]
+[07/30/26 12:46:41.220541] [debug] [00:05:54.360510] [Service::RobotCommandService::RobotCommandStream]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:46:41.220692] [debug] [00:05:54.360660] [Service::RobotCommandService::RobotCommandStream]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:46:41.227063] [info] [00:05:54.367031] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":{"type":"MobilityCommand","control":{"type":"SE2VelocityCommand","control":{"type":"MobilitySE2VelocityControl"}}},"body":{"type":"BodyCommand","control":{"type":"JointImpedanceControlCommand","control":{"type":"JointImpedanceControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:46:51.225185] [debug] [00:06:04.365138] [ControlInterface::ExecutionStats] Average Control Time: 0.121 ms (max: 0.232 ms, min: 0.111 ms, sigma: 0.005 ms, count: 5000)
+[07/30/26 12:46:55.514049] [debug] [00:06:08.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:46:55.669040] [debug] [00:06:08.809002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:47:01.225179] [debug] [00:06:14.365133] [ControlInterface::ExecutionStats] Average Control Time: 0.123 ms (max: 0.143 ms, min: 0.112 ms, sigma: 0.005 ms, count: 5000)
+[07/30/26 12:47:02.693816] [debug] [00:06:15.833775] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:47:02.693928] [debug] [00:06:15.833895] [Service::RobotCommandService::RobotCommand] Requested: robot_command { whole_body_command { stop_command { } } } priority: 99
+[07/30/26 12:47:02.693931] [debug] [00:06:15.833900] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:47:02.694091] [debug] [00:06:15.834059] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:47:02.797210] [debug] [00:06:15.937173] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":{"type":"MobilityCommand","control":{"type":"SE2VelocityCommand","control":{"type":"MobilitySE2VelocityControl"}}},"body":{"type":"BodyCommand","control":{"type":"JointImpedanceControlCommand","control":{"type":"JointImpedanceControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:47:02.799047] [info] [00:06:15.939014] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"WholeBodyCommand","control":{"type":"StopControl","control":{"type":"JointVelocityControl"}}}} (priority: 99)
+[07/30/26 12:47:02.799066] [debug] [00:06:15.939036] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"WholeBodyCommand","control":{"type":"StopControl","control":{"type":"JointVelocityControl"}}}}
+[07/30/26 12:47:02.799097] [info] [00:06:15.939062] [ControlInterface] Control completed successfully.
+[07/30/26 12:47:02.799104] [debug] [00:06:15.939069] [ControlInterface::ExecutionStats] Average Control Time: 0.006 ms (max: 0.006 ms, min: 0.006 ms, sigma: 0.000 ms, count: 1)
+[07/30/26 12:47:02.802524] [debug] [00:06:15.942486] [Service::RobotCommandService::RobotCommandStream] OnReadDone (write_done: true, read_done: true)
+[07/30/26 12:47:02.802623] [debug] [00:06:15.942588] [Service::RobotCommandService::RobotCommandStream] OnCancel
+[07/30/26 12:47:02.802645] [info] [00:06:15.942609] [ControlInterface] Control was preempted or canceled by another request.
+[07/30/26 12:47:02.802653] [debug] [00:06:15.942618] [ControlInterface::ExecutionStats] Average Control Time: 0.122 ms (max: 0.139 ms, min: 0.115 ms, sigma: 0.005 ms, count: 786)
+[07/30/26 12:47:02.802823] [debug] [00:06:15.942789] [Service::RobotCommandService::RobotCommandStream] OnDone: robot_command { component_based_command { mobility_command { se2_velocity_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } velocity { linear { } } acceleration_limit { linear { x: 1 y: 1 } angular: 1 } } } body_command { joint_impedance_control_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } position: 0.014457634043730483 position: 0.96987045980007447 pos... [truncated]
+[07/30/26 12:47:02.814184] [debug] [00:06:15.954148] [Service] Server method called: /rb.api.ControlManagerService/ControlManagerCommand
+[07/30/26 12:47:02.814372] [debug] [00:06:15.954339] [Service::ControlManagerService::ControlManagerCommand] Requested: request_header { request_timestamp { seconds: 1785383169 nanos: 20084375 } } command: COMMAND_DISABLE
+[07/30/26 12:47:02.814537] [info] [00:06:15.954505] [ControlManager::Disable] Disable request received. Starting the disabling process...
+[07/30/26 12:47:02.815053] [info] [00:06:15.955021] [ControlManager::Disable] Control Manager successfully disabled
+[07/30/26 12:47:08.075555] [debug] [00:06:21.215510] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:47:08.075590] [debug] [00:06:21.215560] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 282025850 } }
+[07/30/26 12:47:08.076324] [debug] [00:06:21.216287] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:47:08.076345] [debug] [00:06:21.216312] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 282891341 } }
+[07/30/26 12:47:08.077046] [debug] [00:06:21.217012] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:47:08.077063] [debug] [00:06:21.217031] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 283674860 } }
+[07/30/26 12:47:08.077629] [debug] [00:06:21.217594] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:47:08.077642] [debug] [00:06:21.217610] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 284295487 } }
+[07/30/26 12:47:08.078226] [debug] [00:06:21.218192] [Service] Server method called: /rb.api.RobotStateService/GetControlManagerState
+[07/30/26 12:47:08.078238] [debug] [00:06:21.218206] [Service::RobotStateService::GetControlManagerState] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 284859564 } }
+[07/30/26 12:47:08.078557] [debug] [00:06:21.218523] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:47:08.078569] [debug] [00:06:21.218537] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 285192536 } }
+[07/30/26 12:47:08.079086] [debug] [00:06:21.219051] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:47:08.079101] [debug] [00:06:21.219069] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 285702481 } }
+[07/30/26 12:47:08.079586] [debug] [00:06:21.219553] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:47:08.079599] [debug] [00:06:21.219568] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 286228651 } }
+[07/30/26 12:47:08.080182] [debug] [00:06:21.220149] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:47:08.080195] [debug] [00:06:21.220164] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 286828279 } }
+[07/30/26 12:47:08.080791] [debug] [00:06:21.220758] [Service] Server method called: /rb.api.ControlManagerService/ControlManagerCommand
+[07/30/26 12:47:08.080809] [debug] [00:06:21.220777] [Service::ControlManagerService::ControlManagerCommand] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 287425330 } } command: COMMAND_ENABLE unlimited_mode_enabled { }
+[07/30/26 12:47:08.080812] [info] [00:06:21.220782] [ControlManager::Enable] Enable request received. Starting the enabling process...
+[07/30/26 12:47:08.081048] [info] [00:06:21.221016] [ControlManager::Enable] Control Manager successfully enabled
+[07/30/26 12:47:08.081476] [debug] [00:06:21.221443] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:47:08.081494] [debug] [00:06:21.221462] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 288116428 } } name: "cartesian_command.cutoff_frequency" parameter: "{\"value\":5,\"write_db\":true}"
+[07/30/26 12:47:08.091575] [debug] [00:06:21.231539] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:47:08.091592] [debug] [00:06:21.231561] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 298180838 } } name: "default.acceleration_limit_scaling" parameter: "{\"value\":1.0,\"write_db\":true}"
+[07/30/26 12:47:08.097483] [debug] [00:06:21.237449] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:47:08.097500] [debug] [00:06:21.237468] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 304085292 } } name: "default.angular_acceleration_limit" parameter: "{\"value\":10,\"write_db\":true}"
+[07/30/26 12:47:08.103624] [debug] [00:06:21.243588] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:47:08.103641] [debug] [00:06:21.243610] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 310191865 } } name: "default.linear_acceleration_limit" parameter: "{\"value\":20,\"write_db\":true}"
+[07/30/26 12:47:08.109668] [debug] [00:06:21.249634] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:47:08.109685] [debug] [00:06:21.249653] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383174 nanos: 316244623 } } name: "joint_position_command.cutoff_frequency" parameter: "{\"value\":5,\"write_db\":true}"
+[07/30/26 12:47:08.115772] [debug] [00:06:21.255736] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:47:08.115839] [debug] [00:06:21.255806] [Service::RobotCommandService::RobotCommand] Requested: robot_command { component_based_command { body_command { joint_position_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 500000000 } position: -0.013585602126373327 position: 0.99126294151027927 position: -1.360758665301159 position: 0.588881555333564 position: 0.03569542917552701 position: -0.43201303486151604 position: 0.00072902057246050276 position: -0.28513437442146594 position: 0.41095117488527433 position... [truncated]
+[07/30/26 12:47:08.115843] [debug] [00:06:21.255812] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:47:08.115998] [debug] [00:06:21.255966] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:47:08.121071] [info] [00:06:21.261037] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:47:09.879077] [debug] [00:06:23.019038] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:47:09.879135] [info] [00:06:23.019098] [ControlInterface] Control completed successfully.
+[07/30/26 12:47:09.879144] [debug] [00:06:23.019107] [ControlInterface::ExecutionStats] Average Control Time: 0.001 ms (max: 0.024 ms, min: 0.001 ms, sigma: 0.001 ms, count: 880)
+[07/30/26 12:47:09.879978] [debug] [00:06:23.019944] [Service] Server method called: /rb.api.PowerService/ToolFlangePowerCommand
+[07/30/26 12:47:09.880009] [debug] [00:06:23.019977] [Service::PowerService::ToolFlangePowerCommand] Requested: request_header { request_timestamp { seconds: 1785383176 nanos: 86742042 } } name: "right" command: COMMAND_POWER_12V
+[07/30/26 12:47:09.880014] [debug] [00:06:23.019983] [Service::PowerService::ToolFlangePowerCommand] Result: Success
+[07/30/26 12:47:09.880536] [debug] [00:06:23.020500] [Service] Server method called: /rb.api.PowerService/ToolFlangePowerCommand
+[07/30/26 12:47:09.880558] [debug] [00:06:23.020527] [Service::PowerService::ToolFlangePowerCommand] Requested: request_header { request_timestamp { seconds: 1785383176 nanos: 87326515 } } name: "left" command: COMMAND_POWER_12V
+[07/30/26 12:47:09.880563] [debug] [00:06:23.020532] [Service::PowerService::ToolFlangePowerCommand] Result: Success
+[07/30/26 12:47:11.011446] [debug] [00:06:24.151405] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:47:11.011511] [debug] [00:06:24.151477] [Service::RobotCommandService::RobotCommand] Requested: robot_command { component_based_command { body_command { joint_position_command { command_header { control_hold_time { seconds: 1 } } minimum_time { seconds: 4 } position: 0 position: 0.78539816339744828 position: -1.3962634015954636 position: 0.78539816339744828 position: 0 position: 0 position: 0 position: -0.26179938779914941 position: 0 position: -2.0943951023931953 position: 0 position: 0.52359877559829882 position: 0 position: 0 position: 0... [truncated]
+[07/30/26 12:47:11.011515] [debug] [00:06:24.151484] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:47:11.011663] [debug] [00:06:24.151631] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:47:11.017065] [info] [00:06:24.157030] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:47:16.275079] [debug] [00:06:29.415039] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:47:16.275137] [info] [00:06:29.415101] [ControlInterface] Control completed successfully.
+[07/30/26 12:47:16.275146] [debug] [00:06:29.415109] [ControlInterface::ExecutionStats] Average Control Time: 0.001 ms (max: 0.019 ms, min: 0.001 ms, sigma: 0.000 ms, count: 2630)
+[07/30/26 12:47:16.276121] [debug] [00:06:29.416085] [Service] Server method called: /rb.api.RobotCommandService/RobotCommandStream
+[07/30/26 12:47:16.276134] [debug] [00:06:29.416102] [Service::RobotCommandService::RobotCommandStream] Stream is created
+[07/30/26 12:47:16.307839] [debug] [00:06:29.447802] [Service::RobotCommandService::RobotCommandStream] Requested: robot_command { component_based_command { mobility_command { se2_velocity_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } velocity { linear { } } acceleration_limit { linear { x: 1 y: 1 } angular: 1 } } } body_command { joint_impedance_control_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } position: -9.83705139016608e-05 position: 0.78507632108034808 po... [truncated]
+[07/30/26 12:47:16.307846] [debug] [00:06:29.447814] [Service::RobotCommandService::RobotCommandStream]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:47:16.307998] [debug] [00:06:29.447966] [Service::RobotCommandService::RobotCommandStream]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:47:16.313064] [info] [00:06:29.453031] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":{"type":"MobilityCommand","control":{"type":"SE2VelocityCommand","control":{"type":"MobilitySE2VelocityControl"}}},"body":{"type":"BodyCommand","control":{"type":"JointImpedanceControlCommand","control":{"type":"JointImpedanceControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:47:18.149820] [debug] [00:06:31.289778] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:47:18.149854] [debug] [00:06:31.289822] [Service::RobotCommandService::RobotCommand] Requested: robot_command { whole_body_command { stop_command { } } } priority: 99
+[07/30/26 12:47:18.149857] [debug] [00:06:31.289827] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:47:18.150009] [debug] [00:06:31.289976] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:47:18.253211] [debug] [00:06:31.393174] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":{"type":"MobilityCommand","control":{"type":"SE2VelocityCommand","control":{"type":"MobilitySE2VelocityControl"}}},"body":{"type":"BodyCommand","control":{"type":"JointImpedanceControlCommand","control":{"type":"JointImpedanceControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:47:18.253364] [debug] [00:06:31.393326] [Service::RobotCommandService::RobotCommandStream] OnReadDone (write_done: true, read_done: true)
+[07/30/26 12:47:18.253429] [debug] [00:06:31.393394] [Service::RobotCommandService::RobotCommandStream] OnCancel
+[07/30/26 12:47:18.253494] [info] [00:06:31.393439] [ControlInterface] Control was preempted or canceled by another request.
+[07/30/26 12:47:18.253504] [debug] [00:06:31.393467] [ControlInterface::ExecutionStats] Average Control Time: 0.121 ms (max: 0.203 ms, min: 0.111 ms, sigma: 0.006 ms, count: 971)
+[07/30/26 12:47:18.253553] [debug] [00:06:31.393519] [Service::RobotCommandService::RobotCommandStream] OnDone: robot_command { component_based_command { mobility_command { se2_velocity_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } velocity { linear { } } acceleration_limit { linear { x: 1 y: 1 } angular: 1 } } } body_command { joint_impedance_control_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } position: -0.000553237328248641 position: 0.817136674993662 posi... [truncated]
+[07/30/26 12:47:18.255049] [info] [00:06:31.395017] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"WholeBodyCommand","control":{"type":"StopControl","control":{"type":"JointVelocityControl"}}}} (priority: 99)
+[07/30/26 12:47:18.255069] [debug] [00:06:31.395039] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"WholeBodyCommand","control":{"type":"StopControl","control":{"type":"JointVelocityControl"}}}}
+[07/30/26 12:47:18.255102] [info] [00:06:31.395068] [ControlInterface] Control completed successfully.
+[07/30/26 12:47:18.255108] [debug] [00:06:31.395073] [ControlInterface::ExecutionStats] Average Control Time: 0.005 ms (max: 0.005 ms, min: 0.005 ms, sigma: 0.000 ms, count: 1)
+[07/30/26 12:47:18.255748] [debug] [00:06:31.395713] [Service] Server method called: /rb.api.ControlManagerService/ControlManagerCommand
+[07/30/26 12:47:18.255768] [debug] [00:06:31.395736] [Service::ControlManagerService::ControlManagerCommand] Requested: request_header { request_timestamp { seconds: 1785383184 nanos: 463727187 } } command: COMMAND_DISABLE
+[07/30/26 12:47:18.255772] [info] [00:06:31.395741] [ControlManager::Disable] Disable request received. Starting the disabling process...
+[07/30/26 12:47:18.257052] [info] [00:06:31.397020] [ControlManager::Disable] Control Manager successfully disabled
+[07/30/26 12:47:25.514047] [debug] [00:06:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:47:25.669037] [debug] [00:06:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:47:55.514048] [debug] [00:07:08.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:47:55.669037] [debug] [00:07:08.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:48:12.573255] [debug] [00:07:25.713212] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:48:12.573290] [debug] [00:07:25.713258] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 789092072 } }
+[07/30/26 12:48:12.574070] [debug] [00:07:25.714031] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:48:12.574095] [debug] [00:07:25.714063] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 790017959 } }
+[07/30/26 12:48:12.574736] [debug] [00:07:25.714700] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:48:12.574755] [debug] [00:07:25.714723] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 790698202 } }
+[07/30/26 12:48:12.575260] [debug] [00:07:25.715224] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:48:12.575279] [debug] [00:07:25.715247] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 791230565 } }
+[07/30/26 12:48:12.575842] [debug] [00:07:25.715807] [Service] Server method called: /rb.api.RobotStateService/GetControlManagerState
+[07/30/26 12:48:12.575891] [debug] [00:07:25.715859] [Service::RobotStateService::GetControlManagerState] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 791824061 } }
+[07/30/26 12:48:12.576106] [debug] [00:07:25.716073] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:48:12.576119] [debug] [00:07:25.716088] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 792109570 } }
+[07/30/26 12:48:12.576518] [debug] [00:07:25.716482] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:48:12.576562] [debug] [00:07:25.716529] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 792516835 } }
+[07/30/26 12:48:12.577020] [debug] [00:07:25.716986] [Service] Server method called: /rb.api.RobotStateService/GetRobotState
+[07/30/26 12:48:12.577035] [debug] [00:07:25.717003] [Service::RobotStateService::GetRobotState] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 792970633 } }
+[07/30/26 12:48:12.577386] [debug] [00:07:25.717352] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/30/26 12:48:12.577398] [debug] [00:07:25.717367] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 793405210 } }
+[07/30/26 12:48:12.577722] [debug] [00:07:25.717687] [Service] Server method called: /rb.api.ControlManagerService/ControlManagerCommand
+[07/30/26 12:48:12.577764] [debug] [00:07:25.717732] [Service::ControlManagerService::ControlManagerCommand] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 793730643 } } command: COMMAND_ENABLE unlimited_mode_enabled { }
+[07/30/26 12:48:12.577768] [info] [00:07:25.717737] [ControlManager::Enable] Enable request received. Starting the enabling process...
+[07/30/26 12:48:12.579048] [info] [00:07:25.719015] [ControlManager::Enable] Control Manager successfully enabled
+[07/30/26 12:48:12.579376] [debug] [00:07:25.719338] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:48:12.579397] [debug] [00:07:25.719364] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 795374641 } } name: "cartesian_command.cutoff_frequency" parameter: "{\"value\":5,\"write_db\":true}"
+[07/30/26 12:48:12.591636] [debug] [00:07:25.731602] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:48:12.591653] [debug] [00:07:25.731621] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 807630807 } } name: "default.acceleration_limit_scaling" parameter: "{\"value\":1.0,\"write_db\":true}"
+[07/30/26 12:48:12.597514] [debug] [00:07:25.737478] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:48:12.597561] [debug] [00:07:25.737529] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 813514975 } } name: "default.angular_acceleration_limit" parameter: "{\"value\":10,\"write_db\":true}"
+[07/30/26 12:48:12.603713] [debug] [00:07:25.743678] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:48:12.603731] [debug] [00:07:25.743699] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 819700698 } } name: "default.linear_acceleration_limit" parameter: "{\"value\":20,\"write_db\":true}"
+[07/30/26 12:48:12.609922] [debug] [00:07:25.749886] [Service] Server method called: /rb.api.ParameterService/SetParameter
+[07/30/26 12:48:12.609940] [debug] [00:07:25.749908] [Service::ParameterService::SetParameter] Requested: request_header { request_timestamp { seconds: 1785383238 nanos: 825903246 } } name: "joint_position_command.cutoff_frequency" parameter: "{\"value\":5,\"write_db\":true}"
+[07/30/26 12:48:12.615685] [debug] [00:07:25.755649] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:48:12.615755] [debug] [00:07:25.755722] [Service::RobotCommandService::RobotCommand] Requested: robot_command { component_based_command { body_command { joint_position_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 500000000 } position: -0.00029996158971031103 position: 0.7880788327941 position: -1.4674082998806934 position: 0.78537917848670713 position: 0.00093026062631678742 position: -0.00032654046474793355 position: -0.028910222076636814 position: -0.26190064065643565 position: 0.00042526200060196 po... [truncated]
+[07/30/26 12:48:12.615759] [debug] [00:07:25.755728] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:48:12.615911] [debug] [00:07:25.755878] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:48:12.621070] [info] [00:07:25.761036] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:48:14.379076] [debug] [00:07:27.519038] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:48:14.379137] [info] [00:07:27.519100] [ControlInterface] Control completed successfully.
+[07/30/26 12:48:14.379146] [debug] [00:07:27.519109] [ControlInterface::ExecutionStats] Average Control Time: 0.001 ms (max: 0.029 ms, min: 0.001 ms, sigma: 0.001 ms, count: 880)
+[07/30/26 12:48:14.379655] [debug] [00:07:27.519621] [Service] Server method called: /rb.api.PowerService/ToolFlangePowerCommand
+[07/30/26 12:48:14.379685] [debug] [00:07:27.519653] [Service::PowerService::ToolFlangePowerCommand] Requested: request_header { request_timestamp { seconds: 1785383240 nanos: 595825267 } } name: "right" command: COMMAND_POWER_12V
+[07/30/26 12:48:14.379693] [debug] [00:07:27.519662] [Service::PowerService::ToolFlangePowerCommand] Result: Success
+[07/30/26 12:48:14.379993] [debug] [00:07:27.519959] [Service] Server method called: /rb.api.PowerService/ToolFlangePowerCommand
+[07/30/26 12:48:14.380016] [debug] [00:07:27.519984] [Service::PowerService::ToolFlangePowerCommand] Requested: request_header { request_timestamp { seconds: 1785383240 nanos: 596276456 } } name: "left" command: COMMAND_POWER_12V
+[07/30/26 12:48:14.380020] [debug] [00:07:27.519989] [Service::PowerService::ToolFlangePowerCommand] Result: Success
+[07/30/26 12:48:15.503465] [debug] [00:07:28.643423] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:48:15.503531] [debug] [00:07:28.643497] [Service::RobotCommandService::RobotCommand] Requested: robot_command { component_based_command { body_command { joint_position_command { command_header { control_hold_time { seconds: 1 } } minimum_time { seconds: 4 } position: 0 position: 0.78539816339744828 position: -1.3962634015954636 position: 0.78539816339744828 position: 0 position: 0 position: 0 position: -0.26179938779914941 position: 0 position: -2.0943951023931953 position: 0 position: 0.52359877559829882 position: 0 position: 0 position: 0... [truncated]
+[07/30/26 12:48:15.503534] [debug] [00:07:28.643503] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:48:15.503686] [debug] [00:07:28.643654] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:48:15.509062] [info] [00:07:28.649027] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:48:20.767078] [debug] [00:07:33.907039] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":null,"body":{"type":"BodyCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:48:20.767138] [info] [00:07:33.907102] [ControlInterface] Control completed successfully.
+[07/30/26 12:48:20.767147] [debug] [00:07:33.907111] [ControlInterface::ExecutionStats] Average Control Time: 0.001 ms (max: 0.017 ms, min: 0.001 ms, sigma: 0.000 ms, count: 2630)
+[07/30/26 12:48:20.767643] [debug] [00:07:33.907607] [Service] Server method called: /rb.api.RobotCommandService/RobotCommandStream
+[07/30/26 12:48:20.767656] [debug] [00:07:33.907624] [Service::RobotCommandService::RobotCommandStream] Stream is created
+[07/30/26 12:48:20.779009] [debug] [00:07:33.918973] [Service::RobotCommandService::RobotCommandStream] Requested: robot_command { component_based_command { mobility_command { se2_velocity_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } velocity { linear { } } acceleration_limit { linear { x: 1 y: 1 } angular: 1 } } } body_command { joint_impedance_control_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } position: -0.00011100551250328608 position: 0.78509941124058735 ... [truncated]
+[07/30/26 12:48:20.779015] [debug] [00:07:33.918984] [Service::RobotCommandService::RobotCommandStream]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:48:20.779161] [debug] [00:07:33.919129] [Service::RobotCommandService::RobotCommandStream]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:48:20.785064] [info] [00:07:33.925032] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":{"type":"MobilityCommand","control":{"type":"SE2VelocityCommand","control":{"type":"MobilitySE2VelocityControl"}}},"body":{"type":"BodyCommand","control":{"type":"JointImpedanceControlCommand","control":{"type":"JointImpedanceControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}} (priority: 1)
+[07/30/26 12:48:25.514048] [debug] [00:07:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:48:25.669039] [debug] [00:07:38.809002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:48:30.783183] [debug] [00:07:43.923137] [ControlInterface::ExecutionStats] Average Control Time: 0.120 ms (max: 0.196 ms, min: 0.111 ms, sigma: 0.005 ms, count: 5000)
+[07/30/26 12:48:40.783179] [debug] [00:07:53.923133] [ControlInterface::ExecutionStats] Average Control Time: 0.123 ms (max: 0.143 ms, min: 0.114 ms, sigma: 0.005 ms, count: 5000)
+[07/30/26 12:48:42.085717] [debug] [00:07:55.225675] [Service] Server method called: /rb.api.RobotCommandService/RobotCommand
+[07/30/26 12:48:42.085751] [debug] [00:07:55.225719] [Service::RobotCommandService::RobotCommand] Requested: robot_command { whole_body_command { stop_command { } } } priority: 99
+[07/30/26 12:48:42.085754] [debug] [00:07:55.225723] [Service::RobotCommandService::RobotCommand]   Peer: ipv4:192.168.30.230:53210
+[07/30/26 12:48:42.085908] [debug] [00:07:55.225875] [Service::RobotCommandService::RobotCommand]   IP: 192.168.30.230, Family: ipv4
+[07/30/26 12:48:42.189220] [debug] [00:07:55.329183] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"ComponentBasedCommand","components":{"mobility":{"type":"MobilityCommand","control":{"type":"SE2VelocityCommand","control":{"type":"MobilitySE2VelocityControl"}}},"body":{"type":"BodyCommand","control":{"type":"JointImpedanceControlCommand","control":{"type":"JointImpedanceControl"}}},"head":{"type":"HeadCommand","control":{"type":"JointPositionCommand","control":{"type":"JointPositionControl"}}}}}}
+[07/30/26 12:48:42.189324] [debug] [00:07:55.329286] [Service::RobotCommandService::RobotCommandStream] OnReadDone (write_done: true, read_done: true)
+[07/30/26 12:48:42.189338] [debug] [00:07:55.329301] [Service::RobotCommandService::RobotCommandStream] OnCancel
+[07/30/26 12:48:42.189414] [info] [00:07:55.329378] [ControlInterface] Control was preempted or canceled by another request.
+[07/30/26 12:48:42.189422] [debug] [00:07:55.329386] [ControlInterface::ExecutionStats] Average Control Time: 0.121 ms (max: 0.137 ms, min: 0.117 ms, sigma: 0.005 ms, count: 703)
+[07/30/26 12:48:42.189470] [debug] [00:07:55.329436] [Service::RobotCommandService::RobotCommandStream] OnDone: robot_command { component_based_command { mobility_command { se2_velocity_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } velocity { linear { } } acceleration_limit { linear { x: 1 y: 1 } angular: 1 } } } body_command { joint_impedance_control_command { command_header { control_hold_time { seconds: 1 } } minimum_time { nanos: 10100000 } position: 0.0085153541928151572 position: 0.97713552047211949 po... [truncated]
+[07/30/26 12:48:42.191050] [info] [00:07:55.331018] [ControlManager] Control started: {"type":"RobotCommand","control":{"type":"WholeBodyCommand","control":{"type":"StopControl","control":{"type":"JointVelocityControl"}}}} (priority: 99)
+[07/30/26 12:48:42.191072] [debug] [00:07:55.331042] [ControlManager] Control finished: {"type":"RobotCommand","control":{"type":"WholeBodyCommand","control":{"type":"StopControl","control":{"type":"JointVelocityControl"}}}}
+[07/30/26 12:48:42.191105] [info] [00:07:55.331072] [ControlInterface] Control completed successfully.
+[07/30/26 12:48:42.191109] [debug] [00:07:55.331076] [ControlInterface::ExecutionStats] Average Control Time: 0.008 ms (max: 0.008 ms, min: 0.008 ms, sigma: 0.000 ms, count: 1)
+[07/30/26 12:48:42.191690] [debug] [00:07:55.331652] [Service] Server method called: /rb.api.ControlManagerService/ControlManagerCommand
+[07/30/26 12:48:42.191717] [debug] [00:07:55.331686] [Service::ControlManagerService::ControlManagerCommand] Requested: request_header { request_timestamp { seconds: 1785383268 nanos: 412233435 } } command: COMMAND_DISABLE
+[07/30/26 12:48:42.191720] [info] [00:07:55.331690] [ControlManager::Disable] Disable request received. Starting the disabling process...
+[07/30/26 12:48:42.193049] [info] [00:07:55.333018] [ControlManager::Disable] Control Manager successfully disabled
+[07/30/26 12:48:55.514046] [debug] [00:08:08.654002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:48:55.669038] [debug] [00:08:08.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:49:25.514046] [debug] [00:08:38.654002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:49:25.669037] [debug] [00:08:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:49:55.514046] [debug] [00:09:08.654002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:49:55.669036] [debug] [00:09:08.809002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:50:25.514046] [debug] [00:09:38.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:50:25.669036] [debug] [00:09:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:50:55.514047] [debug] [00:10:08.654003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:50:55.669036] [debug] [00:10:08.809002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:51:25.514047] [debug] [00:10:38.654002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:51:25.669036] [debug] [00:10:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:51:55.514045] [debug] [00:11:08.654002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/30/26 12:51:55.669036] [debug] [00:11:08.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/30/26 12:52:25.514046] [debug] [00:11:38.654002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/30/26 12:52:25.669037] [debug] [00:11:38.809003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 

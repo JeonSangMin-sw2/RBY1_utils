@@ -1,0 +1,123 @@
+[08/05/26 14:27:56.376334] [info] [00:00:08.506677] [App] App main
+[08/05/26 14:27:56.376349] [info] [00:00:08.506969] [App] RBY1 Model: rby1m, Model Version: v1.3
+[08/05/26 14:27:56.376351] [info] [00:00:08.506976] [App] RBY1 Version: 0.10.4
+[08/05/26 14:27:56.376389] [info] [00:00:08.507013] [App] RBY1-SDK Version: 0.9.1 - a3274bb
+[08/05/26 14:27:56.398588] [info] [00:00:08.528792] [RobotApp] Using default model: /root/exe/app/models/rby1m/urdf/model_v1.3.urdf
+[08/05/26 14:27:56.401076] [info] [00:00:08.531299] [RobotApp] Building robot ...
+[08/05/26 14:27:56.405471] [info] [00:00:08.534488] [RobotApp] Link Names: ["ee_finger_l1", "ee_finger_r2", "ee_left", "link_torso_5", "ee_finger_l2", "wheel_fl_link", "ee_finger_r1", "ee_right", "wheel_rl_link", "link_left_arm_6", "link_torso_4", "link_right_arm_3", "link_torso_0", "link_right_arm_4", "link_right_arm_0", "link_left_arm_2", "link_right_arm_5", "link_left_arm_0", "link_torso_1", "base", "link_left_arm_3", "link_torso_3", "wheel_rr_link", "wheel_fr_link", "link_head_0", "link_torso_2", "link_head_1", "link_right_arm_1", "link_left_arm_1", "link_left_arm_4", "link_right_arm_2", "link_head_2", "link_left_arm_5", "link_right_arm_6"]
+[08/05/26 14:27:56.405488] [info] [00:00:08.536103] [RobotApp] Joint Names: ["left_arm_6", "left_arm_2", "right_arm_6", "head_0", "wheel_fr", "left_arm_3", "wheel_fl", "left_arm_5", "wheel_rr", "torso_4", "wheel_rl", "right_arm_5", "head_1", "torso_0", "right_arm_2", "torso_3", "left_arm_1", "torso_1", "right_arm_3", "torso_2", "torso_5", "left_arm_0", "right_arm_4", "right_arm_0", "left_arm_4", "right_arm_1"]
+[08/05/26 14:27:57.656559] [info] [00:00:09.787173] [RobotApp] Server listening on 0.0.0.0:50051
+[08/05/26 14:28:05.661114] [debug] [00:00:17.791723] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:05.662060] [debug] [00:00:17.792678] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907685 nanos: 659783323 } }
+[08/05/26 14:28:09.059133] [debug] [00:00:21.189744] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[08/05/26 14:28:09.059347] [debug] [00:00:21.189969] [Service::RobotStateService::GetRobotStateStream] Requested: update_rate: 20
+[08/05/26 14:28:09.114889] [debug] [00:00:21.245492] [Service] Server method called: /rb.api.LogService/GetLogStream
+[08/05/26 14:28:09.115036] [debug] [00:00:21.245658] [Service::LogService::GetLogStream] Requested: update_rate: 10
+[08/05/26 14:28:12.235378] [debug] [00:00:24.365985] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[08/05/26 14:28:12.235418] [debug] [00:00:24.366040] [Service::RobotStateService::GetRobotStateStream] Requested: update_rate: 20
+[08/05/26 14:28:12.309881] [debug] [00:00:24.440493] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:12.309912] [debug] [00:00:24.440535] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907692 nanos: 309454832 } }
+[08/05/26 14:28:12.311543] [debug] [00:00:24.442161] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:12.311562] [debug] [00:00:24.442186] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907692 nanos: 311348095 } }
+[08/05/26 14:28:12.312793] [debug] [00:00:24.443412] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:12.312813] [debug] [00:00:24.443437] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907692 nanos: 312635394 } }
+[08/05/26 14:28:12.314454] [debug] [00:00:24.445072] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:12.314472] [debug] [00:00:24.445096] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907692 nanos: 314291641 } }
+[08/05/26 14:28:12.316234] [debug] [00:00:24.446853] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:12.316253] [debug] [00:00:24.446876] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907692 nanos: 316078616 } }
+[08/05/26 14:28:12.319262] [debug] [00:00:24.449878] [Service] Server method called: /rb.api.LogService/GetLogStream
+[08/05/26 14:28:12.319300] [debug] [00:00:24.449923] [Service::LogService::GetLogStream] Requested: update_rate: 10
+[08/05/26 14:28:13.233480] [debug] [00:00:25.364089] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[08/05/26 14:28:13.233514] [debug] [00:00:25.364137] [Service::RobotStateService::GetRobotStateStream] Requested: update_rate: 20
+[08/05/26 14:28:13.299932] [debug] [00:00:25.430543] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:13.299961] [debug] [00:00:25.430584] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907693 nanos: 299573649 } }
+[08/05/26 14:28:13.301520] [debug] [00:00:25.432138] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:13.301538] [debug] [00:00:25.432162] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907693 nanos: 301323486 } }
+[08/05/26 14:28:13.302605] [debug] [00:00:25.433223] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:13.302624] [debug] [00:00:25.433248] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907693 nanos: 302450283 } }
+[08/05/26 14:28:13.304039] [debug] [00:00:25.434657] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:13.304057] [debug] [00:00:25.434681] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907693 nanos: 303895854 } }
+[08/05/26 14:28:13.305574] [debug] [00:00:25.436193] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[08/05/26 14:28:13.305624] [debug] [00:00:25.436246] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785907693 nanos: 305431657 } }
+[08/05/26 14:28:13.309744] [debug] [00:00:25.440359] [Service] Server method called: /rb.api.LogService/GetLogStream
+[08/05/26 14:28:13.309773] [debug] [00:00:25.440397] [Service::LogService::GetLogStream] Requested: update_rate: 10
+[08/05/26 14:28:13.361697] [debug] [00:00:25.492309] [Service] Server method called: /rb.api.ControlManagerService/GetTimeScale
+[08/05/26 14:28:13.361866] [debug] [00:00:25.492487] [Service::ControlManagerService::GetTimeScale] Requested: request_header { request_timestamp { seconds: 1785907693 nanos: 361376392 } }
+[08/05/26 14:28:18.231598] [debug] [00:00:30.362200] [Service] Server method called: /rb.api.ParameterService/GetParameterList
+[08/05/26 14:28:18.231762] [debug] [00:00:30.362383] [Service::ParameterService::GetParameterList] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 231191586 } }
+[08/05/26 14:28:18.232423] [debug] [00:00:30.363040] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.232446] [debug] [00:00:30.363070] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 232250616 } } name: "real_time_control.max_timeout_count"
+[08/05/26 14:28:18.232916] [debug] [00:00:30.363532] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.232938] [debug] [00:00:30.363561] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 232771094 } } name: "joint_group_position_command.canceling_time"
+[08/05/26 14:28:18.233211] [debug] [00:00:30.363832] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.233226] [debug] [00:00:30.363850] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 233102353 } } name: "joint_group_position_command.cutoff_frequency"
+[08/05/26 14:28:18.233480] [debug] [00:00:30.364098] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.233508] [debug] [00:00:30.364131] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 233358188 } } name: "joint_impedance_control_command.canceling_time"
+[08/05/26 14:28:18.233832] [debug] [00:00:30.364451] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.233854] [debug] [00:00:30.364477] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 233692223 } } name: "joint_velocity_command.canceling_time"
+[08/05/26 14:28:18.234153] [debug] [00:00:30.364773] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.234168] [debug] [00:00:30.364791] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 234054863 } } name: "cartesian_command.cutoff_frequency"
+[08/05/26 14:28:18.234410] [debug] [00:00:30.365032] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.234425] [debug] [00:00:30.365049] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 234312793 } } name: "joint_position_command.canceling_time"
+[08/05/26 14:28:18.234641] [debug] [00:00:30.365261] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.234665] [debug] [00:00:30.365288] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 234540224 } } name: "gravity"
+[08/05/26 14:28:18.234900] [debug] [00:00:30.365521] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.234916] [debug] [00:00:30.365539] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 234796766 } } name: "servo_on_command.timeout"
+[08/05/26 14:28:18.235101] [debug] [00:00:30.365722] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.235116] [debug] [00:00:30.365740] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 235010052 } } name: "servo_on_command.new_data_timeout"
+[08/05/26 14:28:18.235332] [debug] [00:00:30.365952] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.235348] [debug] [00:00:30.365972] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 235242167 } } name: "power_command.timeout"
+[08/05/26 14:28:18.235592] [debug] [00:00:30.366212] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.235615] [debug] [00:00:30.366238] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 235491429 } } name: "hotspot.password"
+[08/05/26 14:28:18.235855] [debug] [00:00:30.366476] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.235870] [debug] [00:00:30.366494] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 235755746 } } name: "hotspot.ssid"
+[08/05/26 14:28:18.236113] [debug] [00:00:30.366735] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.236127] [debug] [00:00:30.366751] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 236027327 } } name: "major_fault_power_off_target"
+[08/05/26 14:28:18.236323] [debug] [00:00:30.366944] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.236336] [debug] [00:00:30.366960] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 236240750 } } name: "default.linear_acceleration_limit"
+[08/05/26 14:28:18.236529] [debug] [00:00:30.367150] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.236542] [debug] [00:00:30.367166] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 236449354 } } name: "soft_stop_enabled"
+[08/05/26 14:28:18.236742] [debug] [00:00:30.367361] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.236758] [debug] [00:00:30.367382] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 236628280 } } name: "model_name"
+[08/05/26 14:28:18.237000] [debug] [00:00:30.367622] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.237013] [debug] [00:00:30.367637] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 236905812 } } name: "preset_position_command.new_data_timeout"
+[08/05/26 14:28:18.237175] [debug] [00:00:30.367796] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.237185] [debug] [00:00:30.367809] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 237094166 } } name: "battery_config"
+[08/05/26 14:28:18.237421] [debug] [00:00:30.368042] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.237435] [debug] [00:00:30.368059] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 237315498 } } name: "default.cartesian_command.stop_joint_position_tracking_error"
+[08/05/26 14:28:18.237679] [debug] [00:00:30.368301] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.237693] [debug] [00:00:30.368317] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 237595401 } } name: "default.cartesian_impedance_control_command.stop_joint_position_tracking_error"
+[08/05/26 14:28:18.237890] [debug] [00:00:30.368509] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.237904] [debug] [00:00:30.368528] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 237798182 } } name: "robot_model_name"
+[08/05/26 14:28:18.238094] [debug] [00:00:30.368716] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.238107] [debug] [00:00:30.368731] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 238014947 } } name: "optimal_control_command.cutoff_frequency"
+[08/05/26 14:28:18.238307] [debug] [00:00:30.368926] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.238323] [debug] [00:00:30.368947] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 238210155 } } name: "default.acceleration_limit_scaling"
+[08/05/26 14:28:18.238600] [debug] [00:00:30.369222] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.238612] [debug] [00:00:30.369236] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 238507610 } } name: "default.torque_limit_scaling"
+[08/05/26 14:28:18.238770] [debug] [00:00:30.369394] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.238778] [debug] [00:00:30.369403] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 238697728 } } name: "default.angular_acceleration_limit"
+[08/05/26 14:28:18.238940] [debug] [00:00:30.369560] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.238953] [debug] [00:00:30.369577] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 238854107 } } name: "default.cartesian_command.stop_position_tracking_error"
+[08/05/26 14:28:18.239182] [debug] [00:00:30.369802] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.239197] [debug] [00:00:30.369820] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 239083783 } } name: "manipulability_threshold"
+[08/05/26 14:28:18.239430] [debug] [00:00:30.370051] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.239444] [debug] [00:00:30.370067] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 239332285 } } name: "jog_command.canceling_time"
+[08/05/26 14:28:18.239637] [debug] [00:00:30.370258] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.239650] [debug] [00:00:30.370274] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 239551495 } } name: "default.velocity_limit_scaling"
+[08/05/26 14:28:18.239842] [debug] [00:00:30.370463] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.239854] [debug] [00:00:30.370479] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 239753427 } } name: "default.optimal_control_command.stop_cost"
+[08/05/26 14:28:18.240091] [debug] [00:00:30.370712] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.240102] [debug] [00:00:30.370726] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 239987583 } } name: "preset_position_command.timeout"
+[08/05/26 14:28:18.240281] [debug] [00:00:30.370901] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.240294] [debug] [00:00:30.370917] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 240195452 } } name: "default.cartesian_command.stop_orientation_tracking_error"
+[08/05/26 14:28:18.240509] [debug] [00:00:30.371131] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.240521] [debug] [00:00:30.371145] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 240427850 } } name: "default.se2_velocity_command.acceleration_limit"
+[08/05/26 14:28:18.240687] [debug] [00:00:30.371312] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.240693] [debug] [00:00:30.371319] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 240619710 } } name: "stop_command.canceling_time"
+[08/05/26 14:28:18.240864] [debug] [00:00:30.371485] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.240875] [debug] [00:00:30.371499] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 240781298 } } name: "default.cartesian_impedance_control_command.stop_position_tracking_error"
+[08/05/26 14:28:18.241059] [debug] [00:00:30.371679] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.241071] [debug] [00:00:30.371695] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 240965250 } } name: "cartesian_impedance_control_command.canceling_time"
+[08/05/26 14:28:18.241322] [debug] [00:00:30.371944] [Service] Server method called: /rb.api.ParameterService/GetParameter
+[08/05/26 14:28:18.241334] [debug] [00:00:30.371958] [Service::ParameterService::GetParameter] Requested: request_header { request_timestamp { seconds: 1785907698 nanos: 241231492 

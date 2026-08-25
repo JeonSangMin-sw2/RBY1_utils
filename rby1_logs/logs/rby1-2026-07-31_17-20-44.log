@@ -1,0 +1,53 @@
+[07/31/26 17:20:44.048690] [info] [00:00:10.176703] [App] App main
+[07/31/26 17:20:44.048705] [info] [00:00:10.177223] [App] RBY1 Model: rby1m, Model Version: v1.3
+[07/31/26 17:20:44.048716] [info] [00:00:10.177230] [App] RBY1 Version: 0.10.4
+[07/31/26 17:20:44.048771] [info] [00:00:10.177292] [App] RBY1-SDK Version: 0.9.1 - a3274bb
+[07/31/26 17:20:44.070589] [info] [00:00:10.198805] [RobotApp] Using default model: /root/exe/app/models/rby1m/urdf/model_v1.3.urdf
+[07/31/26 17:20:44.074941] [info] [00:00:10.203030] [RobotApp] Building robot ...
+[07/31/26 17:20:44.076568] [info] [00:00:10.203879] [RobotApp] Link Names: ["ee_finger_l1", "ee_finger_r2", "ee_left", "link_torso_5", "ee_finger_l2", "wheel_fl_link", "ee_finger_r1", "ee_right", "wheel_rl_link", "link_left_arm_6", "link_torso_4", "link_right_arm_3", "link_torso_0", "link_right_arm_4", "link_right_arm_0", "link_left_arm_2", "link_right_arm_5", "link_left_arm_0", "link_torso_1", "base", "link_left_arm_3", "link_torso_3", "wheel_rr_link", "wheel_fr_link", "link_head_0", "link_torso_2", "link_head_1", "link_right_arm_1", "link_left_arm_1", "link_left_arm_4", "link_right_arm_2", "link_head_2", "link_left_arm_5", "link_right_arm_6"]
+[07/31/26 17:20:44.076590] [info] [00:00:10.205100] [RobotApp] Joint Names: ["left_arm_6", "left_arm_2", "right_arm_6", "head_0", "wheel_fr", "left_arm_3", "wheel_fl", "left_arm_5", "wheel_rr", "torso_4", "wheel_rl", "right_arm_5", "head_1", "torso_0", "right_arm_2", "torso_3", "left_arm_1", "torso_1", "right_arm_3", "torso_2", "torso_5", "left_arm_0", "right_arm_4", "right_arm_0", "left_arm_4", "right_arm_1"]
+[07/31/26 17:20:45.357805] [info] [00:00:11.486316] [RobotApp] Server listening on 0.0.0.0:50051
+[07/31/26 17:20:53.862395] [debug] [00:00:19.990895] [Service] Server method called: /rb.api.RobotInfoService/GetRobotInfo
+[07/31/26 17:20:53.863373] [debug] [00:00:19.991890] [Service::RobotInfoService::GetRobotInfo] Requested: request_header { request_timestamp { seconds: 1785486053 nanos: 860988989 } }
+[07/31/26 17:21:14.077507] [debug] [00:00:40.206003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.992 ms, max: 2.009 ms, count: 15000)
+[07/31/26 17:21:14.214494] [debug] [00:00:40.343003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.996 ms, max: 2.004 ms, count: 15000)
+[07/31/26 17:21:44.077496] [debug] [00:01:10.206002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:21:44.214484] [debug] [00:01:10.343003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.002 ms, count: 15000)
+[07/31/26 17:22:14.077499] [debug] [00:01:40.206002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/31/26 17:22:14.214483] [debug] [00:01:40.343002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:22:26.995212] [debug] [00:01:53.123720] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[07/31/26 17:22:26.995454] [debug] [00:01:53.123973] [Service::RobotStateService::GetRobotStateStream] Requested: update_rate: 20
+[07/31/26 17:22:27.004832] [debug] [00:01:53.133344] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[07/31/26 17:22:27.004864] [debug] [00:01:53.133386] [Service::RobotStateService::GetRobotStateStream] Requested: update_rate: 20
+[07/31/26 17:22:30.165559] [debug] [00:01:56.294064] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[07/31/26 17:22:30.165600] [debug] [00:01:56.294120] [Service::RobotStateService::GetRobotStateStream] Requested: update_rate: 20
+[07/31/26 17:22:35.278540] [debug] [00:02:01.407037] [Service] Server method called: /rb.api.RobotInfoService/GetRobotModel
+[07/31/26 17:22:35.278578] [debug] [00:02:01.407099] [Service::RobotInfoService::GetRobotModel] Requested: request_header { request_timestamp { seconds: 1785486101 nanos: 622732245 } }
+[07/31/26 17:22:35.281515] [debug] [00:02:01.410033] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[07/31/26 17:22:35.281547] [debug] [00:02:01.410068] [Service::RobotStateService::GetRobotStateStream] Requested: request_header { request_timestamp { seconds: 1785486101 nanos: 625943628 } } update_rate: 100
+[07/31/26 17:22:44.077494] [debug] [00:02:10.206002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.996 ms, max: 2.004 ms, count: 15000)
+[07/31/26 17:22:44.214485] [debug] [00:02:10.343002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.996 ms, max: 2.004 ms, count: 15000)
+[07/31/26 17:23:14.077496] [debug] [00:02:40.206003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.996 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:23:14.214486] [debug] [00:02:40.343002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.996 ms, max: 2.004 ms, count: 15000)
+[07/31/26 17:23:44.077495] [debug] [00:03:10.206002] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:23:44.214486] [debug] [00:03:10.343003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.996 ms, max: 2.004 ms, count: 15000)
+[07/31/26 17:24:14.077497] [debug] [00:03:40.206003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:24:14.214486] [debug] [00:03:40.343003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:24:19.191086] [debug] [00:03:45.319594] [Service] Server method called: /rb.api.RobotInfoService/GetRobotModel
+[07/31/26 17:24:19.191122] [debug] [00:03:45.319644] [Service::RobotInfoService::GetRobotModel] Requested: request_header { request_timestamp { seconds: 1785486205 nanos: 533250650 } }
+[07/31/26 17:24:19.193994] [debug] [00:03:45.322516] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[07/31/26 17:24:19.194019] [debug] [00:03:45.322541] [Service::RobotStateService::GetRobotStateStream] Requested: request_header { request_timestamp { seconds: 1785486205 nanos: 536417190 } } update_rate: 100
+[07/31/26 17:24:44.077495] [debug] [00:04:10.206003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.996 ms, max: 2.004 ms, count: 15000)
+[07/31/26 17:24:44.214485] [debug] [00:04:10.343002] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:25:14.077495] [debug] [00:04:40.206003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/31/26 17:25:14.214487] [debug] [00:04:40.343003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:25:44.077496] [debug] [00:05:10.206003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/31/26 17:25:44.214485] [debug] [00:05:10.343003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/31/26 17:25:48.282125] [debug] [00:05:14.410634] [Service] Server method called: /rb.api.RobotInfoService/GetRobotModel
+[07/31/26 17:25:48.282159] [debug] [00:05:14.410680] [Service::RobotInfoService::GetRobotModel] Requested: request_header { request_timestamp { seconds: 1785486294 nanos: 626282625 } }
+[07/31/26 17:25:48.284934] [debug] [00:05:14.413450] [Service] Server method called: /rb.api.RobotStateService/GetRobotStateStream
+[07/31/26 17:25:48.284969] [debug] [00:05:14.413490] [Service::RobotStateService::GetRobotStateStream] Requested: request_header { request_timestamp { seconds: 1785486294 nanos: 629293852 } } update_rate: 100
+[07/31/26 17:26:14.077496] [debug] [00:05:40.206003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.999 ms, max: 2.001 ms, count: 15000)
+[07/31/26 17:26:14.214485] [debug] [00:05:40.343003] [ControlManager] Control Manager Loop Stat (avg: 2.000 ms, min: 1.997 ms, max: 2.003 ms, count: 15000)
+[07/31/26 17:26:44.077498] [debug] [00:06:10.206003] [Hardware] Hardware Loop Stat (avg: 2.000 ms, min: 1.998 ms, max: 2.002 ms, count: 15000)
+[07/31/26 
