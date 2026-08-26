@@ -34,6 +34,28 @@ class CaseStore:
         self._verified: dict[Path, tuple[int, int, str]] = {}
         self._verified_cases: set[str] = set()
         self._verification_lock = threading.Lock()
+        self._integrate_legacy_cases()
+
+    def _integrate_legacy_cases(self) -> None:
+        user_home = Path.home()
+        legacy_candidates = [
+            user_home / ".local" / "share" / "rby1-cs-analyzer-v3" / "cases",
+            user_home / ".local" / "share" / "rby1-cs-analyzer-v2" / "cases",
+            user_home / "AppData" / "Local" / "RB-Y1 CS Analyzer V3" / "cases",
+            user_home / "AppData" / "Local" / "RB-Y1 CS Analyzer V2" / "cases",
+        ]
+        import shutil
+        for lroot in legacy_candidates:
+            if not lroot.is_dir() or lroot == self.root:
+                continue
+            for cdir in lroot.iterdir():
+                if cdir.is_dir() and (cdir / "case.sqlite").is_file():
+                    target = self.root / cdir.name
+                    if not target.exists():
+                        try:
+                            shutil.copytree(cdir, target)
+                        except Exception:
+                            pass
 
     def paths(self, case_id: str) -> CasePaths:
         if not case_id or any(c not in "0123456789abcdef-" for c in case_id):
@@ -52,6 +74,37 @@ class CaseStore:
                 (case_id, dt.datetime.now(dt.timezone.utc).isoformat()),
             )
         return case_id
+
+    def delete(self, case_id: str) -> bool:
+        paths = self.paths(case_id)
+        import shutil
+        deleted = False
+        if paths.root.exists():
+            shutil.rmtree(paths.root, ignore_errors=True)
+            deleted = True
+
+        user_home = Path.home()
+        legacy_candidates = [
+            user_home / ".local" / "share" / "rby1-cs-analyzer-v3" / "cases" / case_id,
+            user_home / ".local" / "share" / "rby1-cs-analyzer-v2" / "cases" / case_id,
+            user_home / "AppData" / "Local" / "RB-Y1 CS Analyzer V3" / "cases" / case_id,
+            user_home / "AppData" / "Local" / "RB-Y1 CS Analyzer V2" / "cases" / case_id,
+        ]
+        for lcase in legacy_candidates:
+            if lcase.exists():
+                shutil.rmtree(lcase, ignore_errors=True)
+                deleted = True
+
+        with self._verification_lock:
+            self._verified_cases.discard(case_id)
+        return deleted
+
+    def update_title(self, case_id: str, title: str) -> str:
+        clean_title = title.strip()
+        db = self.open(case_id)
+        with db.connect() as connection:
+            connection.execute("UPDATE cases SET title=? WHERE id=?", (clean_title if clean_title else None, case_id))
+        return clean_title
 
     def open(self, case_id: str) -> Database:
         paths = self.paths(case_id)

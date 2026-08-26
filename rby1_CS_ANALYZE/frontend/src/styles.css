@@ -83,12 +83,14 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .triageBand .criticalMetric strong { color: var(--red); }
 .triageBand .timeMetric { font-size: 15px; white-space: nowrap; }
 
-.emptyState { min-height: calc(100vh - 145px); display: grid; grid-template-columns: auto minmax(280px, 560px) auto; place-content: center; align-items: center; gap: 22px; border-bottom: 1px solid var(--line); }
+.emptyState { min-height: calc(100vh - 145px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 32px 16px; width: 100%; max-width: 900px; margin: 0 auto; border-bottom: 1px solid var(--line); }
 .emptyState.dragActive { background: #101b19; }
-.emptyIndex { color: #313940; font: 800 70px/1 ui-monospace, monospace; }
-.emptyState h2 { margin-bottom: 7px; font-size: 20px; }
-.emptyState p { margin-bottom: 0; color: var(--muted); line-height: 1.6; font-size: 13px; }
-.emptyImportActions { display: flex; flex-wrap: wrap; gap: 7px; }
+.emptyDropHero { display: flex; align-items: center; justify-content: center; gap: 24px; width: 100%; flex-wrap: wrap; }
+.emptyIndex { color: #313940; font: 800 64px/1 ui-monospace, monospace; flex-shrink: 0; }
+.emptyHeroText { flex: 1 1 280px; min-width: 260px; }
+.emptyHeroText h2 { margin-bottom: 6px; font-size: 20px; }
+.emptyHeroText p { margin-bottom: 0; color: var(--muted); line-height: 1.5; font-size: 13px; }
+.emptyImportActions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 
 .warningDrawer { background: #2a2418; border-left: 3px solid var(--amber); margin-top: 8px; }
 .warningDrawer summary { display: flex; align-items: baseline; gap: 12px; padding: 8px 11px; cursor: pointer; }
@@ -422,25 +424,46 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .errorText { color: var(--red); }
 .csvEmpty { min-height: 65vh; display: grid; place-content: center; justify-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .csvEmpty strong { color: var(--text); font-size: 16px; }
-.stateDecoder { padding: 12px 0 18px; }
-.stateDecoderHead { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
-.stateDecoderHead h3 { margin: 0; font-size: 13px; }
-.stateDecoderHead p { margin: 0; color: #b1bbc2; font-size: 11px; }
-.stateJointGroup { margin-top: 13px; }
-.stateJointGroup h4 { margin: 0 0 7px; color: var(--teal); font: 750 12px/1.3 ui-monospace, monospace; }
-.stateValueList { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); border-top: 1px solid var(--line-soft); border-left: 1px solid var(--line-soft); }
-.stateValueList > div { min-width: 0; display: grid; gap: 7px; border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); padding: 9px; }
-.stateValueList > div.hasCoreFault { background: #211416; }
-.stateValueList > div.hasDiagnostic { background: #211d14; }
-.stateValueList code { color: #aeb8bf; font-size: 11px; }
-.stateValueList > div > div { display: flex; flex-wrap: wrap; gap: 4px; }
-.stateValueList span { display: inline-grid; gap: 2px; border: 1px solid #405049; padding: 5px 7px; color: var(--teal); font: 800 11px/1.15 ui-monospace, monospace; }
-.stateValueList span small { color: #b0bcb6; font: 10px/1.35 "Noto Sans KR", sans-serif; }
-.stateValueList .coreFaultBit { border-color: #704044; color: #f18c91; background: #2c181b; }
-.stateValueList .coreFaultBit small { color: #d29a9d; }
-.stateValueList .diagnosticBit { border-color: #796336; color: #f0c772; background: #292215; }
-.stateValueList .diagnosticBit small { color: #cdb680; }
-.stateValueList .reservedBit { border-color: #4a5157; color: #aab2b8; background: #1a1e21; }
+.stateDecoder { background: #111417; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 10px; }
+.stateDecoderAccordionHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; background: #171c21; border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; transition: background 0.15s ease; }
+.stateDecoderAccordionHeader:hover { background: #1e242b; }
+.stateDecoderTitleGroup { display: flex; align-items: center; gap: 12px; }
+.stateAccordionIcon { color: var(--teal); font-size: 13px; transition: transform 0.2s ease; }
+.stateDecoderTitles h3 { margin: 0 0 2px; font-size: 14px; color: #e5ecef; display: flex; align-items: center; gap: 8px; }
+.stateDecoderTitles p { margin: 0; color: var(--muted); font-size: 11px; }
+.stateDecoderBadgeGroup { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.stateBadge { padding: 4px 9px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+.stateBadge.ok { background: #132420; border: 1px solid #33594e; color: #65c8b3; }
+.stateBadge.warning { background: #282115; border: 1px solid #6b552c; color: #f0b85b; }
+.stateBadge.error { background: #2b1619; border: 1px solid #73353b; color: #f18c91; }
+.stateToggleBtnLabel { font-size: 11px; font-weight: 700; color: var(--teal); background: #131e1c; border: 1px solid #2f5950; border-radius: 4px; padding: 4px 9px; }
+.stateDecoderContent { padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.stateComponentTabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--line-soft); }
+.stateTabLabel { font-size: 11px; font-weight: 700; color: #929ea7; margin-right: 4px; }
+.stateTabBtn { background: #161b20; border: 1px solid #303942; border-radius: 4px; color: #b7c1c8; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; }
+.stateTabBtn:hover { background: #20272e; border-color: #4a5764; color: #e5ecef; }
+.stateTabBtn.active { background: #172421; border-color: var(--teal); color: var(--teal); box-shadow: inset 0 0 0 1px #31564f; }
+.stateJointsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.stateJointGroupCard { background: #14181c; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
+.stateJointCardHead { display: flex; align-items: baseline; justify-content: space-between; padding: 8px 12px; background: #181d22; border-bottom: 1px solid var(--line-soft); }
+.stateJointCardHead h4 { margin: 0; color: var(--teal); font: 750 13px/1 ui-monospace, monospace; }
+.stateRawCount { font-size: 10px; color: var(--muted); }
+.stateValueList { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; }
+.stateValueItem { display: flex; flex-direction: column; gap: 6px; background: #111417; border: 1px solid var(--line-soft); border-radius: 4px; padding: 8px; }
+.stateValueItem.hasCoreFault { background: #241416; border-color: #632e34; }
+.stateValueItem.hasDiagnostic { background: #221c13; border-color: #5c4723; }
+.stateValueHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.stateValueHeader code { color: #c9d2d8; font-size: 11px; font-weight: 700; }
+.tagCoreFault { background: #ff4d5a; color: #ffffff; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 3px; text-transform: uppercase; }
+.stateBitsList { display: flex; flex-wrap: wrap; gap: 4px; }
+.normalBit { color: #72808a; font-size: 11px; font-style: italic; }
+.stateBitsList span { display: inline-grid; gap: 2px; border: 1px solid #405049; padding: 5px 7px; color: var(--teal); font: 800 11px/1.15 ui-monospace, monospace; }
+.stateBitsList span small { color: #b0bcb6; font: 10px/1.35 "Noto Sans KR", sans-serif; }
+.stateBitsList .coreFaultBit { border-color: #704044; color: #f18c91; background: #2c181b; }
+.stateBitsList .coreFaultBit small { color: #d29a9d; }
+.stateBitsList .diagnosticBit { border-color: #796336; color: #f0c772; background: #292215; }
+.stateBitsList .diagnosticBit small { color: #cdb680; }
+.stateBitsList .reservedBit { border-color: #4a5157; color: #aab2b8; background: #1a1e21; }
 .stateEquation { margin: 0; color: #c3cbd0; font: 11px/1.5 ui-monospace, monospace; }
 .motorStateGuide { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); margin-top: 12px; border-top: 1px solid var(--line-soft); border-left: 1px solid var(--line-soft); }
 .motorStateGuide > div { display: grid; gap: 4px; border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); padding: 10px; }
@@ -823,57 +846,157 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 }
 
 .savedCasesSection {
-  margin-top: 32px;
+  margin-top: 24px;
   width: 100%;
-  max-width: 760px;
-  text-align: left;
-}
-.savedCasesSection h3 {
-  font-size: 14px;
-  color: #cbd3d8;
-  margin-bottom: 12px;
-}
-.savedCasesList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.savedCaseCard {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 10px 14px;
-  background: #191e23;
+  max-width: 860px;
+  background: #111518;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  color: #d1d8de;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  border-radius: 8px;
+  padding: 16px 20px;
   text-align: left;
 }
-.savedCaseCard:hover {
-  background: #242c34;
-  border-color: #4a5662;
+.savedCasesHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 8px;
+  flex-wrap: wrap;
 }
-.savedCaseCard strong {
-  font-size: 13px;
-  color: #65c8b3;
-  font-family: ui-monospace, monospace;
+.savedCasesHeader h3 {
+  font-size: 14px;
+  color: #d1d8de;
+  margin: 0;
 }
-.savedCaseCard span {
+.savedCasesSubtitle {
   font-size: 11px;
   color: var(--muted);
 }
+.savedCasesList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.modalDialog.modalLarge {
+  max-width: 860px;
+  width: 92%;
+}
+
+.savedCaseCard {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #161b20;
+  border: 1px solid #283038;
+  border-radius: 6px;
+  color: #d1d8de;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+.savedCaseCard:hover {
+  background: #1c232a;
+  border-color: #3e4c59;
+}
+.savedCaseCard.activeCard {
+  border-color: var(--teal);
+  background: #152220;
+}
+.savedCaseCardTop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+.savedCaseCardTop strong {
+  font-size: 13px;
+  color: #79d4c1;
+  font-family: ui-monospace, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.savedCaseCardTop span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.savedCaseCardActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid #252e36;
+  padding-top: 6px;
+}
+.caseActionBtn {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: #1f272e;
+  border: 1px solid #37434f;
+  border-radius: 4px;
+  color: #b9c4cb;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.caseActionBtn:hover {
+  background: #2b3640;
+  border-color: #4f5f6d;
+  color: #ffffff;
+}
+.caseActionBtn.danger:hover {
+  background: #3b181b;
+  border-color: #8c3b42;
+  color: #ff9da4;
+}
+.caseRenameForm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.caseRenameInput {
+  flex: 1;
+  background: #0f1316;
+  border: 1px solid var(--teal);
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+.caseRenameActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.smallBtn {
+  font-size: 11px;
+  padding: 3px 8px;
+}
 
 /* =========================================================
-   Unified CSV Analysis & 3D Simulation Workspace
+   Unified CSV Analysis & 3-Column Workspace
    ========================================================= */
 .csvWorkspace {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   width: 100%;
+  min-width: 0;
+}
+
+.csvHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
 }
 
 .csvHeaderLeft h2 {
@@ -888,74 +1011,145 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   margin: 2px 0 0 0;
 }
 
+.csvHeaderControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.csvFileSelectLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.csvFileSelectLabel select {
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.headerStatBadgeGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerStatBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #181d22;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.headerStatBadge span {
+  color: var(--muted);
+}
+
+.headerStatBadge strong {
+  color: var(--teal);
+  font-family: ui-monospace, monospace;
+}
+
 .btnToggle3D {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  background: #1e242a;
+  padding: 6px 12px;
+  background: #1a2026;
   border: 1px solid #3d4954;
   border-radius: 6px;
   color: #cbd4da;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btnToggle3D:hover {
-  background: #28323b;
+  background: #242c34;
   border-color: #556473;
   color: #ffffff;
 }
 
 .btnToggle3D.active {
-  background: #192723;
-  border-color: #65c8b3;
-  color: #65c8b3;
-  box-shadow: 0 0 14px rgba(101, 200, 179, 0.22);
+  background: #162621;
+  border-color: var(--teal);
+  color: var(--teal);
+  box-shadow: 0 0 12px rgba(101, 200, 179, 0.25);
 }
 
 .btn3DIcon {
-  font-size: 14px;
+  font-size: 13px;
 }
 
-/* Side-by-Side Split Workspace */
-.csvWorkspaceSplit {
+/* ---------------------------------------------------------
+   3-Column Workspace Grid System
+   --------------------------------------------------------- */
+.csvWorkspace3Col {
   display: grid;
   width: 100%;
-  gap: 16px;
+  gap: 14px;
   align-items: start;
-}
-
-.csvWorkspaceSplit.fullWidth {
-  grid-template-columns: 1fr;
-}
-
-.csvWorkspaceSplit.splitView {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-
-/* Attached Category Nav + Plots Layout */
-.plotsWithCategoryLayout {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
-  gap: 12px;
-  align-items: stretch;
   min-width: 0;
-  width: 100%;
-  height: 100%;
+  margin-top: 4px;
 }
 
-.plotCategoryNav {
+/* 3D OFF: 2-column (Category / Plots) */
+.csvWorkspace3Col.noSim3D {
+  grid-template-columns: 168px minmax(0, 1fr);
+}
+
+/* 3D ON: 3-column (Category / Plots / Simulation) */
+.csvWorkspace3Col.hasSim3D {
+  grid-template-columns: 168px minmax(0, 1fr) 420px;
+}
+
+@media (max-width: 1360px) {
+  .csvWorkspace3Col.hasSim3D {
+    grid-template-columns: 168px minmax(0, 1fr) 370px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .csvWorkspace3Col.hasSim3D {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+  .csvWorkspace3Col.hasSim3D .csvColSimulation {
+    grid-column: 1 / -1;
+    height: 520px;
+    max-height: 520px;
+  }
+}
+
+/* Col 1: Category Navigation Column */
+.csvColCategory {
   display: flex;
   flex-direction: column;
   background: #14181c;
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;
-  height: 100%;
-  min-height: 100%;
+  min-width: 0;
+}
+
+.plotCategory3DTopToggle {
+  padding: 8px;
+  background: #101316;
+  border-bottom: 1px solid var(--line);
+}
+
+.plotCategory3DTopToggle .btnToggle3D {
+  width: 100%;
+  justify-content: center;
+  padding: 6px 8px;
+  font-size: 11px;
 }
 
 .plotCategoryNavHeader {
@@ -972,16 +1166,14 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .plotCategoryNavList {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
 }
 
 .plotCategoryNavBtn {
-  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--line-soft);
@@ -1049,21 +1241,56 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   padding: 0 4px;
 }
 
-.csvPlotsContainer {
+/* Col 2: Main Plots Area (Dedicated Vertical Scrollbar) */
+.csvColPlots {
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-width: 0;
   width: 100%;
-  height: 100%;
+  height: calc(100vh - 200px);
+  min-height: 560px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
 }
 
-.csvPlotsBox {
+.csvColPlots::-webkit-scrollbar {
+  width: 7px;
+}
+.csvColPlots::-webkit-scrollbar-track {
+  background: #111417;
+  border-radius: 4px;
+}
+.csvColPlots::-webkit-scrollbar-thumb {
+  background: #2f3840;
+  border-radius: 4px;
+}
+.csvColPlots::-webkit-scrollbar-thumb:hover {
+  background: var(--teal);
+}
+
+/* Plots Grid & 2-Row Split */
+.csvPlotsGrid {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
   width: 100%;
+}
+
+.csvPlotsGrid.singleRow .csvPlot {
+  min-height: 440px;
+}
+
+.csvPlotsGrid.splitRows {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.csvPlotsGrid.splitRows .csvPlot {
+  min-height: 360px;
 }
 
 .csvPlot {
@@ -1072,30 +1299,9 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   background: #101316;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 6px 10px 6px 10px;
-}
-
-/* When 3D view is OFF (fullWidth mode) */
-.csvPlotsBox:not(.hasMultiplePlots) .csvPlot {
-  height: 540px;
-  min-height: 540px;
-}
-
-.csvPlotsBox.hasMultiplePlots .csvPlot {
-  height: 380px;
-  min-height: 380px;
-}
-
-/* When 3D view is ON (splitView mode) */
-.csvWorkspaceSplit.splitView .csvPlotsBox {
-  height: 580px;
-  min-height: 580px;
-}
-
-.csvWorkspaceSplit.splitView .csvPlotsBox .csvPlot {
+  padding: 8px 12px 12px;
+  min-width: 0;
   height: auto;
-  min-height: 0;
-  flex: 1 1 0%;
 }
 
 .csvChartHeader {
@@ -1133,26 +1339,65 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 }
 
 .csvTimeline {
-  flex: 1 1 0%;
-  min-height: 0;
+  min-height: 320px;
+  height: 380px;
   width: 100%;
   position: relative;
   border-top: 1px solid var(--line-soft);
 }
 
-.simulationColumn {
-  min-width: 0;
+/* Draggable Split Resizer Divider */
+.splitResizer {
+  width: 8px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: transparent;
+  user-select: none;
+  touch-action: none;
   height: 100%;
+  min-height: 560px;
+  transition: background 0.15s ease;
+  z-index: 10;
+}
+
+.splitResizer:hover,
+.splitResizer.dragging {
+  background: rgba(101, 200, 179, 0.15);
+}
+
+.resizerGrip {
+  width: 3px;
+  height: 48px;
+  background: #3a4550;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.splitResizer:hover .resizerGrip,
+.splitResizer.dragging .resizerGrip {
+  background: var(--teal);
+  height: 72px;
+  box-shadow: 0 0 8px rgba(101, 200, 179, 0.6);
+}
+
+/* Col 3: 3D Simulation Column */
+.csvColSimulation {
+  min-width: 0;
+  height: calc(100vh - 200px);
+  min-height: 560px;
   position: relative;
 }
 
 .simulationDockSticky {
   position: sticky;
-  top: 14px;
+  top: 0;
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-height: calc(100vh - 28px);
+  max-height: calc(100vh - 200px);
 }
 
 .simulationDock {
@@ -1164,7 +1409,17 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   height: 100%;
-  min-height: 580px;
+}
+
+.simControlBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #171b1f;
+  border-bottom: 1px solid #283038;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .simViewerContainer {
@@ -1174,17 +1429,6 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   min-height: 0;
   position: relative;
   background: #0f1214;
-}
-
-.simControlBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: #171b1f;
-  border-top: 1px solid #283038;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .playbackPrimary.playing {
@@ -1205,54 +1449,6 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .speedSelectLabel select {
   min-height: 28px;
   padding: 2px 6px;
-  font-size: 11px;
-}
-
-@media (max-width: 1200px) {
-  .csvWorkspaceSplit.splitView {
-    grid-template-columns: 1fr;
-  }
-  .simulationDockSticky {
-    position: static;
-  }
-}
-
-.headerStatBadgeGroup {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headerStatBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #181d22;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
-.headerStatBadge span {
-  color: var(--muted);
-}
-
-.headerStatBadge strong {
-  color: #65c8b3;
-  font-family: ui-monospace, monospace;
-}
-
-.plotCategory3DTopToggle {
-  padding: 8px;
-  background: #101316;
-  border-bottom: 1px solid var(--line);
-}
-
-.plotCategory3DTopToggle .btnToggle3D {
-  width: 100%;
-  justify-content: center;
-  padding: 6px 8px;
   font-size: 11px;
 }
 

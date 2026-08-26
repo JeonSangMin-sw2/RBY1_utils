@@ -413,59 +413,191 @@ function StateSummary({
   contract?: MotorStateContract;
   systemContract?: SystemStateContract;
 }) {
+  const [isGuideOpen, setIsGuideOpen] = useState(true);
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string>("all");
+
   if (category !== "state" && category !== "system") return null;
+
   if (category === "system") {
     if (!systemContract) return null;
     const resolvedSystemContract = systemContract;
-    return <section className="stateDecoder" aria-label="전원 및 제어 상태 해석">
-      <div className="stateDecoderHead"><h3>상태 값 해석</h3><p>그래프와 원본 값에 동일한 상태 정의를 적용합니다.</p></div>
-      <div className="systemStateGrid">
-        {series.map((item) => {
-          const values = [...new Set(item.points.map(([, value]) => Math.trunc(value)))];
-          return <div key={item.name}><strong>{systemSeriesLabel(item.name)}</strong><p>{values.map((value) => {
-            const state = systemStateDefinition(item.name, value, resolvedSystemContract);
-            return `${value} = ${state.name} (${state.label})`;
-          }).join(" · ")}</p></div>;
-        })}
-      </div>
-    </section>;
+    return (
+      <section className="stateDecoder" aria-label="전원 및 제어 상태 해석">
+        <div className="stateDecoderHead">
+          <h3>⚡ 전원 및 제어 상태 값 해석</h3>
+          <p>그래프와 원본 값에 동일한 상태 정의를 적용합니다.</p>
+        </div>
+        <div className="systemStateGrid">
+          {series.map((item) => {
+            const values = [...new Set(item.points.map(([, value]) => Math.trunc(value)))];
+            return (
+              <div key={item.name}>
+                <strong>{systemSeriesLabel(item.name)}</strong>
+                <p>{values.map((value) => {
+                  const state = systemStateDefinition(item.name, value, resolvedSystemContract);
+                  return `${value} = ${state.name} (${state.label})`;
+                }).join(" · ")}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
   }
 
   if (!series.length) return null;
-  return <section className="stateDecoder" aria-label="모터 상태 비트 해석">
-    <div className="stateDecoderHead"><h3>모터 상태 비트 해석</h3><p>원본 정수값을 RBMotor 상태 비트와 매칭합니다.</p></div>
-    {series.map((raw) => {
-      const values = [...new Set(raw.points.map(([, value]) => Math.trunc(value)))];
-      return <section className="stateJointGroup" key={raw.name}>
-        <h4>{jointFromSeries(raw.name) ?? raw.name}</h4>
-        <div className="stateValueList">
-          {values.map((value) => {
-            const bits = motorBits(value, definitions);
-            const hasCoreFault = bits.some((item) => item.kind === "core_fault");
-            const hasDiagnostic = bits.some((item) => item.kind === "diagnostic");
-            const valueClass = hasCoreFault ? "hasCoreFault" : hasDiagnostic ? "hasDiagnostic" : "";
-            return <div className={valueClass} key={`${raw.name}:${value}`}>
-              <code>{value} · 0x{motorStateMask(value).toString(16).toUpperCase()}</code>
-              <div>{bits.length ? bits.map((item) => <span className={bitClass(item)} key={item.bit} title={`bit ${item.bit} · 값 ${item.value}`}>
-                {item.name}<small>{item.label}</small>
-              </span>) : <span className="normalBit">활성 비트 없음</span>}</div>
-              {bits.length > 0 && <p className="stateEquation">{stateEquation(bits)}</p>}
-            </div>;
-          })}
+
+  // Extract all joints present in this series
+  const detectedJointNames = series
+    .map((raw) => jointFromSeries(raw.name) ?? raw.name)
+    .filter((name): name is string => Boolean(name));
+  const jointGroupList = groupJoints(sortJoints([...new Set(detectedJointNames)]));
+
+  // Filter series by active component group tab
+  const filteredSeries = selectedGroupKey === "all"
+    ? series
+    : series.filter((raw) => {
+        const joint = jointFromSeries(raw.name) ?? raw.name;
+        const targetGroup = jointGroupList.find((g) => g.key === selectedGroupKey);
+        return targetGroup?.joints.includes(joint);
+      });
+
+  // Calculate statistics for summary badge
+  let totalFaultCount = 0;
+  let totalDiagnosticCount = 0;
+  series.forEach((raw) => {
+    const values = [...new Set(raw.points.map(([, value]) => Math.trunc(value)))];
+    values.forEach((val) => {
+      const bits = motorBits(val, definitions);
+      if (bits.some((b) => b.kind === "core_fault")) totalFaultCount++;
+      if (bits.some((b) => b.kind === "diagnostic")) totalDiagnosticCount++;
+    });
+  });
+
+  return (
+    <section className="stateDecoder" aria-label="모터 상태 비트 해석">
+      {/* Prominent Collapsible Accordion Header */}
+      <div
+        className={`stateDecoderAccordionHeader ${isGuideOpen ? "expanded" : "collapsed"}`}
+        onClick={() => setIsGuideOpen((prev) => !prev)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isGuideOpen}
+      >
+        <div className="stateDecoderTitleGroup">
+          <span className="stateAccordionIcon">{isGuideOpen ? "▼" : "▶"}</span>
+          <div className="stateDecoderTitles">
+            <h3>모터 상태 비트 해석 (접기/펼치기)</h3>
+            <p>조인트별 상태 정수값을 RBMotor 비트 정의와 매칭하여 실시간 분석합니다.</p>
+          </div>
         </div>
-      </section>;
-    })}
-    {contract && <div className="motorStateGuide">
-      <div><strong>Core Motor Fault 판정 대상</strong><span>{contract.core_fault_names.join(" · ")} (비트 {contract.core_fault_bits.join(", ")})</span></div>
-      <div><strong>기타 상태 비트</strong><span>CSV에는 기록되지만 모두 Core의 Motor Fault 판정 조건에 포함되는 것은 아닙니다.</span></div>
-      <ul>
-        <li>{contract.temperature_note}</li>
-        <li>{contract.dynamixel_head_note}</li>
-        <li>비트 {contract.reserved_range}은 예약 영역입니다.</li>
-      </ul>
-    </div>}
-    <MotorBitReference definitions={definitions} />
-  </section>;
+        <div className="stateDecoderBadgeGroup">
+          {totalFaultCount > 0 ? (
+            <span className="stateBadge error">⚠️ Fault 비트 감지 ({totalFaultCount}건)</span>
+          ) : totalDiagnosticCount > 0 ? (
+            <span className="stateBadge warning">⚡ 주의 비트 감지 ({totalDiagnosticCount}건)</span>
+          ) : (
+            <span className="stateBadge ok">✓ 정상 상태</span>
+          )}
+          <span className="stateToggleBtnLabel">{isGuideOpen ? "접기 ▲" : "펼치기 ▼"}</span>
+        </div>
+      </div>
+
+      {isGuideOpen && (
+        <div className="stateDecoderContent">
+          {/* Component Tabs for Joint Filtering */}
+          <div className="stateComponentTabs" role="tablist" aria-label="조인트 부위별 필터">
+            <span className="stateTabLabel">부위별 보기:</span>
+            <button
+              type="button"
+              className={`stateTabBtn ${selectedGroupKey === "all" ? "active" : ""}`}
+              onClick={() => setSelectedGroupKey("all")}
+            >
+              전체 ({series.length})
+            </button>
+            {jointGroupList.map((group) => {
+              const count = group.joints.filter((j) => detectedJointNames.includes(j)).length;
+              if (count === 0) return null;
+              return (
+                <button
+                  type="button"
+                  key={group.key}
+                  className={`stateTabBtn ${selectedGroupKey === group.key ? "active" : ""}`}
+                  onClick={() => setSelectedGroupKey(group.key)}
+                >
+                  {group.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Joint State Bit Cards Grid */}
+          <div className="stateJointsGrid">
+            {filteredSeries.map((raw) => {
+              const jointName = jointFromSeries(raw.name) ?? raw.name;
+              const values = [...new Set(raw.points.map(([, value]) => Math.trunc(value)))];
+              return (
+                <section className="stateJointGroupCard" key={raw.name}>
+                  <div className="stateJointCardHead">
+                    <h4>{jointName}</h4>
+                    <span className="stateRawCount">{values.length}개 상태값 발생</span>
+                  </div>
+                  <div className="stateValueList">
+                    {values.map((value) => {
+                      const bits = motorBits(value, definitions);
+                      const hasCoreFault = bits.some((item) => item.kind === "core_fault");
+                      const hasDiagnostic = bits.some((item) => item.kind === "diagnostic");
+                      const valueClass = hasCoreFault ? "hasCoreFault" : hasDiagnostic ? "hasDiagnostic" : "";
+                      return (
+                        <div className={`stateValueItem ${valueClass}`} key={`${raw.name}:${value}`}>
+                          <div className="stateValueHeader">
+                            <code>{value} · 0x{motorStateMask(value).toString(16).toUpperCase()}</code>
+                            {hasCoreFault && <span className="tagCoreFault">Core Fault</span>}
+                          </div>
+                          <div className="stateBitsList">
+                            {bits.length ? (
+                              bits.map((item) => (
+                                <span className={bitClass(item)} key={item.bit} title={`bit ${item.bit} · 값 ${item.value}`}>
+                                  {item.name}<small>{item.label}</small>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="normalBit">활성 비트 없음 (정상)</span>
+                            )}
+                          </div>
+                          {bits.length > 0 && <p className="stateEquation">{stateEquation(bits)}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+
+          {/* Guide and Bit Definitions */}
+          {contract && (
+            <div className="motorStateGuide">
+              <div>
+                <strong>Core Motor Fault 판정 대상</strong>
+                <span>{contract.core_fault_names.join(" · ")} (비트 {contract.core_fault_bits.join(", ")})</span>
+              </div>
+              <div>
+                <strong>기타 상태 비트</strong>
+                <span>CSV에는 기록되지만 모두 Core의 Motor Fault 판정 조건에 포함되는 것은 아닙니다.</span>
+              </div>
+              <ul>
+                <li>{contract.temperature_note}</li>
+                <li>{contract.dynamixel_head_note}</li>
+                <li>비트 {contract.reserved_range}은 예약 영역입니다.</li>
+              </ul>
+            </div>
+          )}
+          <MotorBitReference definitions={definitions} />
+        </div>
+      )}
+    </section>
+  );
 }
 
 function CsvPlot({
@@ -770,6 +902,17 @@ function CsvPlot({
       {!loading && !error && !displayed.length && <div className="chartLoading">선택한 항목에 표시할 샘플이 없습니다.</div>}
       <div className={!loading && !error && displayed.length ? "csvChart" : "csvChart isHidden"} ref={chartNode} />
     </div>
+
+    {/* 모터 상태 비트 해석 / 전원 상태 해석을 플롯 블록 내부에 직접 포함 */}
+    {(category === "state" || category === "system") && (
+      <StateSummary
+        category={category}
+        series={series}
+        definitions={payload?.motor_state_bits ?? []}
+        contract={payload?.motor_state_contract}
+        systemContract={payload?.system_state_contract}
+      />
+    )}
   </section>;
 }
 
@@ -825,6 +968,48 @@ export function CsvAnalysis({
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(false);
   const cursorRef = useRef(cursorTime);
+
+  // Split pane draggable width between plots and 3D simulation
+  const [simWidth, setSimWidth] = useState<number>(() => {
+    try {
+      const saved = window.sessionStorage.getItem("rby1_sim_width");
+      if (saved) return Math.max(320, Math.min(800, Number(saved)));
+    } catch {}
+    return 460;
+  });
+  const [isDraggingResizer, setIsDraggingResizer] = useState(false);
+  const dragStartXRef = useRef(0);
+  const dragStartWidthRef = useRef(simWidth);
+
+  useEffect(() => {
+    if (!isDraggingResizer) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = dragStartXRef.current - e.clientX;
+      const minW = 300;
+      const maxW = Math.max(360, window.innerWidth - 420);
+      const newWidth = Math.max(minW, Math.min(maxW, dragStartWidthRef.current + delta));
+      setSimWidth(newWidth);
+      try {
+        window.sessionStorage.setItem("rby1_sim_width", String(newWidth));
+      } catch {}
+    };
+    const handleMouseUp = () => {
+      setIsDraggingResizer(false);
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDraggingResizer]);
+
+  const startResizerDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragStartXRef.current = e.clientX;
+    dragStartWidthRef.current = simWidth;
+    setIsDraggingResizer(true);
+  };
 
   useEffect(() => {
     cursorRef.current = cursorTime;
@@ -1141,74 +1326,76 @@ export function CsvAnalysis({
       </div>
     )}
 
-    {/* 4. Plot & Simulation Workspace */}
-    <div className={`csvWorkspaceSplit ${show3DView ? "splitView" : "fullWidth"}`}>
-      {/* Left Area: Vertical Signal Category Tab Bar attached directly to the left of 2D Plot */}
-      <div className="plotsWithCategoryLayout">
-        <nav className="plotCategoryNav" aria-label="CSV 신호 분류">
-          {/* 3D View Toggle Button placed directly above the signal category box */}
-          <div className="plotCategory3DTopToggle">
-            <button
-              type="button"
-              className={`btnToggle3D ${show3DView ? "active" : ""}`}
-              onClick={() => setShow3DView((prev) => !prev)}
-              title="3D 로봇 자세 시뮬레이터 및 재생 컨트롤을 열고 닫습니다"
-            >
-              <span className="btn3DIcon">🤖</span>
-              <span className="btn3DText">3D 시각화 {show3DView ? "ON" : "OFF"}</span>
-            </button>
-          </div>
+    {/* 4. 3-Column Workspace: [1: Signal Category] | [2: Plots (scrollable)] | [Resizer] | [3: 3D Simulation] */}
+    <div
+      className={`csvWorkspace3Col ${show3DView ? "hasSim3D" : "noSim3D"}`}
+      style={show3DView ? { gridTemplateColumns: `168px minmax(0, 1fr) 8px ${simWidth}px` } : undefined}
+    >
+      {/* Col 1: Signal Classification Nav (Fixed Width ~168px) */}
+      <aside className="csvColCategory" aria-label="CSV 신호 분류">
+        <div className="plotCategory3DTopToggle">
+          <button
+            type="button"
+            className={`btnToggle3D ${show3DView ? "active" : ""}`}
+            onClick={() => setShow3DView((prev) => !prev)}
+            title="3D 로봇 자세 시뮬레이터 및 재생 컨트롤을 열고 닫습니다"
+          >
+            <span className="btn3DIcon">🤖</span>
+            <span className="btn3DText">3D 시각화 {show3DView ? "ON" : "OFF"}</span>
+          </button>
+        </div>
 
-          <div className="plotCategoryNavHeader">
-            <span>신호 분류</span>
-          </div>
-          <div className="plotCategoryNavList">
-            {categories.map((item) => {
-              const isActive = item.key === resolvedCategory;
-              return (
-                <button
-                  type="button"
-                  className={`plotCategoryNavBtn ${isActive ? "active" : ""}`}
-                  key={item.key}
-                  onClick={() => {
-                    setCategory(item.key);
-                    setComparisonCategories((current) => current.filter((candidate) => candidate !== item.key));
-                  }}
-                >
-                  <strong>{item.label}</strong>
-                  <small>{item.description}</small>
-                </button>
-              );
-            })}
-          </div>
+        <div className="plotCategoryNavHeader">
+          <span>신호 분류</span>
+        </div>
+        <div className="plotCategoryNavList">
+          {categories.map((item) => {
+            const isActive = item.key === resolvedCategory;
+            return (
+              <button
+                type="button"
+                className={`plotCategoryNavBtn ${isActive ? "active" : ""}`}
+                key={item.key}
+                onClick={() => {
+                  setCategory(item.key);
+                  setComparisonCategories((current) => current.filter((candidate) => candidate !== item.key));
+                }}
+              >
+                <strong>{item.label}</strong>
+                <small>{item.description}</small>
+              </button>
+            );
+          })}
+        </div>
 
-          <div className="plotComparisonNavSection">
-            <span className="comparisonNavTitle">비교 Plot</span>
-            <select
-              aria-label="비교 Plot에 추가할 신호"
-              value={resolvedComparisonCandidate}
-              disabled={!comparisonOptions.length}
-              onChange={(event) => setComparisonCandidate(event.target.value as SignalCategory | "")}
-            >
-              {!comparisonOptions.length && <option value="">추가 불가</option>}
-              {comparisonOptions.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}
-            </select>
-            <button
-              type="button"
-              className="textButton addComparisonBtn"
-              disabled={!resolvedComparisonCandidate}
-              onClick={() => {
-                if (!resolvedComparisonCandidate) return;
-                setComparisonCategories((current) => [...current, resolvedComparisonCandidate]);
-              }}
-            >+ 추가</button>
-          </div>
-        </nav>
+        <div className="plotComparisonNavSection">
+          <span className="comparisonNavTitle">비교 Plot</span>
+          <select
+            aria-label="비교 Plot에 추가할 신호"
+            value={resolvedComparisonCandidate}
+            disabled={!comparisonOptions.length}
+            onChange={(event) => setComparisonCandidate(event.target.value as SignalCategory | "")}
+          >
+            {!comparisonOptions.length && <option value="">추가 불가</option>}
+            {comparisonOptions.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}
+          </select>
+          <button
+            type="button"
+            className="textButton addComparisonBtn"
+            disabled={!resolvedComparisonCandidate}
+            onClick={() => {
+              if (!resolvedComparisonCandidate) return;
+              setComparisonCategories((current) => [...current, resolvedComparisonCandidate]);
+            }}
+          >+ 추가</button>
+        </div>
+      </aside>
 
-        {/* 2D Plots Box */}
-        <div className="csvPlotsContainer">
-          <div className={`csvPlotsBox ${plots.length > 1 ? "hasMultiplePlots" : ""}`}>
-            {plots[0] && <CsvPlot
+      {/* Col 2: Main Plots Area (Scrollable Column) */}
+      <main className="csvColPlots" aria-label="CSV 신호 그래프 및 분석">
+        <div className={`csvPlotsGrid ${plots.length > 1 ? "splitRows" : "singleRow"}`}>
+          {plots[0] && (
+            <CsvPlot
               category={plots[0].category}
               selectedNames={plots[0].selectedNames}
               payload={payload}
@@ -1221,9 +1408,11 @@ export function CsvAnalysis({
               selectedIncidentId={selectedIncidentId}
               cursorTime={show3DView ? cursorTime : undefined}
               onCursorChange={setCursorTime}
-            />}
+            />
+          )}
 
-            {plots.slice(1).map((plot, index) => <CsvPlot
+          {plots.slice(1).map((plot, index) => (
+            <CsvPlot
               category={plot.category}
               selectedNames={plot.selectedNames}
               payload={payload}
@@ -1239,34 +1428,30 @@ export function CsvAnalysis({
               cursorTime={show3DView ? cursorTime : undefined}
               onCursorChange={setCursorTime}
               key={plot.category}
-            />)}
-          </div>
-
-          <div className="csvPlotSummaries">
-            {plots.map((plot, index) => <StateSummary
-              category={plot.category}
-              series={seriesByPlot[index] ?? []}
-              definitions={payload?.motor_state_bits ?? []}
-              contract={payload?.motor_state_contract}
-              systemContract={payload?.system_state_contract}
-              key={plot.category}
-            />)}
-          </div>
+            />
+          ))}
         </div>
-      </div>
+      </main>
 
-      {/* Right Area: 3D Simulation (Only when show3DView is true) */}
+      {/* Draggable Divider between Plots and 3D Simulation */}
       {show3DView && (
-        <div className="simulationColumn">
+        <div
+          className={`splitResizer ${isDraggingResizer ? "dragging" : ""}`}
+          onMouseDown={startResizerDrag}
+          title="드래그하여 그래프와 3D 시뮬레이션 영역 너비를 조절합니다"
+          role="separator"
+          aria-orientation="vertical"
+        >
+          <div className="resizerGrip" />
+        </div>
+      )}
+
+      {/* Col 3: 3D Simulation (Shown when show3DView is true) */}
+      {show3DView && (
+        <aside className="csvColSimulation" aria-label="3D 로봇 자세 시뮬레이션">
           <div className="simulationDockSticky">
-            <section className="simulationDock" aria-label="3D 로봇 자세 시뮬레이션">
-              <div className="simViewerContainer">
-                <RobotViewer
-                  model={activeModel}
-                  jointValues={pose}
-                  cursorLabel={cursorLabel}
-                />
-              </div>
+            <section className="simulationDock">
+              {/* Playback Controls placed ON TOP of 3D Viewer */}
               <div className="simControlBar">
                 <div className="playbackControls" aria-label="자세 재생 제어">
                   <button type="button" className="textButton" disabled={!playbackAvailable} onClick={() => { setPlaying(false); setCursorTime(start); }}>처음</button>
@@ -1293,9 +1478,17 @@ export function CsvAnalysis({
                   <strong>{cursorLabel}</strong>
                 </div>
               </div>
+
+              <div className="simViewerContainer">
+                <RobotViewer
+                  model={activeModel}
+                  jointValues={pose}
+                  cursorLabel={cursorLabel}
+                />
+              </div>
             </section>
           </div>
-        </div>
+        </aside>
       )}
     </div>
   </section>;

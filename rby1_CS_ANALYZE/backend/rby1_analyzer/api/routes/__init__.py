@@ -15,7 +15,7 @@ from rby1_analyzer.jobs.manager import ActiveImportError
 from rby1_analyzer.jobs.runner import ImportRef
 
 from ..deps import Bearer
-from ..schemas import CaseResponse, JobResponse, SessionRequest, SessionResponse
+from ..schemas import CaseResponse, CaseUpdateRequest, JobResponse, SessionRequest, SessionResponse
 
 router = APIRouter(prefix="/api")
 
@@ -52,7 +52,7 @@ def list_cases(request: Request, _token: Bearer) -> dict[str, list[dict[str, Any
         try:
             db = store.open(case_dir.name)
             with db.connect() as connection:
-                row = connection.execute("SELECT id,created_at FROM cases LIMIT 1").fetchone()
+                row = connection.execute("SELECT id,created_at,title FROM cases LIMIT 1").fetchone()
                 if row is None:
                     continue
                 case_id = row["id"]
@@ -62,12 +62,15 @@ def list_cases(request: Request, _token: Bearer) -> dict[str, list[dict[str, Any
                 ).fetchone()
                 event_count = int(count_row["count"]) if count_row else 0
                 stem, model_slug, period = _format_case_timeline_stem(connection, case_id)
-                display_name = f"{stem}.jsonl"
+                auto_name = f"{stem}.jsonl"
+                custom_title = row["title"] if "title" in row.keys() and row["title"] else None
+                display_name = custom_title or auto_name
                 cases.append({
                     "case_id": case_id,
                     "created_at": row["created_at"],
+                    "title": custom_title,
                     "display_name": display_name,
-                    "filename_jsonl": display_name,
+                    "filename_jsonl": auto_name,
                     "model": model_slug,
                     "period": period,
                     "event_count": event_count,
@@ -75,6 +78,37 @@ def list_cases(request: Request, _token: Bearer) -> dict[str, list[dict[str, Any
         except Exception:
             continue
     return {"cases": cases}
+
+
+@router.patch("/cases/{case_id}")
+def update_case(
+    case_id: str,
+    body: CaseUpdateRequest,
+    request: Request,
+    _token: Bearer,
+) -> dict[str, Any]:
+    store = request.app.state.runtime.cases
+    try:
+        updated_title = store.update_title(case_id, body.title)
+        return {"ok": True, "case_id": case_id, "title": updated_title}
+    except (ValueError, FileNotFoundError):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "case not found")
+
+
+@router.delete("/cases/{case_id}")
+def delete_case(
+    case_id: str,
+    request: Request,
+    _token: Bearer,
+) -> dict[str, bool]:
+    store = request.app.state.runtime.cases
+    try:
+        deleted = store.delete(case_id)
+        if not deleted:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "case not found")
+        return {"ok": True}
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid case id")
 
 
 @router.post("/cases/{case_id}/imports", response_model=JobResponse)

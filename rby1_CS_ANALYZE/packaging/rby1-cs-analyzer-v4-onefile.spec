@@ -5,20 +5,29 @@ root = Path(SPECPATH).parent
 
 a = Analysis(
     [str(root / "packaging" / "entrypoints" / "launcher_entry.py")],
-    pathex=[str(root / "src")],
+    pathex=[str(root / "backend")],
     binaries=[],
     datas=[
         (str(root / "frontend" / "dist"), "frontend/dist"),
         (str(root / "config"), "config"),
         (
-            str(root / "src" / "rby1_analyzer" / "diagnostics" / "rules"),
+            str(root / "backend" / "rby1_analyzer" / "diagnostics" / "rules"),
             "rby1_analyzer/diagnostics/rules",
         ),
     ],
     hiddenimports=["uvicorn.logging", "uvicorn.loops.auto", "uvicorn.protocols.http.auto"],
     hookspath=[],
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        "PyQt5",
+        "PyQt6",
+        "PySide2",
+        "PySide6",
+        "matplotlib",
+        "tkinter",
+        "torch",
+        "scipy",
+    ],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

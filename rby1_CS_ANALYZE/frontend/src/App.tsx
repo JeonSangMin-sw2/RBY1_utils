@@ -8,6 +8,7 @@ import "./styles.css";
 type CaseItem = {
   case_id: string;
   created_at: string;
+  title?: string;
   display_name?: string;
   filename_jsonl?: string;
   model?: string;
@@ -346,6 +347,52 @@ export default function App() {
   const [showLoadModal, setShowLoadModal] = useState(false);
   const loadCaseRequest = useRef(0);
 
+  // Case rename and management state
+  const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+
+  const handleStartRename = (e: React.MouseEvent, item: CaseItem) => {
+    e.stopPropagation();
+    setEditingCaseId(item.case_id);
+    setEditingTitle(item.title || item.display_name || "");
+  };
+
+  const handleSaveRename = async (e: React.MouseEvent | React.FormEvent, targetCaseId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!client || !targetCaseId) return;
+    try {
+      await client.json(`/api/cases/${targetCaseId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: editingTitle.trim() }),
+      });
+      setCases((prev) => prev.map((c) => (c.case_id === targetCaseId ? { ...c, title: editingTitle.trim(), display_name: editingTitle.trim() || c.filename_jsonl } : c)));
+      setEditingCaseId(null);
+    } catch (err) {
+      alert("케이스 이름 변경에 실패했습니다: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleDeleteCase = async (e: React.MouseEvent, item: CaseItem) => {
+    e.stopPropagation();
+    if (!client) return;
+    const name = item.display_name || item.case_id;
+    if (!window.confirm(`'${name}' 분석 케이스를 완전히 삭제하시겠습니까?\n(로컬 저장소의 파일이 삭제됩니다)`)) {
+      return;
+    }
+    try {
+      await client.json(`/api/cases/${item.case_id}`, { method: "DELETE" });
+      setCases((prev) => prev.filter((c) => c.case_id !== item.case_id));
+      if (caseId === item.case_id) {
+        setCaseId("");
+        setOverview(null);
+        setIncidents([]);
+      }
+    } catch (err) {
+      alert("케이스 삭제에 실패했습니다: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
   useEffect(() => {
     if (!client || !caseId) {
       setTimelineInfo(null);
@@ -670,9 +717,9 @@ export default function App() {
 
     {showLoadModal && (
       <div className="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="load-modal-title" onClick={() => setShowLoadModal(false)}>
-        <div className="modalDialog" onClick={(event) => event.stopPropagation()}>
+        <div className="modalDialog modalLarge" onClick={(event) => event.stopPropagation()}>
           <div className="modalHeader">
-            <h3 id="load-modal-title">📂 기존 통합 파일 불러오기</h3>
+            <h3 id="load-modal-title">📂 기존 통합 파일 관리 및 불러오기</h3>
             <button type="button" className="textButton closeButton" onClick={() => setShowLoadModal(false)}>✕</button>
           </div>
           <div className="modalBody">
@@ -681,18 +728,63 @@ export default function App() {
             ) : (
               <div className="savedCasesList">
                 {cases.map((c) => (
-                  <button
+                  <div
                     key={c.case_id}
-                    type="button"
                     className={`savedCaseCard${c.case_id === caseId ? " activeCard" : ""}`}
-                    onClick={() => {
-                      setShowLoadModal(false);
-                      void loadCase(client!, c.case_id);
-                    }}
                   >
-                    <strong>{c.display_name || c.case_id}</strong>
-                    <span>{c.period ? `기간: ${c.period}` : new Date(c.created_at).toLocaleString("ko-KR")} · {c.event_count ? `${c.event_count.toLocaleString()}건` : ""}</span>
-                  </button>
+                    {editingCaseId === c.case_id ? (
+                      <form className="caseRenameForm" onSubmit={(e) => handleSaveRename(e, c.case_id)} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          className="caseRenameInput"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          placeholder="케이스 이름을 입력하세요"
+                          autoFocus
+                        />
+                        <div className="caseRenameActions">
+                          <button type="submit" className="textButton primary smallBtn">저장</button>
+                          <button type="button" className="textButton smallBtn" onClick={(e) => { e.stopPropagation(); setEditingCaseId(null); }}>취소</button>
+                        </div>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="savedCaseCardTop" onClick={() => { setShowLoadModal(false); void loadCase(client!, c.case_id); }}>
+                          <strong title={c.display_name || c.case_id}>{c.display_name || c.case_id}</strong>
+                          <span>{c.period ? `기간: ${c.period}` : new Date(c.created_at).toLocaleString("ko-KR")} · {c.event_count ? `${c.event_count.toLocaleString()}건` : ""}</span>
+                        </div>
+                        <div className="savedCaseCardActions">
+                          <button
+                            type="button"
+                            className="textButton caseActionBtn"
+                            onClick={() => {
+                              setShowLoadModal(false);
+                              void loadCase(client!, c.case_id);
+                            }}
+                            title="이 케이스를 바로 엽니다"
+                          >
+                            📂 바로보기
+                          </button>
+                          <button
+                            type="button"
+                            className="textButton caseActionBtn"
+                            onClick={(e) => handleStartRename(e, c)}
+                            title="케이스 이름을 수정합니다"
+                          >
+                            ✏️ 이름 수정
+                          </button>
+                          <button
+                            type="button"
+                            className="textButton caseActionBtn danger"
+                            onClick={(e) => handleDeleteCase(e, c)}
+                            title="이 케이스를 삭제합니다"
+                          >
+                            🗑️ 삭제
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -756,35 +848,89 @@ export default function App() {
     </section>}
 
     {!caseId ? <section className={`emptyState${dragActive ? " dragActive" : ""}`}>
-      <div className="emptyIndex">01</div>
-      <div><h2>분석할 파일을 가져오십시오</h2><p>RPC 로그, Fault CSV, 압축 묶음 또는 해당 파일이 담긴 폴더를 이 화면에 끌어 놓으십시오.</p></div>
-      <div className="emptyImportActions">
-        <label className="importButton large">파일 선택<input aria-label="분석할 로그 파일 선택" type="file" multiple accept=".log,.csv,.zip,.tar,.gz,.tar.gz,.tgz" onChange={selectFiles} /></label>
-        <label className="importButton large">폴더 선택<input
-          ref={(element) => {
-            element?.setAttribute("webkitdirectory", "");
-            element?.setAttribute("directory", "");
-          }}
-          aria-label="분석할 로그 폴더 선택"
-          type="file"
-          multiple
-          onChange={selectFiles}
-        /></label>
+      <div className="emptyDropHero">
+        <div className="emptyIndex">01</div>
+        <div className="emptyHeroText">
+          <h2>분석할 파일을 가져오십시오</h2>
+          <p>RPC 로그, Fault CSV, 압축 묶음 또는 해당 파일이 담긴 폴더를 이 화면에 끌어 놓으십시오.</p>
+        </div>
+        <div className="emptyImportActions">
+          <label className="importButton large">파일 선택<input aria-label="분석할 로그 파일 선택" type="file" multiple accept=".log,.csv,.zip,.tar,.gz,.tar.gz,.tgz" onChange={selectFiles} /></label>
+          <label className="importButton large">폴더 선택<input
+            ref={(element) => {
+              element?.setAttribute("webkitdirectory", "");
+              element?.setAttribute("directory", "");
+            }}
+            aria-label="분석할 로그 폴더 선택"
+            type="file"
+            multiple
+            onChange={selectFiles}
+          /></label>
+        </div>
       </div>
+
       {cases.length > 0 && (
         <div className="savedCasesSection">
-          <h3>📂 이전에 분석된 통합본 목록 ({cases.length}개)</h3>
+          <div className="savedCasesHeader">
+            <h3>📂 이전에 분석된 통합본 목록 ({cases.length}개)</h3>
+            <span className="savedCasesSubtitle">저장소의 케이스를 바로 열거나 이름 수정 및 삭제할 수 있습니다.</span>
+          </div>
           <div className="savedCasesList">
-            {cases.slice(0, 8).map((c) => (
-              <button
+            {cases.map((c) => (
+              <div
                 key={c.case_id}
-                type="button"
                 className="savedCaseCard"
-                onClick={() => void loadCase(client!, c.case_id)}
               >
-                <strong>{c.display_name || c.case_id}</strong>
-                <span>{c.period ? `기간: ${c.period}` : new Date(c.created_at).toLocaleString("ko-KR")} · {c.event_count ? `${c.event_count.toLocaleString()}건` : ""}</span>
-              </button>
+                {editingCaseId === c.case_id ? (
+                  <form className="caseRenameForm" onSubmit={(e) => handleSaveRename(e, c.case_id)} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      className="caseRenameInput"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      placeholder="케이스 이름을 입력하세요"
+                      autoFocus
+                    />
+                    <div className="caseRenameActions">
+                      <button type="submit" className="textButton primary smallBtn">저장</button>
+                      <button type="button" className="textButton smallBtn" onClick={(e) => { e.stopPropagation(); setEditingCaseId(null); }}>취소</button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div className="savedCaseCardTop" onClick={() => void loadCase(client!, c.case_id)}>
+                      <strong title={c.display_name || c.case_id}>{c.display_name || c.case_id}</strong>
+                      <span>{c.period ? `기간: ${c.period}` : new Date(c.created_at).toLocaleString("ko-KR")} · {c.event_count ? `${c.event_count.toLocaleString()}건` : ""}</span>
+                    </div>
+                    <div className="savedCaseCardActions">
+                      <button
+                        type="button"
+                        className="textButton caseActionBtn"
+                        onClick={() => void loadCase(client!, c.case_id)}
+                        title="이 케이스를 바로 엽니다"
+                      >
+                        📂 바로보기
+                      </button>
+                      <button
+                        type="button"
+                        className="textButton caseActionBtn"
+                        onClick={(e) => handleStartRename(e, c)}
+                        title="케이스 이름을 수정합니다"
+                      >
+                        ✏️ 이름 수정
+                      </button>
+                      <button
+                        type="button"
+                        className="textButton caseActionBtn danger"
+                        onClick={(e) => handleDeleteCase(e, c)}
+                        title="이 케이스를 삭제합니다"
+                      >
+                        🗑️ 삭제
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             ))}
           </div>
         </div>

@@ -6,12 +6,6 @@ from pathlib import Path
 from typing import Mapping
 
 
-def _current_or_legacy(current: Path, legacy_roots: list[Path]) -> Path:
-    if current.exists():
-        return current
-    return next((path for path in legacy_roots if path.exists()), current)
-
-
 def default_data_root(
     *,
     platform_name: str | None = None,
@@ -21,32 +15,27 @@ def default_data_root(
     environment = os.environ if environ is None else environ
     user_home = Path.home() if home is None else home
     configured = (
-        environment.get("RBY1_CS_ANALYZER_V4_DATA_ROOT")
+        environment.get("RBY1_CS_ANALYZER_DATA_ROOT")
+        or environment.get("RBY1_CS_ANALYZER_V4_DATA_ROOT")
         or environment.get("RBY1_CS_ANALYZER_V3_DATA_ROOT")
         or environment.get("RBY1_CS_ANALYZER_V2_DATA_ROOT")
     )
     if configured:
         return Path(configured).expanduser()
 
-    for candidate in (
-        Path.cwd() / "data",
-        Path(__file__).resolve().parents[3] / "data",
-    ):
-        if candidate.is_dir():
-            return candidate
+    # 1. 개발/소스코드 환경에서는 레포지토리 내의 ./data 디렉터리를 기본값으로 사용
+    repo_root = Path(__file__).resolve().parents[3]
+    if (repo_root / "backend").is_dir():
+        return repo_root / "data"
+    if (Path.cwd() / "backend").is_dir() or (Path.cwd() / "data").is_dir():
+        return Path.cwd() / "data"
 
+    # 2. 독립 배포 바이너리 환경에서는 V4 표준 전용 디렉터리 사용 (구버전 v2/v3 자동 참조 제거)
     if (os.name if platform_name is None else platform_name) == "nt":
         local_app_data = environment.get("LOCALAPPDATA")
         base = Path(local_app_data) if local_app_data else user_home / "AppData" / "Local"
-        current = base / "RB-Y1 CS Analyzer V4"
-        legacy_roots = [base / "RB-Y1 CS Analyzer V3", base / "RB-Y1 CS Analyzer V2"]
-        return _current_or_legacy(current, legacy_roots)
-    current = user_home / ".local" / "share" / "rby1-cs-analyzer-v4"
-    legacy_roots = [
-        user_home / ".local" / "share" / "rby1-cs-analyzer-v3",
-        user_home / ".local" / "share" / "rby1-cs-analyzer-v2",
-    ]
-    return _current_or_legacy(current, legacy_roots)
+        return base / "RB-Y1 CS Analyzer V4"
+    return user_home / ".local" / "share" / "rby1-cs-analyzer-v4"
 
 
 @dataclass(frozen=True, slots=True)

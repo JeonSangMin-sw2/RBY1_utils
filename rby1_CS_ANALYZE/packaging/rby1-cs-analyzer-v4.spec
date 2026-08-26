@@ -21,7 +21,16 @@ a = Analysis(
     hiddenimports=["uvicorn.logging", "uvicorn.loops.auto", "uvicorn.protocols.http.auto"],
     hookspath=[],
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        "PyQt5",
+        "PyQt6",
+        "PySide2",
+        "PySide6",
+        "matplotlib",
+        "tkinter",
+        "torch",
+        "scipy",
+    ],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

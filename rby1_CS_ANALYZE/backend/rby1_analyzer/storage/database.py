@@ -9,7 +9,7 @@ from typing import Iterator
 SCHEMA = """
 PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
-CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, title TEXT);
 CREATE TABLE IF NOT EXISTS artifacts (
   id INTEGER PRIMARY KEY, case_id TEXT NOT NULL, kind TEXT NOT NULL,
   sha256 TEXT NOT NULL, size INTEGER NOT NULL, stored_path TEXT NOT NULL,
@@ -139,6 +139,10 @@ class Database:
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            try:
+                connection.execute("ALTER TABLE cases ADD COLUMN title TEXT")
+            except sqlite3.OperationalError:
+                pass
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:

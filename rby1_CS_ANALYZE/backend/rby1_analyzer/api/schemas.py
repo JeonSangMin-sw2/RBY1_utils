@@ -15,3 +15,7 @@ class CaseResponse(BaseModel):
 
 class JobResponse(BaseModel):
     job_id: str
+
+
+class CaseUpdateRequest(BaseModel):
+    title: str = Field(default="", max_length=256)
