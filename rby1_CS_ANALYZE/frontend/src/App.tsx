@@ -300,6 +300,22 @@ function citation(event: Evidence): string {
   return `${event.source_name}${member}:${event.line} · sha256:${event.raw_digest}`;
 }
 
+function incidentFullDate(incident: Incident): string {
+  const raw = incident.start_raw;
+  if (raw) {
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    const wall = raw.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
+    if (wall) return `20${wall[3]}-${wall[1]}-${wall[2]}`;
+  }
+  if (incident.start_time) {
+    const d = new Date(incident.start_time * 1000);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  const display = incidentTime(incident);
+  return display.date;
+}
+
 export default function App() {
   const [client, setClient] = useState<ApiClient | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -320,6 +336,7 @@ export default function App() {
   } | null>(null);
   const [detailRetry, setDetailRetry] = useState(0);
   const [selectedId, setSelectedId] = useState("");
+  const [selectedDate, setSelectedDate] = useState<string>("all");
   const [warnings, setWarnings] = useState<WarningItem[]>([]);
   const [query, setQuery] = useState("");
   const [severity, setSeverity] = useState("all");
@@ -597,25 +614,73 @@ export default function App() {
 
   const searchableIncidents = useMemo(() => incidents.map((item) => ({
     item,
+    dateKey: incidentFullDate(item),
     searchText: `${item.title} ${item.summary} ${item.primary_cause ?? ""} ${item.affected_components.join(" ")} ${item.affected_joints.join(" ")}`.toLowerCase(),
   })), [incidents]);
+
+  const availableDates = useMemo(() => {
+    const counts = new Map<string, number>();
+    incidents.forEach((item) => {
+      const d = incidentFullDate(item);
+      counts.set(d, (counts.get(d) ?? 0) + 1);
+    });
+    return [...counts.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, count]) => ({ date, count }));
+  }, [incidents]);
+
   const severities = useMemo(() => [...new Set(incidents.map((item) => item.severity))], [incidents]);
   const families = useMemo(() => {
     const values = new Map<string, string>();
     incidents.forEach((item) => values.set(item.family, item.title));
     return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1], "ko"));
   }, [incidents]);
-  const filtered = useMemo(() => searchableIncidents.filter(({ item, searchText }) => (
-    (!faultOnly || Boolean(item.fault_level))
+
+  const filtered = useMemo(() => searchableIncidents.filter(({ item, dateKey, searchText }) => (
+    (selectedDate === "all" || dateKey === selectedDate)
+      && (!faultOnly || Boolean(item.fault_level))
       && (severity === "all" || item.severity === severity)
       && (family === "all" || item.family === family)
       && (layer === "all" || item.layer === layer)
       && searchText.includes(query.trim().toLowerCase())
-  )).map(({ item }) => item), [family, faultOnly, layer, query, searchableIncidents, severity]);
+  )).map(({ item }) => item), [family, faultOnly, layer, query, searchableIncidents, selectedDate, severity]);
+
   const visible = filtered.slice(0, displayLimit);
   const activeSelectedId = filtered.some((item) => item.id === selectedId)
     ? selectedId
     : filtered[0]?.id ?? "";
+
+  const handlePrevDate = () => {
+    if (!availableDates.length) return;
+    if (selectedDate === "all") {
+      setSelectedDate(availableDates[availableDates.length - 1].date);
+      setSelectedId("");
+      return;
+    }
+    const idx = availableDates.findIndex((d) => d.date === selectedDate);
+    if (idx > 0) {
+      setSelectedDate(availableDates[idx - 1].date);
+    } else {
+      setSelectedDate("all");
+    }
+    setSelectedId("");
+  };
+
+  const handleNextDate = () => {
+    if (!availableDates.length) return;
+    if (selectedDate === "all") {
+      setSelectedDate(availableDates[0].date);
+      setSelectedId("");
+      return;
+    }
+    const idx = availableDates.findIndex((d) => d.date === selectedDate);
+    if (idx >= 0 && idx < availableDates.length - 1) {
+      setSelectedDate(availableDates[idx + 1].date);
+    } else {
+      setSelectedDate("all");
+    }
+    setSelectedId("");
+  };
 
   useEffect(() => {
     if (!client || !caseId || !activeSelectedId) return;
@@ -662,6 +727,7 @@ export default function App() {
     setFamily("all");
     setLayer(nextLayer);
     setFaultOnly(onlyFaults);
+    setSelectedDate("all");
     setSelectedId("");
     setDisplayLimit(500);
   }
@@ -731,6 +797,10 @@ export default function App() {
                   <div
                     key={c.case_id}
                     className={`savedCaseCard${c.case_id === caseId ? " activeCard" : ""}`}
+                    onClick={() => { setShowLoadModal(false); void loadCase(client!, c.case_id); }}
+                    role="button"
+                    tabIndex={0}
+                    title="클릭하여 이 분석 케이스를 엽니다"
                   >
                     {editingCaseId === c.case_id ? (
                       <form className="caseRenameForm" onSubmit={(e) => handleSaveRename(e, c.case_id)} onClick={(e) => e.stopPropagation()}>
@@ -749,22 +819,11 @@ export default function App() {
                       </form>
                     ) : (
                       <>
-                        <div className="savedCaseCardTop" onClick={() => { setShowLoadModal(false); void loadCase(client!, c.case_id); }}>
+                        <div className="savedCaseCardTop">
                           <strong title={c.display_name || c.case_id}>{c.display_name || c.case_id}</strong>
                           <span>{c.period ? `기간: ${c.period}` : new Date(c.created_at).toLocaleString("ko-KR")} · {c.event_count ? `${c.event_count.toLocaleString()}건` : ""}</span>
                         </div>
                         <div className="savedCaseCardActions">
-                          <button
-                            type="button"
-                            className="textButton caseActionBtn"
-                            onClick={() => {
-                              setShowLoadModal(false);
-                              void loadCase(client!, c.case_id);
-                            }}
-                            title="이 케이스를 바로 엽니다"
-                          >
-                            📂 바로보기
-                          </button>
                           <button
                             type="button"
                             className="textButton caseActionBtn"
@@ -831,21 +890,46 @@ export default function App() {
       </div>
     </div>}
 
-    {activeTab === "incidents" && <section className="triageBand" aria-label="장애 분석 요약">
-      <button
-        type="button"
-        className={`triageMetric${!faultOnly && layer === "all" ? " active" : ""}`}
-        aria-pressed={!faultOnly && layer === "all"}
-        onClick={() => resetIncidentFilters()}
-      ><span>장애 사건</span><strong>{overview?.incident_count ?? 0}</strong><small>분석된 사건 수</small></button>
-      <button
-        type="button"
-        className={`triageMetric criticalMetric${faultOnly ? " active" : ""}`}
-        aria-pressed={faultOnly}
-        onClick={() => resetIncidentFilters("all", true)}
-      ><span>중대 사건</span><strong>{overview?.fault_count ?? 0}</strong><small>Major / Minor Fault</small></button>
-      <div className="rangeMetric"><span>발생 구간</span><strong className="timeMetric">{overviewRangeText(overview?.first_time, overview?.last_time, overview?.first_raw, overview?.last_raw)}</strong></div>
-    </section>}
+    {activeTab === "incidents" && (
+      <section className="triageBand" aria-label="장애 분석 및 계층 요약">
+        <button
+          type="button"
+          className={`triageMetric${layer === "all" ? " active" : ""}`}
+          aria-pressed={layer === "all"}
+          onClick={() => resetIncidentFilters("all")}
+        >
+          <span>전체 사건</span>
+          <strong>{overview?.incident_count ?? 0}</strong>
+          <small>모든 분석 사건</small>
+        </button>
+
+        {(overview?.layer_counts ?? []).map((item) => {
+          const isFault = item.layer === "fault" || item.layer === "major_fault" || item.layer === "minor_fault";
+          const isControl = item.layer === "control";
+          const metricClass = isFault ? "criticalMetric" : isControl ? "controlMetric" : "othersMetric";
+          return (
+            <button
+              type="button"
+              className={`triageMetric ${metricClass} layer-${item.layer}${layer === item.layer ? " active" : ""}`}
+              aria-pressed={layer === item.layer}
+              onClick={() => resetIncidentFilters(item.layer)}
+              key={item.layer}
+            >
+              <span>{item.label}</span>
+              <strong>{item.count}</strong>
+              <small>{isFault ? "Major / Minor Fault" : isControl ? "Control 이벤트" : "기타 로그"}</small>
+            </button>
+          );
+        })}
+
+        <div className="rangeMetric">
+          <span>발생 구간</span>
+          <strong className="timeMetric">
+            {overviewRangeText(overview?.first_time, overview?.last_time, overview?.first_raw, overview?.last_raw)}
+          </strong>
+        </div>
+      </section>
+    )}
 
     {!caseId ? <section className={`emptyState${dragActive ? " dragActive" : ""}`}>
       <div className="emptyDropHero">
@@ -880,6 +964,10 @@ export default function App() {
               <div
                 key={c.case_id}
                 className="savedCaseCard"
+                onClick={() => void loadCase(client!, c.case_id)}
+                role="button"
+                tabIndex={0}
+                title="클릭하여 이 분석 케이스를 엽니다"
               >
                 {editingCaseId === c.case_id ? (
                   <form className="caseRenameForm" onSubmit={(e) => handleSaveRename(e, c.case_id)} onClick={(e) => e.stopPropagation()}>
@@ -898,19 +986,11 @@ export default function App() {
                   </form>
                 ) : (
                   <>
-                    <div className="savedCaseCardTop" onClick={() => void loadCase(client!, c.case_id)}>
+                    <div className="savedCaseCardTop">
                       <strong title={c.display_name || c.case_id}>{c.display_name || c.case_id}</strong>
                       <span>{c.period ? `기간: ${c.period}` : new Date(c.created_at).toLocaleString("ko-KR")} · {c.event_count ? `${c.event_count.toLocaleString()}건` : ""}</span>
                     </div>
                     <div className="savedCaseCardActions">
-                      <button
-                        type="button"
-                        className="textButton caseActionBtn"
-                        onClick={() => void loadCase(client!, c.case_id)}
-                        title="이 케이스를 바로 엽니다"
-                      >
-                        📂 바로보기
-                      </button>
                       <button
                         type="button"
                         className="textButton caseActionBtn"
@@ -942,24 +1022,57 @@ export default function App() {
       </details>}
 
       <div className={`tabContainer ${activeTab === "incidents" ? "tabActive" : "tabHidden"}`}>
-        <section className="layerSummary" aria-label="이슈 발생 계층별 집계">
-          <div className="layerSummaryTitle"><strong>이슈 발생 계층</strong><span>선택한 계층의 사건만 표시</span></div>
-          {(overview?.layer_counts ?? []).map((item) => <button
-            type="button"
-            className={`layerMetric layer-${item.layer}${!faultOnly && layer === item.layer ? " active" : ""}`}
-            aria-pressed={!faultOnly && layer === item.layer}
-            onClick={() => resetIncidentFilters(item.layer)}
-            key={item.layer}
-          >
-            <span>{item.label}</span><strong>{item.count}</strong>
-          </button>)}
-          {!overview?.layer_counts?.length && <p>분류할 사건이 없습니다.</p>}
-        </section>
         <div className="investigationGrid">
           <section className="incidentPanel" aria-label="장애 사건 목록">
             <div className="panelTitleRow">
               <div><h2>장애 사건</h2><p>전체 {incidents.length}건 · 조건 일치 {filtered.length}건{visible.length < filtered.length ? ` · ${visible.length}건 표시` : ""}</p></div>
             </div>
+            {availableDates.length > 0 && (
+              <div className="incidentDateNavToolbar" role="toolbar" aria-label="사건 발생 날짜별 필터">
+                <span className="dateNavTitle">📅 날짜별:</span>
+                <button
+                  type="button"
+                  className={`dateNavTabBtn ${selectedDate === "all" ? "active" : ""}`}
+                  onClick={() => { setSelectedDate("all"); setSelectedId(""); }}
+                >
+                  전체 ({incidents.length})
+                </button>
+                {availableDates.length > 1 && (
+                  <button
+                    type="button"
+                    className="dateNavArrowBtn"
+                    onClick={handlePrevDate}
+                    title="이전 날짜로 넘기기 (◀)"
+                    aria-label="이전 날짜"
+                  >
+                    ◀
+                  </button>
+                )}
+                <div className="dateNavTabList">
+                  {availableDates.map(({ date, count }) => (
+                    <button
+                      type="button"
+                      key={date}
+                      className={`dateNavTabBtn ${selectedDate === date ? "active" : ""}`}
+                      onClick={() => { setSelectedDate(date); setSelectedId(""); }}
+                    >
+                      {date} ({count})
+                    </button>
+                  ))}
+                </div>
+                {availableDates.length > 1 && (
+                  <button
+                    type="button"
+                    className="dateNavArrowBtn"
+                    onClick={handleNextDate}
+                    title="다음 날짜로 넘기기 (▶)"
+                    aria-label="다음 날짜"
+                  >
+                    ▶
+                  </button>
+                )}
+              </div>
+            )}
             <div className="filters">
               <input aria-label="장애 사건 검색" placeholder="오류, 축, 구성요소 검색" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(""); setDisplayLimit(500); }} />
               <select aria-label="심각도 필터" value={severity} onChange={(event) => { setSeverity(event.target.value); setSelectedId(""); setDisplayLimit(500); }}>

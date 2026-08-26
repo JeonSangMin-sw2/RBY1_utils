@@ -199,104 +199,118 @@ function jointFromSeries(name: string): string | null {
     "_motor_temp",
     "_drive_temp",
   ];
-  const suffix = suffixes.find((item) => name.endsWith(item));
-  return suffix ? name.slice(0, -suffix.length) : null;
-}
-
-function namesFor(category: SignalCategory, joint: string, available: Set<string>): string[] {
-  const candidates: Record<Exclude<SignalCategory, "system">, string[]> = {
-    position: [`${joint}_pos`, `${joint}_target_pos`],
-    velocity: [`${joint}_vel`, `${joint}_target_vel`],
-    current: [`${joint}_cur`, `${joint}_current`],
-    torque: [`${joint}_tq`, `${joint}_target_ff_tq`, `${joint}_torque`],
-    temperature: [`${joint}_temperature`, `${joint}_temp`, `${joint}_motor_temp`, `${joint}_drive_temp`],
-    state: [`${joint}_state`, `${joint}_motor_state`],
-    gain: [`${joint}_target_fb_gain`],
-  };
-  return (category === "system" ? SYSTEM_SERIES : candidates[category]).filter((name) => available.has(name));
+  for (const suffix of suffixes) {
+    if (name.endsWith(suffix)) {
+      return name.slice(0, -suffix.length);
+    }
+  }
+  return null;
 }
 
 function categoryAvailable(category: SignalCategory, joints: string[], available: Set<string>): boolean {
-  return category === "system"
-    ? SYSTEM_SERIES.some((name) => available.has(name))
-    : joints.some((joint) => namesFor(category, joint, available).length > 0);
+  if (category === "system") {
+    return SYSTEM_SERIES.some((name) => available.has(name));
+  }
+  return joints.some((joint) => namesFor(category, joint, available).length > 0);
+}
+
+function namesFor(category: SignalCategory, joint: string, available: Set<string>): string[] {
+  switch (category) {
+    case "position":
+      return [`${joint}_pos`, `${joint}_target_pos`].filter((name) => available.has(name));
+    case "velocity":
+      return [`${joint}_vel`, `${joint}_target_vel`].filter((name) => available.has(name));
+    case "current":
+      return [`${joint}_cur`].filter((name) => available.has(name));
+    case "torque":
+      return [`${joint}_tq`, `${joint}_target_ff_tq`].filter((name) => available.has(name));
+    case "temperature":
+      return [
+        `${joint}_temperature`,
+        `${joint}_temp`,
+        `${joint}_motor_temp`,
+        `${joint}_drive_temp`,
+      ].filter((name) => available.has(name));
+    case "state":
+      return [`${joint}_state`].filter((name) => available.has(name));
+    case "gain":
+      return [`${joint}_target_fb_gain`].filter((name) => available.has(name));
+    case "system":
+      return SYSTEM_SERIES.filter((name) => available.has(name));
+  }
 }
 
 function eligibleJointsFor(category: SignalCategory, joints: string[], available: Set<string>): string[] {
-  return category === "system"
-    ? []
-    : joints.filter((name) => namesFor(category, name, available).length > 0);
+  if (category === "system") return [];
+  return joints.filter((joint) => namesFor(category, joint, available).length > 0);
 }
 
 function formatDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return "--";
-  if (seconds < 1) return `${Math.round(seconds * 1000)} ms`;
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  if (hrs > 0) {
-    return `${hrs}:${String(mins).padStart(2, "0")}:${secs.toFixed(3).padStart(6, "0")}`;
-  }
-  return `${String(mins).padStart(2, "0")}:${secs.toFixed(3).padStart(6, "0")}`;
+  const safe = Math.max(0, seconds);
+  const minutes = Math.floor(safe / 60);
+  const remainder = safe % 60;
+  return `${minutes}m ${remainder.toFixed(1)}s`;
 }
 
 function formatAxisTime(value: number, start: number): string {
-  if (value > 1_000_000_000) {
-    const date = new Date(value * 1000);
-    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}.${String(date.getMilliseconds()).padStart(3, "0")}`;
-  }
-  return `${(value - start).toFixed(3)}s`;
+  return `${(value - start).toFixed(1)}s`;
 }
 
-type SystemTooltipParam = {
-  axisValue: number | string;
-  dataIndex: number;
-  seriesIndex: number;
-  marker: string;
-  seriesName: string;
-  value?: number | [number, number];
-};
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;",
-  })[character] ?? character);
-}
+type SystemTooltipParam = { seriesName: string; value: [number, number]; marker: string };
 
 function systemTooltip(
-  value: SystemTooltipParam | SystemTooltipParam[],
-  displayed: DisplaySeries[],
+  params: SystemTooltipParam | SystemTooltipParam[],
+  series: DisplaySeries[],
   start: number,
 ): string {
-  const params = Array.isArray(value) ? value : [value];
-  const timestamp = Number(params[0]?.axisValue ?? start);
-  const rows = params.map((item) => {
-    const state = displayed[item.seriesIndex]?.semanticPoints?.[item.dataIndex];
-    const stateText = state
-      ? `${state.name} (${state.label}, 원본 ${state.rawValue})`
-      : "상태 정보 없음";
-    return `${item.marker}${escapeHtml(item.seriesName)}: ${escapeHtml(stateText)}`;
+  const items = Array.isArray(params) ? params : [params];
+  if (!items.length) return "";
+  const time = items[0].value[0];
+  const lines = [`시간: +${(time - start).toFixed(3)}s (${time.toFixed(3)}s)`];
+  items.forEach((item) => {
+    const target = series.find((candidate) => candidate.name === item.seriesName);
+    const point = target?.semanticPoints?.find((_, index) => target.points[index]?.[0] === time)
+      ?? target?.semanticPoints?.[target.points.findIndex(([candidateTime]) => candidateTime === time)];
+    const detail = point ? `${point.rawValue} · ${point.name} (${point.label})` : String(item.value[1]);
+    lines.push(`${item.marker}${item.seriesName}: <b>${detail}</b>`);
   });
-  return [`<strong>${escapeHtml(formatAxisTime(timestamp, start))}</strong>`, ...rows].join("<br/>");
+  return lines.join("<br/>");
 }
 
 function signalTooltip(
-  value: SystemTooltipParam | SystemTooltipParam[],
+  params: SystemTooltipParam | SystemTooltipParam[],
   start: number,
   unit?: string,
 ): string {
-  const params = Array.isArray(value) ? value : [value];
-  const timestamp = Number(params[0]?.axisValue ?? start);
-  const rows = params.map((item) => {
-    const raw = Array.isArray(item.value) ? item.value[1] : item.value;
-    const shown = typeof raw === "number" && Number.isFinite(raw) ? raw.toFixed(4) : "-";
-    return `${item.marker}${escapeHtml(item.seriesName)}: ${shown}${unit ? ` ${escapeHtml(unit)}` : ""}`;
+  const items = Array.isArray(params) ? params : [params];
+  if (!items.length) return "";
+  const time = items[0].value[0];
+  const lines = [`시간: +${(time - start).toFixed(3)}s (${time.toFixed(3)}s)`];
+  items.forEach((item) => {
+    const rawValue = item.value[1];
+    const value = typeof rawValue === "number" ? rawValue.toFixed(3) : String(rawValue);
+    lines.push(`${item.marker}${item.seriesName}: <b>${value}${unit ? ` ${unit}` : ""}</b>`);
   });
-  return [`<strong>${escapeHtml(formatAxisTime(timestamp, start))}</strong>`, ...rows].join("<br/>");
+  return lines.join("<br/>");
+}
+
+function shortJointLabel(joint: string): string {
+  return joint
+    .replace(/^right_arm_(\d+)$/, "r_arm_$1")
+    .replace(/^left_arm_(\d+)$/, "l_arm_$1")
+    .replace(/^torso_(\d+)$/, "torso_$1")
+    .replace(/^head_(\d+)$/, "head_$1")
+    .replace(/^right_wheel$/, "r_wheel")
+    .replace(/^left_wheel$/, "l_wheel");
+}
+
+function shortBitName(name: string): string {
+  return name
+    .replace(/^Motor Fault$/, "Fault")
+    .replace(/^Diagnostic$/, "Diag")
+    .replace(/^Core Fault$/, "CoreFlt")
+    .replace(/^Over Temperature$/, "OverTemp")
+    .replace(/^Over Current$/, "OverCur");
 }
 
 function stateLanes(series: CsvSeries[], allDefinitions: MotorBit[]): LaneChart {
@@ -316,7 +330,8 @@ function stateLanes(series: CsvSeries[], allDefinitions: MotorBit[]): LaneChart 
     series: entries.map(({ source, definition }, index) => {
       const lane = entries.length - index;
       const joint = jointFromSeries(source.name) ?? source.name;
-      labels.set(lane, `${joint} · ${definition.name}`);
+      const compactLabel = `${shortJointLabel(joint)}:${shortBitName(definition.name)}`;
+      labels.set(lane, compactLabel);
       return {
         name: `${joint} · ${definition.name} · ${definition.label}`,
         kind: "discrete",
@@ -344,7 +359,8 @@ function systemLanes(series: CsvSeries[], contract: SystemStateContract): LaneCh
   entries.forEach((entry, index) => {
     const lane = entries.length - index;
     laneByState.set(`${entry.seriesName}:${entry.value}`, lane);
-    labels.set(lane, `${systemSeriesLabel(entry.seriesName)} · ${entry.definition.name}`);
+    const compactSys = systemSeriesLabel(entry.seriesName);
+    labels.set(lane, `${compactSys}:${entry.definition.name}`);
   });
 
   return {
@@ -368,32 +384,44 @@ function systemLanes(series: CsvSeries[], contract: SystemStateContract): LaneCh
 }
 
 function bitClass(bit: MotorBit): string {
-  if (bit.kind === "core_fault") return "coreFaultBit";
+  if (bit.core_fault) return "coreFaultBit";
   if (bit.kind === "diagnostic") return "diagnosticBit";
-  if (bit.kind === "reserved") return "reservedBit";
-  return "normalBit";
+  if (bit.reserved) return "reservedBit";
+  return "statusBit";
 }
 
-function stateEquation(bits: MotorBit[]): string {
-  if (!bits.length) return "";
-  const values = bits.map((item) => item.value.toLocaleString("ko-KR")).join(" + ");
-  return `${values} = ${bits.map((item) => item.name).join(" + ")}`;
+function stateEquation(activeBits: MotorBit[]): string {
+  const integer = activeBits.reduce((total, item) => total + item.value, 0);
+  const terms = activeBits.map((item) => `2^${item.bit}`).join(" + ");
+  return `${terms} = ${integer} (0x${integer.toString(16).toUpperCase()})`;
 }
 
 function MotorBitReference({ definitions }: { definitions: MotorBit[] }) {
-  const documented = definitions.filter((item) => item.bit <= 18);
-  if (!documented.length) return null;
   return <details className="motorBitReference">
-    <summary>Motor State 전체 비트 정의</summary>
+    <summary><span>전체 모터 상태 비트 정의표 (클릭하여 접기/펼치기)</span></summary>
     <div className="motorBitTableWrap">
-      <table>
-        <thead><tr><th>비트</th><th>값</th><th>이름</th><th>의미</th><th>Core 판정</th></tr></thead>
+      <table className="motorBitTable">
+        <thead>
+          <tr>
+            <th>비트</th>
+            <th>10진수</th>
+            <th>16진수</th>
+            <th>이름</th>
+            <th>설명</th>
+            <th>구분</th>
+          </tr>
+        </thead>
         <tbody>
-          {documented.map((item) => <tr className={item.kind} key={item.bit}>
-            <td>{item.bit}</td><td>{item.value.toLocaleString("ko-KR")}</td><td>{item.name}</td><td>{item.label}</td>
-            <td>{item.core_fault ? "Motor Fault 판정 대상" : "-"}</td>
-          </tr>)}
-          <tr className="reserved"><td>19~31</td><td>-</td><td>reserved</td><td>예약 비트</td><td>-</td></tr>
+          {definitions.map((item) => (
+            <tr key={item.bit}>
+              <td>{item.bit}</td>
+              <td>{item.value}</td>
+              <td>0x{item.value.toString(16).toUpperCase()}</td>
+              <td><code>{item.name}</code></td>
+              <td>{item.label}</td>
+              <td><span className={bitClass(item)}>{item.core_fault ? "Core Fault" : item.kind}</span></td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -406,15 +434,21 @@ function StateSummary({
   definitions,
   contract,
   systemContract,
+  activeGroupKey,
+  onSelectGroupKey,
 }: {
   category: SignalCategory;
   series: CsvSeries[];
   definitions: MotorBit[];
   contract?: MotorStateContract;
   systemContract?: SystemStateContract;
+  activeGroupKey?: string;
+  onSelectGroupKey?: (key: string) => void;
 }) {
-  const [isGuideOpen, setIsGuideOpen] = useState(true);
-  const [selectedGroupKey, setSelectedGroupKey] = useState<string>("all");
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [internalGroupKey, setInternalGroupKey] = useState<string>("all");
+  const selectedGroupKey = activeGroupKey ?? internalGroupKey;
+  const setSelectedGroupKey = onSelectGroupKey ?? setInternalGroupKey;
 
   if (category !== "state" && category !== "system") return null;
 
@@ -476,7 +510,6 @@ function StateSummary({
 
   return (
     <section className="stateDecoder" aria-label="모터 상태 비트 해석">
-      {/* Prominent Collapsible Accordion Header */}
       <div
         className={`stateDecoderAccordionHeader ${isGuideOpen ? "expanded" : "collapsed"}`}
         onClick={() => setIsGuideOpen((prev) => !prev)}
@@ -505,7 +538,6 @@ function StateSummary({
 
       {isGuideOpen && (
         <div className="stateDecoderContent">
-          {/* Component Tabs for Joint Filtering */}
           <div className="stateComponentTabs" role="tablist" aria-label="조인트 부위별 필터">
             <span className="stateTabLabel">부위별 보기:</span>
             <button
@@ -531,7 +563,6 @@ function StateSummary({
             })}
           </div>
 
-          {/* Joint State Bit Cards Grid */}
           <div className="stateJointsGrid">
             {filteredSeries.map((raw) => {
               const jointName = jointFromSeries(raw.name) ?? raw.name;
@@ -575,7 +606,6 @@ function StateSummary({
             })}
           </div>
 
-          {/* Guide and Bit Definitions */}
           {contract && (
             <div className="motorStateGuide">
               <div>
@@ -602,6 +632,8 @@ function StateSummary({
 
 function CsvPlot({
   category,
+  onCategoryChange,
+  availableCategories,
   selectedNames,
   payload,
   loading,
@@ -617,6 +649,8 @@ function CsvPlot({
   onCursorChange,
 }: {
   category: SignalCategory;
+  onCategoryChange: (newCategory: SignalCategory) => void;
+  availableCategories: { key: SignalCategory; label: string; description: string }[];
   selectedNames: string[];
   payload: CsvChartPayload | null;
   loading: boolean;
@@ -635,21 +669,60 @@ function CsvPlot({
   const chartRef = useRef<ReturnType<typeof init> | null>(null);
   const zoomCallbackRef = useRef(onZoomRangeChange);
   const cursorCallbackRef = useRef(onCursorChange);
+
   const series = useMemo(() => {
     if (!payload) return [];
     const selected = new Set(selectedNames);
     return payload.series.filter((item) => selected.has(item.name));
   }, [payload, selectedNames]);
+
+  const detectedJointNames = useMemo(() => {
+    return series
+      .map((raw) => jointFromSeries(raw.name) ?? raw.name)
+      .filter((name): name is string => Boolean(name));
+  }, [series]);
+
+  const jointGroupList = useMemo(() => {
+    return groupJoints(sortJoints([...new Set(detectedJointNames)]));
+  }, [detectedJointNames]);
+
+  // State groups: Remove 'all', only keep concrete joint groups
+  const stateGroups = useMemo(() => {
+    if (category !== "state" || jointGroupList.length === 0) return [];
+    return jointGroupList.map((g) => ({
+      key: g.key,
+      label: `${g.label} (${g.joints.filter((j) => detectedJointNames.includes(j)).length})`,
+    }));
+  }, [category, jointGroupList, detectedJointNames]);
+
+  const [activeStateGroup, setActiveStateGroup] = useState<string>(() => jointGroupList[0]?.key ?? "head");
+
+  useEffect(() => {
+    if (stateGroups.length > 0 && !stateGroups.some((g) => g.key === activeStateGroup)) {
+      setActiveStateGroup(stateGroups[0].key);
+    }
+  }, [stateGroups, activeStateGroup]);
+
+  const stateFilteredSeries = useMemo(() => {
+    if (category !== "state") return series;
+    const targetGroup = jointGroupList.find((g) => g.key === activeStateGroup) ?? jointGroupList[0];
+    if (!targetGroup) return series;
+    return series.filter((raw) => {
+      const joint = jointFromSeries(raw.name) ?? raw.name;
+      return targetGroup.joints.includes(joint);
+    });
+  }, [category, activeStateGroup, series, jointGroupList]);
+
   const lanes = useMemo(() => {
     if (!payload) return null;
-    if (category === "state" && series.length) {
-      return stateLanes(series, payload.motor_state_bits);
+    if (category === "state" && stateFilteredSeries.length) {
+      return stateLanes(stateFilteredSeries, payload.motor_state_bits);
     }
-    if (category === "system") {
+    if (category === "system" && series.length) {
       return systemLanes(series, payload.system_state_contract);
     }
     return null;
-  }, [category, payload, series]);
+  }, [category, payload, stateFilteredSeries, series]);
   const signalUnit = csvSignalUnit(category);
   const displayed = useMemo(() => {
     if (lanes) return lanes.series;
@@ -683,7 +756,6 @@ function CsvPlot({
     };
     chart.on("datazoom", handleZoom);
 
-    // Track mouse dragging to prevent clicks during zoom/pan
     let isDragging = false;
     let downPos = { x: 0, y: 0 };
     const handleMouseDown = (e: { offsetX: number; offsetY: number }) => {
@@ -735,7 +807,6 @@ function CsvPlot({
     const laneMode = Boolean(lanes);
     const laneCount = lanes?.labels.size ?? 0;
 
-    // Single clean orange dashed line for selected incident
     const selectedIncident = incidentMarks.find((inc) => inc.id === selectedIncidentId);
     const incidentTimeVal = selectedIncident ? (selectedIncident.csv_sample_time ?? selectedIncident.start_time) : undefined;
     const selectedIncidentMark = typeof incidentTimeVal === "number" && incidentTimeVal >= payload.start && incidentTimeVal <= payload.end ? [{
@@ -782,7 +853,7 @@ function CsvPlot({
         show: category !== "state" || laneCount <= 8,
       },
       grid: {
-        left: category === "system" || category === "state" ? 190 : signalUnit ? 84 : 58,
+        left: 80,
         right: 24,
         top: 36,
         bottom: 50,
@@ -833,7 +904,14 @@ function CsvPlot({
         min: 0.5,
         max: laneCount + 0.5,
         interval: 1,
-        axisLabel: { color: "#c1c9ce", fontSize: 11, formatter: (value: number) => lanes.labels.get(Math.round(value)) ?? "" },
+        axisLabel: {
+          color: "#c1c9ce",
+          fontSize: 10,
+          width: 72,
+          overflow: "truncate",
+          ellipsis: "...",
+          formatter: (value: number) => lanes.labels.get(Math.round(value)) ?? "",
+        },
         splitLine: { lineStyle: { color: "#252b31" } },
       } : {
         type: "value",
@@ -873,46 +951,124 @@ function CsvPlot({
     }, { notMerge: true, lazyUpdate: true });
   }, [category, cursorTime, displayed, incidentMarks, lanes, payload, selectedIncidentId, signalUnit, zoomRange]);
 
-  return <section className={`csvPlot csvPlot-${kind === "primary" ? "primary" : "secondary csvPlot-comparison"}`} aria-label={categoryLabel}>
-    <div className="csvChartHeader">
-      <div>
-        <h3>
-          {categoryLabel}
-          <span>{selectedNames.length}개 신호</span>
-          {kind === "comparison" && <b className="plotPriority">비교 {comparisonIndex ?? 1}</b>}
-        </h3>
+  const handlePrevStateGroup = () => {
+    if (!stateGroups.length) return;
+    const currentIndex = stateGroups.findIndex((g) => g.key === activeStateGroup);
+    const nextIndex = (currentIndex - 1 + stateGroups.length) % stateGroups.length;
+    setActiveStateGroup(stateGroups[nextIndex].key);
+  };
+
+  const handleNextStateGroup = () => {
+    if (!stateGroups.length) return;
+    const currentIndex = stateGroups.findIndex((g) => g.key === activeStateGroup);
+    const nextIndex = (currentIndex + 1) % stateGroups.length;
+    setActiveStateGroup(stateGroups[nextIndex].key);
+  };
+
+  return <section className={`csvPlotCard csvPlot-${kind === "primary" ? "primary" : "secondary"}`} aria-label={categoryLabel}>
+    {/* 1. Left: Embedded Signal Category Selection Nav */}
+    <aside className="csvPlotMiniCategoryNav" aria-label="신호 분류 선택">
+      <div className="miniNavHeader">신호 분류</div>
+      <div className="miniNavBtnList">
+        {availableCategories.map((item) => {
+          const isActive = item.key === category;
+          return (
+            <button
+              type="button"
+              key={item.key}
+              className={`miniNavBtn ${isActive ? "active" : ""}`}
+              onClick={() => onCategoryChange(item.key)}
+              title={item.description}
+            >
+              <strong>{item.label}</strong>
+            </button>
+          );
+        })}
       </div>
-      {onRemove && <button type="button" className="textButton danger" aria-label={`비교 Plot 삭제: ${categoryLabel}`} onClick={onRemove}>삭제</button>}
-    </div>
+    </aside>
 
-    <div
-      className="csvTimeline"
-      data-zoom-start={zoomRange.start.toFixed(3)}
-      data-zoom-end={zoomRange.end.toFixed(3)}
-      data-y-unit={signalUnit?.symbol ?? ""}
-      data-y-scale={signalUnit?.scale ?? 1}
-      style={{ height: lanes ? Math.min(1200, Math.max(260, lanes.labels.size * 30 + 120)) : undefined }}
-      role="img"
-      aria-label={`${kind === "comparison" ? "비교 " : ""}CSV ${categoryLabel} 그래프${signalUnit ? `, Y축 ${signalUnit.axisLabel}` : ""}: ${
-        lanes ? [...lanes.labels.values()].join(", ") : selectedNames.join(", ")
-      }`}
-    >
-      {loading && <div className="chartLoading">CSV 신호를 불러오는 중입니다.</div>}
-      {error && <div className="chartLoading errorText">{error}</div>}
-      {!loading && !error && !displayed.length && <div className="chartLoading">선택한 항목에 표시할 샘플이 없습니다.</div>}
-      <div className={!loading && !error && displayed.length ? "csvChart" : "csvChart isHidden"} ref={chartNode} />
-    </div>
+    {/* 2. Right: Plot Header & ECharts Timeline Canvas */}
+    <div className="csvPlotMain">
+      <div className="csvChartHeader">
+        <div className="csvChartHeaderTitleWrap">
+          <h3>
+            {categoryLabel}
+            <span>{category === "state" ? `${stateFilteredSeries.length}개 신호` : `${selectedNames.length}개 신호`}</span>
+            {kind === "comparison" && <b className="plotPriority">비교 {comparisonIndex ?? 1}</b>}
+          </h3>
+          {category === "state" && stateGroups.length > 1 && (
+            <div className="statePlotGroupSwitcher" role="toolbar" aria-label="상태비트 컴포넌트 부위 전환">
+              <button
+                type="button"
+                className="stateGroupNavBtn"
+                onClick={handlePrevStateGroup}
+                title="이전 부위로 넘기기 (◀)"
+                aria-label="이전 부위"
+              >
+                ◀
+              </button>
+              <div className="stateGroupTabList">
+                {stateGroups.map((g) => (
+                  <button
+                    type="button"
+                    key={g.key}
+                    className={`stateGroupTabBtn ${activeStateGroup === g.key ? "active" : ""}`}
+                    onClick={() => setActiveStateGroup(g.key)}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="stateGroupNavBtn"
+                onClick={handleNextStateGroup}
+                title="다음 부위로 넘기기 (▶)"
+                aria-label="다음 부위"
+              >
+                ▶
+              </button>
+            </div>
+          )}
+        </div>
+        {onRemove && <button type="button" className="textButton danger smallBtn" aria-label={`비교 Plot 삭제: ${categoryLabel}`} onClick={onRemove}>✕ Plot 삭제</button>}
+      </div>
 
-    {/* 모터 상태 비트 해석 / 전원 상태 해석을 플롯 블록 내부에 직접 포함 */}
-    {(category === "state" || category === "system") && (
-      <StateSummary
-        category={category}
-        series={series}
-        definitions={payload?.motor_state_bits ?? []}
-        contract={payload?.motor_state_contract}
-        systemContract={payload?.system_state_contract}
-      />
-    )}
+      <div
+        className="csvTimeline"
+        data-zoom-start={zoomRange.start.toFixed(3)}
+        data-zoom-end={zoomRange.end.toFixed(3)}
+        data-y-unit={signalUnit?.symbol ?? ""}
+        data-y-scale={signalUnit?.scale ?? 1}
+        style={{ height: lanes ? Math.min(500, Math.max(220, lanes.labels.size * 26 + 74)) : undefined }}
+        role="img"
+        aria-label={`${kind === "comparison" ? "비교 " : ""}CSV ${categoryLabel} 그래프${signalUnit ? `, Y축 ${signalUnit.axisLabel}` : ""}: ${
+          lanes ? [...lanes.labels.values()].join(", ") : (category === "state" ? stateFilteredSeries.map((s) => s.name) : selectedNames).join(", ")
+        }`}
+      >
+        {loading && <div className="chartLoading">CSV 신호를 불러오는 중입니다.</div>}
+        {error && <div className="chartLoading errorText">{error}</div>}
+        {!loading && !error && !displayed.length && <div className="chartLoading">선택한 항목에 표시할 샘플이 없습니다.</div>}
+        <div className={!loading && !error && displayed.length ? "csvChart" : "csvChart isHidden"} ref={chartNode} />
+      </div>
+
+      {/* Embedded State & System Interpretation inside this plot */}
+      {(category === "state" || category === "system") && (
+        <div className="csvPlotEmbeddedStateSection">
+          <StateSummary
+            category={category}
+            series={category === "state"
+              ? (payload?.series.filter((s) => s.name.endsWith("_state")) ?? [])
+              : (payload?.series.filter((s) => s.name === "control_manager_state" || s.name === "control_state" || s.name.startsWith("power_")) ?? [])}
+            definitions={payload?.motor_state_bits ?? []}
+            contract={payload?.motor_state_contract}
+            systemContract={payload?.system_state_contract}
+            activeGroupKey={category === "state" ? activeStateGroup : undefined}
+            onSelectGroupKey={category === "state" ? setActiveStateGroup : undefined}
+          />
+        </div>
+      )}
+    </div>
   </section>;
 }
 
@@ -944,9 +1100,7 @@ export function CsvAnalysis({
 }) {
   const [listResult, setListResult] = useState<{ caseId: string; csvs: CsvArtifact[]; error?: string } | null>(null);
   const [artifactId, setArtifactId] = useState(selectedArtifactId ?? 0);
-  const [category, setCategory] = useState<SignalCategory>("position");
-  const [comparisonCategories, setComparisonCategories] = useState<SignalCategory[]>([]);
-  const [comparisonCandidate, setComparisonCandidate] = useState<SignalCategory | "">("");
+  const [plotCategories, setPlotCategories] = useState<SignalCategory[]>(["position"]);
   const [selectedJointNames, setSelectedJointNames] = useState<string[]>(() => {
     try {
       const raw = window.sessionStorage.getItem("rby1_selected_joints_global");
@@ -959,17 +1113,14 @@ export function CsvAnalysis({
   const [fetchingArtifactId, setFetchingArtifactId] = useState<number | null>(null);
   const [artifactFetchError, setArtifactFetchError] = useState<string>("");
 
-  // Incident selection for marking on plot
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
 
-  // 3D Simulation view state & playback
   const [show3DView, setShow3DView] = useState(false);
   const [cursorTime, setCursorTime] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(false);
   const cursorRef = useRef(cursorTime);
 
-  // Split pane draggable width between plots and 3D simulation
   const [simWidth, setSimWidth] = useState<number>(() => {
     try {
       const saved = window.sessionStorage.getItem("rby1_sim_width");
@@ -1061,24 +1212,18 @@ export function CsvAnalysis({
     return sortJoints(detected);
   }, [csv]);
   const categories = useMemo(() => CATEGORY_META.filter((item) => categoryAvailable(item.key, joints, available)), [available, joints]);
-  const resolvedCategory = categories.some((item) => item.key === category) ? category : categories[0]?.key ?? "position";
-  const resolvedComparisonCategories = useMemo(() => {
+
+  const resolvedPlotCategories = useMemo(() => {
     const valid = new Set(categories.map((item) => item.key));
-    const seen = new Set<SignalCategory>([resolvedCategory]);
-    return comparisonCategories.filter((item) => {
-      if (!valid.has(item) || seen.has(item)) return false;
-      seen.add(item);
-      return true;
-    });
-  }, [categories, comparisonCategories, resolvedCategory]);
-  const plotCategories = useMemo(
-    () => [resolvedCategory, ...resolvedComparisonCategories],
-    [resolvedCategory, resolvedComparisonCategories],
-  );
-  const plotCategoryEntries = useMemo(() => plotCategories.map((item) => ({
+    const next = plotCategories.filter((cat) => valid.has(cat));
+    return next.length > 0 ? next : [categories[0]?.key ?? "position"];
+  }, [categories, plotCategories]);
+
+  const plotCategoryEntries = useMemo(() => resolvedPlotCategories.map((item) => ({
     category: item,
     eligibleJoints: eligibleJointsFor(item, joints, available),
-  })), [available, joints, plotCategories]);
+  })), [available, joints, resolvedPlotCategories]);
+
   const selectorEligibleJoints = useMemo(
     () => sortJoints([...new Set(plotCategoryEntries.flatMap((item) => item.eligibleJoints))]),
     [plotCategoryEntries],
@@ -1089,6 +1234,7 @@ export function CsvAnalysis({
     const matched = selectorEligibleJoints.filter((j) => selectedJointNames.includes(j));
     return matched.length > 0 ? matched : selectorEligibleJoints;
   }, [selectedJointNames, selectorEligibleJoints]);
+
   const plots = useMemo(() => plotCategoryEntries.map((entry) => {
     const selected = entry.eligibleJoints.filter((joint) => resolvedSelectorJoints.includes(joint));
     const names = entry.category === "system"
@@ -1098,12 +1244,21 @@ export function CsvAnalysis({
   }), [available, plotCategoryEntries, resolvedSelectorJoints]);
 
   const jointGroups = useMemo(() => groupJoints(selectorEligibleJoints), [selectorEligibleJoints]);
-  const comparisonOptions = useMemo(() => categories.filter((item) => (
-    item.key !== resolvedCategory && !resolvedComparisonCategories.includes(item.key)
-  )), [categories, resolvedCategory, resolvedComparisonCategories]);
-  const resolvedComparisonCandidate = comparisonOptions.some((item) => item.key === comparisonCandidate)
-    ? comparisonCandidate
-    : comparisonOptions[0]?.key ?? "";
+
+  function handleAddComparisonPlot() {
+    if (resolvedPlotCategories.length >= 3) return;
+    const used = new Set(resolvedPlotCategories);
+    const candidate = categories.find((c) => !used.has(c.key))?.key ?? categories[0]?.key ?? "velocity";
+    setPlotCategories((prev) => [...prev, candidate]);
+  }
+
+  function handleRemoveComparisonPlot(index: number) {
+    setPlotCategories((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleChangePlotCategory(index: number, newCategory: SignalCategory) {
+    setPlotCategories((prev) => prev.map((cat, i) => (i === index ? newCategory : cat)));
+  }
 
   function toggleJoint(name: string, checked: boolean) {
     const next = checked
@@ -1148,10 +1303,11 @@ export function CsvAnalysis({
   const payload = resolvedArtifactId ? artifactPayloads[resolvedArtifactId] ?? null : null;
   const chartLoading = Boolean(resolvedArtifactId && fetchingArtifactId === resolvedArtifactId && !payload);
   const chartError = artifactFetchError;
-  const seriesByPlot = useMemo(() => plots.map((plot) => {
-    const selected = new Set(plot.selectedNames);
-    return payload?.series.filter((item) => selected.has(item.name)) ?? [];
-  }), [payload, plots]);
+
+  const allStateSeries = useMemo(() => {
+    if (!payload) return [];
+    return payload.series.filter((s) => s.name.endsWith("_state") || s.name === "control_manager_state" || s.name === "control_state");
+  }, [payload]);
 
   const activeIncidents: LinkedIncident[] = useMemo(() => {
     if (payload?.linked_incidents && payload.linked_incidents.length > 0) {
@@ -1163,7 +1319,6 @@ export function CsvAnalysis({
     return [];
   }, [csv?.linked_incidents, payload?.linked_incidents]);
 
-  // 3D Robot model & pose calculation
   const baseModel = normalizeModel(csv?.robot_model);
   const activeModel: RobotModelDescriptor = baseModel;
 
@@ -1219,7 +1374,6 @@ export function CsvAnalysis({
   if (!csvs.length) return <section className="csvWorkspace"><div className="csvEmpty"><strong>분석할 Fault CSV가 없습니다.</strong><span>상단의 파일 가져오기 또는 드래그앤드롭으로 CSV를 추가하십시오.</span></div></section>;
 
   return <section className="csvWorkspace" aria-label="Fault CSV 신호 분석 & 3D 시각화">
-    {/* 1. Full-width Header */}
     <header className="csvHeader">
       <div className="csvHeaderLeft">
         <h2>CSV 신호 분석 & 3D 시각화</h2>
@@ -1245,7 +1399,6 @@ export function CsvAnalysis({
       </div>
     </header>
 
-    {/* 2. Full-width Joint Selector */}
     {selectorEligibleJoints.length > 0 && (
       <section className="jointSelector" aria-labelledby="joint-selector-title">
         <div className="jointSelectorHead">
@@ -1296,7 +1449,6 @@ export function CsvAnalysis({
       </section>
     )}
 
-    {/* 3. Section Detected Errors Banner (Placed below Joint Selector) */}
     {activeIncidents.length > 0 ? (
       <div className="csvIncidentListBanner">
         <span className="csvIncidentBadge">⚠️ 이 CSV 구간 감지 에러 ({activeIncidents.length}건 · 클릭하여 위치 표시)</span>
@@ -1326,114 +1478,67 @@ export function CsvAnalysis({
       </div>
     )}
 
-    {/* 4. 3-Column Workspace: [1: Signal Category] | [2: Plots (scrollable)] | [Resizer] | [3: 3D Simulation] */}
+    {/* Top Action Bar: 3D Toggle & Comparison Plot Addition */}
+    <div className="csvWorkspaceTopBar">
+      <div className="topBarLeft">
+        <button
+          type="button"
+          className={`btnTopBarAction btnToggle3D ${show3DView ? "active" : ""}`}
+          onClick={() => setShow3DView((prev) => !prev)}
+          title="3D 로봇 자세 시뮬레이터 및 재생 컨트롤을 열고 닫습니다"
+        >
+          <span className="btn3DIcon">🤖</span>
+          <span className="btn3DText">3D 시각화 {show3DView ? "ON" : "OFF"}</span>
+        </button>
+
+        <button
+          type="button"
+          className="btnTopBarAction btnAddComparison"
+          disabled={resolvedPlotCategories.length >= 3}
+          onClick={handleAddComparisonPlot}
+          title={resolvedPlotCategories.length >= 3 ? "비교 Plot은 최대 2개(총 3개)까지만 추가 가능합니다" : "비교 Plot을 추가합니다 (최대 2개)"}
+        >
+          <span className="btnAddIcon">➕</span>
+          <span>비교 Plot 추가</span>
+          <span className="plotCountBadge">({resolvedPlotCategories.length - 1}/2)</span>
+        </button>
+      </div>
+      <div className="topBarRight">
+        <span className="topBarHint">💡 각 Plot 좌측에서 신호를 클릭하여 원하는 그래프로 개별 변경할 수 있습니다.</span>
+      </div>
+    </div>
+
+    {/* Workspace 2-Column Area: [Plots List (scrollable)] | [Resizer] | [3D Simulation] */}
     <div
-      className={`csvWorkspace3Col ${show3DView ? "hasSim3D" : "noSim3D"}`}
-      style={show3DView ? { gridTemplateColumns: `168px minmax(0, 1fr) 8px ${simWidth}px` } : undefined}
+      className={`csvWorkspace2Col ${show3DView ? "hasSim3D" : "noSim3D"}`}
+      style={show3DView ? { gridTemplateColumns: `minmax(0, 1fr) 8px ${simWidth}px` } : undefined}
     >
-      {/* Col 1: Signal Classification Nav (Fixed Width ~168px) */}
-      <aside className="csvColCategory" aria-label="CSV 신호 분류">
-        <div className="plotCategory3DTopToggle">
-          <button
-            type="button"
-            className={`btnToggle3D ${show3DView ? "active" : ""}`}
-            onClick={() => setShow3DView((prev) => !prev)}
-            title="3D 로봇 자세 시뮬레이터 및 재생 컨트롤을 열고 닫습니다"
-          >
-            <span className="btn3DIcon">🤖</span>
-            <span className="btn3DText">3D 시각화 {show3DView ? "ON" : "OFF"}</span>
-          </button>
-        </div>
-
-        <div className="plotCategoryNavHeader">
-          <span>신호 분류</span>
-        </div>
-        <div className="plotCategoryNavList">
-          {categories.map((item) => {
-            const isActive = item.key === resolvedCategory;
-            return (
-              <button
-                type="button"
-                className={`plotCategoryNavBtn ${isActive ? "active" : ""}`}
-                key={item.key}
-                onClick={() => {
-                  setCategory(item.key);
-                  setComparisonCategories((current) => current.filter((candidate) => candidate !== item.key));
-                }}
-              >
-                <strong>{item.label}</strong>
-                <small>{item.description}</small>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="plotComparisonNavSection">
-          <span className="comparisonNavTitle">비교 Plot</span>
-          <select
-            aria-label="비교 Plot에 추가할 신호"
-            value={resolvedComparisonCandidate}
-            disabled={!comparisonOptions.length}
-            onChange={(event) => setComparisonCandidate(event.target.value as SignalCategory | "")}
-          >
-            {!comparisonOptions.length && <option value="">추가 불가</option>}
-            {comparisonOptions.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}
-          </select>
-          <button
-            type="button"
-            className="textButton addComparisonBtn"
-            disabled={!resolvedComparisonCandidate}
-            onClick={() => {
-              if (!resolvedComparisonCandidate) return;
-              setComparisonCategories((current) => [...current, resolvedComparisonCandidate]);
-            }}
-          >+ 추가</button>
-        </div>
-      </aside>
-
-      {/* Col 2: Main Plots Area (Scrollable Column) */}
       <main className="csvColPlots" aria-label="CSV 신호 그래프 및 분석">
         <div className={`csvPlotsGrid ${plots.length > 1 ? "splitRows" : "singleRow"}`}>
-          {plots[0] && (
+          {plots.map((plot, index) => (
             <CsvPlot
-              category={plots[0].category}
-              selectedNames={plots[0].selectedNames}
-              payload={payload}
-              loading={chartLoading}
-              error={chartError}
-              kind="primary"
-              zoomRange={zoomRange}
-              onZoomRangeChange={setZoomRange}
-              incidentMarks={activeIncidents}
-              selectedIncidentId={selectedIncidentId}
-              cursorTime={show3DView ? cursorTime : undefined}
-              onCursorChange={setCursorTime}
-            />
-          )}
-
-          {plots.slice(1).map((plot, index) => (
-            <CsvPlot
+              key={`${index}:${plot.category}`}
               category={plot.category}
+              onCategoryChange={(newCat) => handleChangePlotCategory(index, newCat)}
+              availableCategories={categories}
               selectedNames={plot.selectedNames}
               payload={payload}
               loading={chartLoading}
               error={chartError}
-              kind="comparison"
-              comparisonIndex={index + 1}
-              onRemove={() => setComparisonCategories((current) => current.filter((item) => item !== plot.category))}
+              kind={index === 0 ? "primary" : "comparison"}
+              comparisonIndex={index}
+              onRemove={index > 0 ? () => handleRemoveComparisonPlot(index) : undefined}
               zoomRange={zoomRange}
               onZoomRangeChange={setZoomRange}
               incidentMarks={activeIncidents}
               selectedIncidentId={selectedIncidentId}
               cursorTime={show3DView ? cursorTime : undefined}
               onCursorChange={setCursorTime}
-              key={plot.category}
             />
           ))}
         </div>
       </main>
 
-      {/* Draggable Divider between Plots and 3D Simulation */}
       {show3DView && (
         <div
           className={`splitResizer ${isDraggingResizer ? "dragging" : ""}`}
@@ -1446,12 +1551,10 @@ export function CsvAnalysis({
         </div>
       )}
 
-      {/* Col 3: 3D Simulation (Shown when show3DView is true) */}
       {show3DView && (
         <aside className="csvColSimulation" aria-label="3D 로봇 자세 시뮬레이션">
           <div className="simulationDockSticky">
             <section className="simulationDock">
-              {/* Playback Controls placed ON TOP of 3D Viewer */}
               <div className="simControlBar">
                 <div className="playbackControls" aria-label="자세 재생 제어">
                   <button type="button" className="textButton" disabled={!playbackAvailable} onClick={() => { setPlaying(false); setCursorTime(start); }}>처음</button>

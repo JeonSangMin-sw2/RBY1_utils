@@ -58,58 +58,52 @@ def _json_list(value: str | None) -> list[str]:
 
 
 _LAYER_ORDER = {
-    "motor": 0,
-    "control_manager": 1,
-    "hardware": 2,
-    "control_interface": 3,
-    "service_api": 4,
-    "other": 5,
+    "fault": 0,
+    "control": 1,
+    "others": 2,
 }
 _LAYER_LABELS = {
-    "motor": "모터 / 조인트",
-    "control_manager": "Control Manager",
-    "hardware": "하드웨어",
-    "control_interface": "Control Interface",
-    "service_api": "서비스 / API",
-    "other": "기타",
-}
-_MOTOR_LAYER_FAMILIES = {
-    "arm6_wakeup_failure",
-    "joint_operation_failure",
-    "joint_position_limit",
-    "joint_readiness_loss",
-    "joint_state_timeout",
-    "motor_communication_loss",
-    "motor_drive_error",
-    "tracking_error",
+    "fault": "Major / Minor Fault",
+    "control": "Control",
+    "others": "Others",
 }
 _INCIDENT_CONTEXT_SECONDS = 120.0
 _INCIDENT_CONTEXT_AFTER_SECONDS = 3.0
 _INCIDENT_TIMELINE_LIMIT = 2_000
 
 
-def _issue_layer(family: str, component: str | None) -> str:
-    if family in _MOTOR_LAYER_FAMILIES:
-        return "motor"
+def _issue_layer(family: str, fault_level: str | None, component: str | None) -> str:
+    fam_lowered = family.lower()
+    if (
+        fault_level in ("major", "minor")
+        or family in ("major_fault", "minor_fault")
+        or "major" in fam_lowered
+        or "minor" in fam_lowered
+        or "fault" in fam_lowered
+    ):
+        return "fault"
     normalized = (component or "").lower().replace("-", "_").replace(" ", "_")
-    if "controlmanager" in normalized or "control_manager" in normalized:
-        return "control_manager"
-    if "hardware" in normalized:
-        return "hardware"
-    if "controlinterface" in normalized or "control_interface" in normalized:
-        return "control_interface"
-    if "service_api" in normalized or "serviceapi" in normalized or "service" in normalized:
-        return "service_api"
-    return "other"
+    if (
+        "control" in normalized
+        or "control_manager" in normalized
+        or "control_state" in normalized
+        or "controlinterface" in normalized
+        or "control" in fam_lowered
+        or "state" in fam_lowered
+        or "mode" in fam_lowered
+    ):
+        return "control"
+    return "others"
 
 
 def _layer_counts(rows) -> list[dict[str, object]]:
     counts: dict[str, int] = defaultdict(int)
     for row in rows:
-        counts[_issue_layer(str(row["family"]), row["component"])] += 1
+        fault_level = row["fault_level"] if "fault_level" in row.keys() else None
+        counts[_issue_layer(str(row["family"]), fault_level, row["component"])] += 1
     return [
-        {"layer": layer, "label": _LAYER_LABELS[layer], "count": count}
-        for layer, count in sorted(counts.items(), key=lambda item: (_LAYER_ORDER[item[0]], item[0]))
+        {"layer": layer, "label": _LAYER_LABELS.get(layer, layer.title()), "count": count}
+        for layer, count in sorted(counts.items(), key=lambda item: (_LAYER_ORDER.get(item[0], 99), item[0]))
     ]
 
 
@@ -180,7 +174,15 @@ def case_overview(case_id: str, request: Request) -> dict[str, object]:
             (case_id,),
         ).fetchall()
         layer_rows = connection.execute(
-            "SELECT i.family,e.component FROM incidents i "
+            "SELECT i.family,"
+            "CASE WHEN i.family='major_fault' OR EXISTS ("
+            "SELECT 1 FROM incident_events ie JOIN events e ON e.id=ie.event_id "
+            "WHERE ie.incident_id=i.id AND lower(e.category)='majorfault'"
+            ") THEN 'major' WHEN i.family='minor_fault' OR EXISTS ("
+            "SELECT 1 FROM incident_events ie JOIN events e ON e.id=ie.event_id "
+            "WHERE ie.incident_id=i.id AND lower(e.category)='minorfault'"
+            ") THEN 'minor' ELSE NULL END AS fault_level,"
+            "e.component FROM incidents i "
             "JOIN events e ON e.id=i.primary_event_id WHERE i.case_id=?",
             (case_id,),
         ).fetchall()
@@ -294,7 +296,7 @@ def case_incidents(
         item["affected_joints"] = _json_list(item["affected_joints"])
         item["affected_power_rails"] = _json_list(item["affected_power_rails"])
         item["csv_linked"] = bool(item["csv_linked"])
-        item["layer"] = _issue_layer(str(item["family"]), primary_component)
+        item["layer"] = _issue_layer(str(item["family"]), item.get("fault_level"), primary_component)
         incidents.append(item)
     return {"incidents": incidents}
 
