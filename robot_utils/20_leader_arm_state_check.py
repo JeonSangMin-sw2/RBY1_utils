@@ -330,19 +330,48 @@ class LeaderArm:
         start_time = time.time()
         active_ids = []
         self.motor_ids = list(range(self.DOF))
-        check_ids = self.motor_ids + self.tool_ids
 
-        for dev_id in check_ids:
+        # 1. Check Joint Motors (0 ~ 13): Ping + Read Motor States
+        for mid in self.motor_ids:
             try:
-                if self.bus.ping(dev_id):
-                    active_ids.append(dev_id)
+                if not self.bus.ping(mid):
                     if verbose:
-                        logging.info(f"Dynamixel ID {dev_id} is active")
+                        logging.warning(f"Dynamixel Joint ID {mid:2d} is NOT active (Ping Failed).")
+                    continue
+
+                # Verify actual motor state register read
+                ms_list = self.bus.get_motor_states([mid])
+                if ms_list and len(ms_list) == 1:
+                    active_ids.append(mid)
+                    if verbose:
+                        logging.info(f"Dynamixel Joint ID {mid:2d} is active (Ping OK, Data Read OK: {ms_list[0][1].position:6.2f} rad)")
                 else:
-                    if verbose and dev_id < self.DOF:
-                        logging.warning(f"Dynamixel ID {dev_id} is NOT active.")
+                    if verbose:
+                        logging.error(f"Dynamixel Joint ID {mid:2d} Ping OK, but Data Read FAILED!")
             except Exception as e:
-                logging.warning(f"Ping exception on ID {dev_id}: {e}")
+                logging.warning(f"Ping/Read exception on Joint ID {mid:2d}: {e}")
+
+        # 2. Check Tool Flanges (0x80=128, 0x81=129): Ping + Read Button Status (Address 132)
+        for tid in self.tool_ids:
+            tool_name = "Right Tool (0x80)" if tid == self.RIGHT_TOOL_ID else "Left Tool (0x81)"
+            try:
+                if not self.bus.ping(tid):
+                    if verbose:
+                        logging.warning(f"Dynamixel {tool_name} is NOT active (Ping Failed).")
+                    continue
+
+                # Verify actual 132 register read
+                res = self.bus.read_button_status(tid)
+                if res is not None:
+                    _, bstate = res
+                    active_ids.append(tid)
+                    if verbose:
+                        logging.info(f"Dynamixel {tool_name} is active (Ping OK, Data Read OK: Btn={bstate.button}, Trg={bstate.trigger})")
+                else:
+                    if verbose:
+                        logging.error(f"Dynamixel {tool_name} Ping OK, but Data Read FAILED! (Addr 132 response timeout/error)")
+            except Exception as e:
+                logging.warning(f"Ping/Read exception on {tool_name}: {e}")
 
         self.state.check_status_duration = time.time() - start_time
         return active_ids
