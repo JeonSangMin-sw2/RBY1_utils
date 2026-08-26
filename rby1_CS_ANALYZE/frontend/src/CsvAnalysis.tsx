@@ -183,28 +183,11 @@ function systemStateDefinition(
   };
 }
 
+const SERIES_SUFFIX_RE = /_(target_fb_gain|target_ff_tq|target_pos|target_vel|state|pos|vel|cur|tq|temperature|temp|motor_temp|drive_temp)$/;
+
 function jointFromSeries(name: string): string | null {
-  const suffixes = [
-    "_target_fb_gain",
-    "_target_ff_tq",
-    "_target_pos",
-    "_target_vel",
-    "_state",
-    "_pos",
-    "_vel",
-    "_cur",
-    "_tq",
-    "_temperature",
-    "_temp",
-    "_motor_temp",
-    "_drive_temp",
-  ];
-  for (const suffix of suffixes) {
-    if (name.endsWith(suffix)) {
-      return name.slice(0, -suffix.length);
-    }
-  }
-  return null;
+  const match = name.match(SERIES_SUFFIX_RE);
+  return match && match.index !== undefined ? name.slice(0, match.index) : null;
 }
 
 function categoryAvailable(category: SignalCategory, joints: string[], available: Set<string>): boolean {
@@ -481,32 +464,39 @@ function StateSummary({
 
   if (!series.length) return null;
 
-  // Extract all joints present in this series
-  const detectedJointNames = series
-    .map((raw) => jointFromSeries(raw.name) ?? raw.name)
-    .filter((name): name is string => Boolean(name));
-  const jointGroupList = groupJoints(sortJoints([...new Set(detectedJointNames)]));
+  const detectedJointNames = useMemo(() => {
+    return series
+      .map((raw) => jointFromSeries(raw.name) ?? raw.name)
+      .filter((name): name is string => Boolean(name));
+  }, [series]);
 
-  // Filter series by active component group tab
-  const filteredSeries = selectedGroupKey === "all"
-    ? series
-    : series.filter((raw) => {
-        const joint = jointFromSeries(raw.name) ?? raw.name;
-        const targetGroup = jointGroupList.find((g) => g.key === selectedGroupKey);
-        return targetGroup?.joints.includes(joint);
-      });
+  const jointGroupList = useMemo(() => {
+    return groupJoints(sortJoints([...new Set(detectedJointNames)]));
+  }, [detectedJointNames]);
 
-  // Calculate statistics for summary badge
-  let totalFaultCount = 0;
-  let totalDiagnosticCount = 0;
-  series.forEach((raw) => {
-    const values = [...new Set(raw.points.map(([, value]) => Math.trunc(value)))];
-    values.forEach((val) => {
-      const bits = motorBits(val, definitions);
-      if (bits.some((b) => b.kind === "core_fault")) totalFaultCount++;
-      if (bits.some((b) => b.kind === "diagnostic")) totalDiagnosticCount++;
+  const filteredSeries = useMemo(() => {
+    if (selectedGroupKey === "all") return series;
+    const targetGroup = jointGroupList.find((g) => g.key === selectedGroupKey);
+    if (!targetGroup) return series;
+    return series.filter((raw) => {
+      const joint = jointFromSeries(raw.name) ?? raw.name;
+      return targetGroup.joints.includes(joint);
     });
-  });
+  }, [selectedGroupKey, series, jointGroupList]);
+
+  const { totalFaultCount, totalDiagnosticCount } = useMemo(() => {
+    let faults = 0;
+    let diags = 0;
+    series.forEach((raw) => {
+      const values = [...new Set(raw.points.map(([, value]) => Math.trunc(value)))];
+      values.forEach((val) => {
+        const bits = motorBits(val, definitions);
+        if (bits.some((b) => b.kind === "core_fault")) faults++;
+        if (bits.some((b) => b.kind === "diagnostic")) diags++;
+      });
+    });
+    return { totalFaultCount: faults, totalDiagnosticCount: diags };
+  }, [series, definitions]);
 
   return (
     <section className="stateDecoder" aria-label="모터 상태 비트 해석">
@@ -948,7 +938,7 @@ function CsvPlot({
           data: [{ xAxis: payload.end }],
         } : undefined,
       })),
-    }, { notMerge: true, lazyUpdate: true });
+    }, { notMerge: false, lazyUpdate: true });
   }, [category, cursorTime, displayed, incidentMarks, lanes, payload, selectedIncidentId, signalUnit, zoomRange]);
 
   const handlePrevStateGroup = () => {
@@ -1329,10 +1319,51 @@ export function CsvAnalysis({
       .filter((item): item is CsvSeries => Boolean(item));
   }, [payload, joints]);
 
-  const pose = useMemo(() => Object.fromEntries(allPositionSeries.map((item) => [
-    item.name.slice(0, -"_pos".length),
-    interpolate(item.points, cursorTime),
-  ])), [allPositionSeries, cursorTime]);
+  // 사전 보간 궤적 버퍼 (Precomputed Trajectory Buffer - 30 FPS 초경량화, 60초 기준 ~140KB)
+  const precomputedTrajectory = useMemo(() => {
+    if (!payload || !allPositionSeries.length) return null;
+    const start = payload.start;
+    const end = payload.end;
+    const duration = Math.max(0, end - start);
+    if (duration <= 0) return null;
+
+    const FPS = 30; // 30 FPS (33.3ms) 샘플링으로 메모리를 0.1~0.2MB 수준으로 최소화
+    const totalFrames = Math.ceil(duration * FPS) + 1;
+    const step = 1 / FPS;
+    const frames: Record<string, number>[] = new Array(totalFrames);
+
+    for (let f = 0; f < totalFrames; f++) {
+      const t = start + f * step;
+      const poseMap: Record<string, number> = {};
+      for (const item of allPositionSeries) {
+        const jointName = item.name.slice(0, -"_pos".length);
+        poseMap[jointName] = interpolate(item.points, t);
+      }
+      frames[f] = poseMap;
+    }
+
+    return {
+      start,
+      end,
+      step,
+      FPS,
+      frames,
+    };
+  }, [payload, allPositionSeries]);
+
+  const pose = useMemo(() => {
+    if (!precomputedTrajectory) {
+      return Object.fromEntries(allPositionSeries.map((item) => [
+        item.name.slice(0, -"_pos".length),
+        interpolate(item.points, cursorTime),
+      ]));
+    }
+    const idx = Math.min(
+      Math.max(0, Math.round((cursorTime - precomputedTrajectory.start) / precomputedTrajectory.step)),
+      precomputedTrajectory.frames.length - 1
+    );
+    return precomputedTrajectory.frames[idx] ?? {};
+  }, [allPositionSeries, cursorTime, precomputedTrajectory]);
 
   const playbackAvailable = Boolean(payload && allPositionSeries.length > 0);
   const start = payload?.start ?? csv?.min_sample_time ?? 0;
@@ -1343,13 +1374,10 @@ export function CsvAnalysis({
     if (!playing || !payload || !playbackAvailable) return;
     let frame = 0;
     let previous = performance.now();
-    let renderedAt = previous;
     const tick = (now: number) => {
       frame = window.requestAnimationFrame(tick);
-      if (now - renderedAt < 32) return;
       const elapsed = Math.min((now - previous) / 1000, 0.1) * speed;
       previous = now;
-      renderedAt = now;
       const next = cursorRef.current + elapsed;
       if (next >= payload.end) {
         setCursorTime(payload.end);
