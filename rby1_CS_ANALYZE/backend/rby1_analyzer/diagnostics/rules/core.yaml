@@ -3,36 +3,45 @@
   "rules": [
     {
       "id": "arm6_servo_on_failure",
-      "version": 1,
+      "version": 2,
       "pattern": "(?:no data received:\\s*\\[\\s*['\\\"](?:right|left)_arm_6['\\\"]\\s*\\]|(?:right|left)_arm_6[^,\\r\\n]{0,160}(?:servo.?on|initializ\\w*)[^,\\r\\n]{0,160}(?:fail(?:ed|ure)?|no data|time\\s*out|timeout)|(?:servo.?on|initializ\\w*)[^,\\r\\n]{0,160}(?:fail(?:ed|ure)?|no data|time\\s*out|timeout)[^,\\r\\n]{0,160}(?:right|left)_arm_6)",
       "observed": "Arm 6축 Servo On 실패 또는 데이터 미수신이 확인되었습니다: {excerpt}",
       "possible_causes": [
-        "보드가 정상적으로 깨어나지 않았을 가능성이 있습니다.",
-        "코인셀이 방전되었을 가능성이 있습니다.",
-        "WY2 커넥터의 접촉 상태가 불량할 가능성이 있습니다."
+        "EEPROM 휘발로 BNO(Board Numbering)가 15번으로 초기화되었을 가능성이 있습니다.",
+        "WY2 손목 보드 프리셋 신호핀 납땜 누락으로 48V 전원 리셋 시 Zero Position이 유실되었을 가능성이 있습니다.",
+        "손목 보드 신호핀 미납땜 또는 모터 고착, 타이밍 풀리/벨트 마모 가능성이 있습니다.",
+        "코인셀 배터리 방전 또는 WY2 커넥터 접촉 불량이 있을 가능성이 있습니다."
       ],
       "checks": [
-        "Preset 명령을 실행해 보십시오.",
-        "코인셀 전압을 확인하십시오.",
-        "WY2 커넥터의 접촉 상태를 확인하십시오.",
-        "납땜부에 쇼트가 있는지 확인하십시오."
+        "BNO 확인 시 15번으로 설정되어 있는지 확인하십시오.",
+        "48V 전원 On/Off 마다 WY2 Zero Position이 변경되는지 확인하십시오.",
+        "코인셀 전압(3V) 및 WY2 커넥터 접촉 상태를 확인하십시오.",
+        "손목 보드 프리셋 신호핀 납땜 및 타이밍 벨트(MXL82), 풀리(MXL20/40) 상태를 점검하십시오."
       ],
       "confidence_base": "medium",
       "required_evidence": ["component"]
     },
     {
       "id": "communication_no_data_timeout",
-      "version": 2,
+      "version": 3,
       "pattern": "(?:no\\s+data(?:\\s+(?:is\\s+)?(?:coming|comming|received))?|(?:can|motor|servo.?on|communication).*(?:time\\s*out|timeout)|(?:time\\s*out|timeout).*(?:can|motor|servo.?on|communication)|input error|(?:initialize|initializing|initialization).*motor.*(?:fail|no data|time\\s*out|timeout))",
       "observed": "모터 초기화, 데이터 미수신 또는 통신 오류가 확인되었습니다: {excerpt}",
-      "possible_causes": ["CAN 통신이 불안정할 가능성이 있습니다."],
-      "checks": ["CAN선 상태를 확인하십시오. Power ON 상태에서 모터를 움직였을 때 엔코더 값이 변하는지 확인하십시오."],
+      "possible_causes": [
+        "WY1(left_arm_4) 등 관절 조립체 내부 배선 단선/쇼트 가능성이 있습니다.",
+        "EEPROM 휘발로 BNO가 15번으로 초기화되었을 가능성이 있습니다.",
+        "PDU 해당 파트 퓨즈 단선 또는 CAN 종단 저항(120Ω) 이상 가능성이 있습니다."
+      ],
+      "checks": [
+        "BNO 확인 시 15번으로 변경되었는지 확인하십시오.",
+        "멀티미터로 CAN선 종단 저항 및 신호선 도통을 확인하십시오.",
+        "WY1 조립체 배선 찝힘/쇼트 및 PDU 파트별 퓨즈 단선 여부를 점검하십시오."
+      ],
       "confidence_base": "medium",
       "required_evidence": ["component"]
     },
     {
       "id": "joint_state_update_timeout",
-      "version": 1,
+      "version": 2,
       "pattern": "timeout:\\s*joint\\b.*state update exceeded timeout",
       "observed": "관절 상태 갱신 시간 초과가 확인되었습니다: {excerpt}",
       "possible_causes": ["CAN 통신이 불안정하여 해당 관절의 상태 데이터가 갱신되지 않았을 가능성이 있습니다."],
@@ -42,34 +51,46 @@
     },
     {
       "id": "joint_position_limit_enable_abort",
-      "version": 1,
+      "version": 2,
       "pattern": "joint\\s+\\d+\\s+\\([^)]+\\)\\s+position\\b.*exceeds the (?:upper|lower) limit\\b.*enabling process aborted",
       "observed": "관절 위치 제한 초과로 Control Manager Enable이 중단되었습니다: {excerpt}",
-      "possible_causes": ["해당 축이 지정된 범위를 넘어갔습니다."],
-      "checks": ["해당 팔을 안전한 범위 내로 옮기거나 Unlimit을 통해 Control Manager를 Enable하십시오."],
+      "possible_causes": [
+        "해당 축이 지정된 가동 범위를 벗어났습니다. 이 상태에서 강제 Servo On 시 지속 전류 인가로 모터 과열/소손이 발생할 수 있습니다."
+      ],
+      "checks": [
+        "해당 팔을 안전한 정상 가동 범위 내로 수동 이동시키거나 Unlimit을 통해 Control Manager를 Enable하십시오.",
+        "모터 발열 및 코일 고착 여부를 점검하십시오."
+      ],
       "confidence_base": "high",
       "required_evidence": ["joint", "component"]
     },
     {
       "id": "emo_switch_error",
-      "version": 1,
+      "version": 2,
       "pattern": "emo error:\\s*please check emo switch",
       "observed": "EMO 스위치 오류가 확인되었습니다: {excerpt}",
-      "possible_causes": ["EMO가 눌려 있을 가능성이 있습니다."],
-      "checks": ["EMO가 눌려 있는지 확인하십시오."],
+      "possible_causes": [
+        "본체 EMO 스위치가 눌려 있거나, 무선 리모컨 E-STOP 작동/페어링 불량일 가능성이 있습니다."
+      ],
+      "checks": [
+        "본체 EMO 스위치 및 무선 리모컨 배터리/페어링 상태를 확인하십시오."
+      ],
       "confidence_base": "high",
       "required_evidence": ["component"]
     },
     {
       "id": "power_48v_state_unmatched_timeout",
-      "version": 1,
+      "version": 2,
       "pattern": "timeout:\\s*power command failed\\s*-\\s*unmatched power states:\\s*48v\\b",
       "observed": "48V 전원 명령 후 상태 불일치가 확인되었습니다: {excerpt}",
-      "possible_causes": ["EMO가 눌려 있거나 SCB Reset 신호가 없거나 FORT 리모컨 배터리가 방전되었을 가능성이 있습니다."],
+      "possible_causes": [
+        "EMO가 눌려 있거나 SCB Reset 신호가 없거나 FORT 리모컨 배터리가 방전되었을 가능성이 있습니다.",
+        "PDU 내부 해당 파트 전원 퓨즈가 단선되었을 가능성이 있습니다."
+      ],
       "checks": [
         "EMO가 눌려 있는지 확인하십시오.",
         "FORT를 사용하는 경우 리모컨 배터리 상태를 확인하십시오.",
-        "SCB Reset 신호를 전송해 보십시오."
+        "SCB Reset 신호 전송 및 PDU 퓨즈 상태를 확인하십시오."
       ],
       "confidence_base": "high",
       "required_evidence": ["component"]

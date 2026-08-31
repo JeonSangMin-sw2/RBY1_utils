@@ -2,7 +2,7 @@
 
 본 문서는 **RB-Y1 CS 로그 분석기(V5)**에서 로봇 시스템의 로그와 Fault CSV를 분석할 때 **문제를 어떤 기준으로 분류하고, 어떤 키워드와 명령을 매칭하며, 심각도(고심각도 / 오류 / 주의)를 어떻게 판정하는지**를 체계적으로 정리한 기준서입니다.
 
-진단 규칙은 [`config/error_guide.yaml`](file:///home/jsm/RBY1_utils/rby1_CS_ANALYZE/config/error_guide.yaml) 및 [`config/command_dictionary.yaml`](file:///home/jsm/RBY1_utils/rby1_CS_ANALYZE/config/command_dictionary.yaml)에 정의되어 있으며, 필요 시 언제든지 수정/확장할 수 있습니다.
+진단 규칙은 [`config/error_guide.yaml`](file:///home/rainbow/utils_ws/rby1_CS_ANALYZE/config/error_guide.yaml) 및 [`config/command_dictionary.yaml`](file:///home/rainbow/utils_ws/rby1_CS_ANALYZE/config/command_dictionary.yaml)에 정의되어 있으며, 필요 시 언제든지 수정/확장할 수 있습니다.
 
 ---
 
@@ -10,76 +10,60 @@
 
 | 심각도 수준 | UI 뱃지 | 판정 기준 및 시스템 영향도 |
 | :--- | :---: | :--- |
-| **고심각도 (Critical)** | 🛑 `고심각도 오류` | • **로봇의 즉시 정지 또는 FSM Major/Minor Fault를 유발**하는 치명적 장애<br>• EMO 비상정지 스위치 눌림, 48V 파워 강제 차단/불일치, 모터 엔코더/드라이브 결함, 실시간 루프 심각 지연 |
-| **오류 (Error)** | ❌ `오류` | • 특정 관절/서비스 명령이 거부되거나 타임아웃되어 동작을 수행하지 못한 상태<br>• 제어 취소 실패, 파라미터 불일치, 서비스 연산 실패, 관절 한계 도달 등 |
-| **주의 (Warning)** | ⚠️ `주의` | • 즉각적인 정지는 아니지만 주기적 통신 지연, 갱신 지연, 잠재적 리스크가 감지된 상태 |
+| **고심각도 (Critical)** | 🛑 `고심각도 오류` | • **로봇의 즉시 정지 또는 FSM Major/Minor Fault를 유발**하는 치명적 장애<br>• EMO 비상정지 스위치 눌림, 48V 파워 강제 차단/불일치, 모터 엔코더/드라이브 결함, 배터리 급강하로 인한 PC 셧다운, 실시간 루프 심각 지연 |
+| **오류 (Error)** | ❌ `오류` | • 특정 관절/서비스 명령이 거부되거나 타임아웃되어 동작을 수행하지 못한 상태<br>• 통신 타임아웃(배선/보드), Zero Position 유실, 퓨즈 단선, 부가장치(그리퍼/리더암) udev 미인식 등 |
+| **주의 (Warning)** | ⚠️ `주의` | • 즉각적인 정지는 아니지만 브레이크 밀림, 솔레노이드 축 틀어짐, 주기적 통신 지연, 갱신 지연 등 잠재적 기구/통신 리스크가 감지된 상태 |
 | **정보/명령 (Info)** | 📡/⚡ `UPC/RPC` | • 상위 PC(UPC)의 제어 송신 명령 또는 내부 제어 서비스(RPC)의 정상 처리 완료 응답 |
 
 ---
 
 ## 2. 대분류(Major Category) 체계
 
-1. **모터 / 조인트 (`motor_joint`)**: 서보온 실패, Arm 6축 기동 이상, 모터 통신 미수신, 드라이브 비트 에러, 추종 오차
-2. **Control Manager (`control_manager`)**: FSM 상태 전환, Major/Minor Fault 진입, 제어 라이프사이클 종료
-3. **하드웨어 / 전원 (`hardware_power`)**: 48V/24V/12V/5V 전원 레일 불일치, EMO 비상정지 스위치, 배터리 저전압
-4. **CAN / 네트워크 통신 (`communication`)**: CAN 버스 타임아웃, 관절 상태 갱신 주기 지연
+1. **모터 / 조인트 (`motor_joint`)**: 서보온 실패, Arm 6축/손목 기동 이상, 모터 통신 미수신, 드라이브 비트 에러, 추종 오차, 가동범위 초과 모터 과열, 브레이크 기구 이상, 원점(Zero Position) 유실
+2. **Control Manager (`control_manager`)**: FSM 상태 전환, Major/Minor Fault 진입, 제어 라이프사이클 종료, 실시간 루프 지연
+3. **하드웨어 / 전원 (`hardware_power`)**: 48V/24V/12V/5V 전원 레일 불일치, EMO 비상정지 스위치, 파트별 퓨즈 단선, 배터리 전압 급강하 및 PC 셧다운
+4. **CAN / 네트워크 통신 (`communication`)**: CAN 버스 타임아웃, 관절 상태 갱신 주기 지연, LAN 모듈 통신
 5. **안전 / 기구학 (`safety_kinematics`)**: 소프트웨어/하드웨어 위치 한계(Position Limit), Cartesian 특이점(Singularity)
-6. **서비스 / RPC (`service_api`)**: gRPC 명령 타임아웃, 제어 취소 실패, 우선순위 부족 거부, 미분류 오류
+6. **서비스 / RPC / 부가장치 (`service_api`)**: gRPC 명령 타임아웃, 제어 취소 실패, 그리퍼/툴플렌지 연동, 리더암 연동, 헤드 펌웨어 방향, 미분류 오류
 
 ---
 
 ## 3. 세부 문제 분류 규칙 및 확인 키워드 매핑 테이블
 
 ### [하드웨어 / 전원 (hardware_power)]
-| 규칙 ID | 장애 제목 | 확인 키워드 / 매칭 패턴 (정규식) | 대상 명령 / 컴포넌트 | 심각도 | 역할 | 핵심 원인 가설 및 조치 |
+| 규칙 ID | 장애 제목 | 확인 키워드 / 매칭 패턴 (정규식) | 대상 명령 / 컴포넌트 | 심각도 | 역할 | 핵심 원인 가설 및 단계별 조치 |
 | :--- | :--- | :--- | :--- | :---: | :---: | :--- |
-| `emo_switch_pressed` | **EMO 스위치 활성** | `EMO is pressed` | `Hardware::ExecutePowerCommand` | 🛑 `critical` | `root` | • **원인**: 비상정지 스위치가 눌려 있거나 SCB/FORT 비상정지 신호 단선<br>• **조치**: EMO 버튼 해제 및 리모컨 비상정지 해제 확인 |
-| `power_48v_mismatch` | **48V 전원 명령 상태 불일치** | `unmatched power states: 48` | `Hardware::ExecutePowerCommand` | ❌ `error` | `root` | • **원인**: EMO 활성 상태에서 48V 투입 시도, SCB 리셋 신호 부재, FORT 방전<br>• **조치**: EMO 해제 후 48V 재인가, 리모컨 배터리 점검 |
-| `power_changed_while_enabled` | **Enable 중 전원 상태 변경 감지** | `Power status changed while enabled` | `Hardware::PowerManager` | 🛑 `critical` | `root` | • **원인**: 서보 온 상태에서 48V 메인 전원 레일 강제 차단<br>• **조치**: 전원 커넥터 접촉 불량 점검 |
-| `power_command_timeout` | **전원 제어 명령 타임아웃** | `Timeout: Power command failed` | `Hardware::ExecutePowerCommand` | ❌ `error` | `root` | • **원인**: SCB 보드 응답 지연 또는 CAN 통신 끊김<br>• **조치**: SCB 보드 전원 및 CAN 배선 점검 |
+| `emo_switch_error` | **EMO 스위치 활성** | `emo error.*check emo switch` | `Hardware::ExecutePowerCommand` | 🛑 `critical` | `root` | • **원인**: 본체 비상정지 눌림 또는 무선 리모컨 E-STOP 작동/페어링 불량<br>• **조치**: EMO 버튼 해제 및 리모컨-리시버 페어링 점검 |
+| `power_48v_state_unmatched_timeout` | **48V 전원 명령 상태 불일치** | `power command failed.*unmatched power states.*48v` | `Hardware::ExecutePowerCommand` | ❌ `error` | `root` | • **원인**: EMO 활성 상태에서 48V 투입 시도, SCB 리셋 신호 부재, FORT 방전, PDU 퓨즈 단선<br>• **조치**: EMO 해제 후 48V 재인가, 리모컨 배터리 점검, SCB Reset 전송 |
+| `part_fuse_blown_servo_on_failure` | **파트별 전원 퓨즈 단선 의심** | `(?:left_arm\|right_arm\|torso\|head\|mobile)\s+servo.?on\s+fail` | `PDU`, 각 파트 전원 | ❌ `error` | `root` | • **원인**: PDU 내부 특정 파트 48V 전원 퓨즈 단선<br>• **조치**: PDU를 열어 해당 파트 퓨즈 도통 시험 후 규격 퓨즈로 교체 |
+| `battery_shutdown_on_servo_on` | **서보온 시 전원 불안정 / PC 셧다운** | `pc\s*(?:shutdown\|shutting down)\|power drop` | `Battery`, `PDB`, `Torso` | 🛑 `critical` | `root` | • **원인**: 배터리 셀 불량/전압 급강하(54V 미만), Torso UVW 쇼트, 전원 분배 보드 이상<br>• **조치**: Torso UVW 쇼트 체크/저항 측정 → 배터리 전압 점검 및 배터리 교체 |
+| `power_state_changed_during_enable` | **Enable 중 전원 상태 변경 감지** | `power state.*changed during enable state` | `Hardware::PowerManager` | 🛑 `critical` | `root` | • **원인**: 서보 온 상태에서 메인 전원 레일 강제 차단 또는 PDU 통신 유실<br>• **조치**: 전원 커넥터 접촉 불량 및 PDU CAN 배선 점검 |
 
 ---
 
 ### [모터 / 조인트 (motor_joint)]
-| 규칙 ID | 장애 제목 | 확인 키워드 / 매칭 패턴 (정규식) | 대상 명령 / 컴포넌트 | 심각도 | 역할 | 핵심 원인 가설 및 조치 |
+| 규칙 ID | 장애 제목 | 확인 키워드 / 매칭 패턴 (정규식) | 대상 명령 / 컴포넌트 | 심각도 | 역할 | 핵심 원인 가설 및 단계별 조치 |
 | :--- | :--- | :--- | :--- | :---: | :---: | :--- |
-| `arm6_wakeup_fail` | **Arm 6축 Servo On 실패** | `wakeup.*(right_arm_6\|left_arm_6)` | `right_arm_6`, `left_arm_6` | 🛑 `critical` | `root` | • **원인**: 손목 말단 모터 48V 전원 인가 지연, CAN 통신 패킷 유실<br>• **조치**: 48V 전원 투입 후 1.5초 대기 후 서보온, 케이블 꺾임 점검 |
-| `motor_no_response` | **모터 통신 미수신** | `no response from motor\|communication lost` | `JointManager`, 각 관절 | 🛑 `critical` | `root` | • **원인**: 드라이브 전원 단절 또는 CAN 버스 노이즈/단선<br>• **조치**: 해당 축 하네스 결착 상태 및 종단 저항(120Ω) 점검 |
-| `drive_bit_error` | **모터 드라이브 비트 에러** | `drive bit error\|drive error bit` | 각 관절 모터 | 🛑 `critical` | `root` | • **원인**: 드라이버 과열, 과전류, 엔코더 이상 카운트<br>• **조치**: 관절 기구 걸림 여부 및 모터 온도 확인 후 드라이브 리셋 |
-| `tracking_error_exceeded` | **관절 추종 오차 한계 초과** | `tracking error exceeded\|position error limit` | 각 관절 | ❌ `error` | `root` | • **원인**: 과도한 부하, 외력 충돌, 게인 튜닝 부족<br>• **조치**: 모션 프로파일 가감속 완화 및 로봇 충돌 여부 확인 |
+| `isolated_arm6_servo_on_failure` | **Arm 6축 / 손목부 Servo On 실패** | `(?:right\|left)_arm_6.*(?:servo.?on\|initializ).*fail` | `arm_6`, `WY2` | ❌ `error` | `root` | • **원인**: EEPROM 휘발로 BNO 15번 리셋, 손목 보드 프리셋 핀 납땜 누락, 코인셀 방전, 모터 고착/타이밍 벨트 마모<br>• **조치**: BNO 15번 확인 시 BNO 재설정 및 보드 교체 / 프리셋 핀 납땜(쇼트) 후 글루건 고정 및 원점 재보정 / 풀리(MXL20/40), 벨트(MXL82) 교체 |
+| `wy2_zero_position_loss` | **WY2 관절 원점(Zero Position) 유실** | `zero position (?:lost\|changed\|random)` | `WY2`, 손목 보드 | ❌ `error` | `root` | • **원인**: WY2 손목 보드 프리셋 신호핀 납땜 누락으로 48V 전원 On/Off 시마다 위치값 랜덤 변경<br>• **조치**: 손목 보드 프리셋 신호핀 납땜(쇼트) + 케이블 글루건 고정 + 원점 재보정 |
+| `joint_state_update_timeout` | **관절 상태 갱신 시간 초과 (배선/통신)** | `timeout:\s*joint\s*['"]?([^'"]+).*state update exceeded` | 각 관절, `WY1` | ❌ `error` | `root` | • **원인**: WY1(`left_arm_4`) 관절부 조립체 내부 배선 단선/쇼트, BNO 15번 초기화, PDU 퓨즈 단선<br>• **조치**: 멀티미터로 CAN 라인(120Ω) 및 신호선 저항 측정 → 쇼트 확인 시 WY1 조립체 교체 |
+| `motor_temp_error` | **모터 TEMP 오류 (과열 및 가동범위 초과)** | `\btemp(?:erature)?\s+error\b` | 각 관절 모터 | ❌ `error` | `root` | • **원인**: 가동범위(Limit) 초과 상태에서 강제 Servo On 시 지속 전류 인가로 과열 및 코일 소손<br>• **조치**: 수동으로 정상 가동 범위 내로 이동 후 냉각, 코일 소손/고착 시 모터 교체 |
+| `brake_mechanism_failure` | **브레이크 기구 이상 및 밀림** | `brake (?:slip\|drag\|stuck\|late)\|solenoid (?:fault\|stuck)` | 브레이크 어셈블리 | ⚠️ `warning` | `root` | • **원인**: 브레이크 윙 마모/스프링 탄성 저하, 솔레노이드 축 틀어짐, 아우터 볼트 풀림, 배선 걸림<br>• **조치**: 배선 간섭 제거, 브레이크 아우터 볼트 규격 토크(**28 kgf·cm**) 체결, 윙 스프링 교체 및 원점 재보정 |
 
 ---
 
-### [Control Manager & Fault (control_manager)]
-| 규칙 ID | 장애 제목 | 확인 키워드 / 매칭 패턴 (정규식) | 대상 명령 / 컴포넌트 | 심각도 | 역할 | 핵심 원인 가설 및 조치 |
+### [서비스 / RPC / 부가장치 (service_api)]
+| 규칙 ID | 장애 제목 | 확인 키워드 / 매칭 패턴 (정규식) | 대상 명령 / 컴포넌트 | 심각도 | 역할 | 핵심 원인 가설 및 단계별 조치 |
 | :--- | :--- | :--- | :--- | :---: | :---: | :--- |
-| `major_fault_reaction` | **MajorFault 대응 절차 시작** | `major fault reaction started` | `ControlManager` | 🛑 `critical` | `reaction` | • **원인**: 선행된 치명적 오류에 의해 시스템이 안전 정지 모드로 진입<br>• **조치**: 같은 시각 직전의 '최초 원인(Root)' 노드를 확인 후 복구 |
-| `minor_fault_reaction` | **MinorFault 대응 절차 시작** | `minor fault reaction started` | `ControlManager` | ❌ `error` | `reaction` | • **원인**: 경미한 제어 이상으로 인한 안전 모드 전환<br>• **조치**: 이상 유발 관절 점검 후 MinorFault Reset 수행 |
-| `state_transition_failure` | **Control Manager 상태 전이 거부** | `cannot transit from .* to` | `ControlManager` | ❌ `error` | `root` | • **원인**: 현재 FSM 상태에서 허용되지 않는 명령 요청<br>• **조치**: 현재 상태 머신 상태(`MajorFault` 여부 등) 확인 후 절차적 전이 |
-| `realtime_loop_overrun` | **실시간 제어 루프 지연 (Overrun)** | `control loop overrun\|loop deadline missed` | `ControlLoop` | ⚠️ `warning` | `warning` | • **원인**: CPU 부하 과중, 비실시간 스레드 간섭, 로깅 지연<br>• **조치**: CPU 격리(isolcpus) 및 실시간 우선순위(SCHED_FIFO) 확인 |
-
----
-
-### [안전 및 기구학 (safety_kinematics)]
-| 규칙 ID | 장애 제목 | 확인 키워드 / 매칭 패턴 (정규식) | 대상 명령 / 컴포넌트 | 심각도 | 역할 | 핵심 원인 가설 및 조치 |
-| :--- | :--- | :--- | :--- | :---: | :---: | :--- |
-| `joint_position_limit` | **관절 위치 한계 초과** | `joint limit reached\|position limit violated` | 각 관절 | ❌ `error` | `root` | • **원인**: 가동 범위를 벗어난 목표 궤적 전달<br>• **조치**: 모션 플래너의 Joint Limit 범위 파라미터 점검 |
-| `singularity_detected` | **Cartesian 특이점 근접** | `singularity detected\|near singularity` | `KinematicsManager` | ⚠️ `warning` | `warning` | • **원인**: 팔 관절이 완전히 펴지거나 축이 정렬되는 특이점 영역 진입<br>• **조치**: 궤적 경로에 중간 경유점(Waypoint) 추가 |
-
----
-
-### [서비스 및 RPC (service_api)]
-| 규칙 ID | 장애 제목 | 확인 키워드 / 매칭 패턴 (정규식) | 대상 명령 / 컴포넌트 | 심각도 | 역할 | 핵심 원인 가설 및 조치 |
-| :--- | :--- | :--- | :--- | :---: | :---: | :--- |
-| `cancel_control_failed` | **제어 취소 프로세스 시작 실패** | `CancelControl.*failed\|failed to start cancel` | `ControlManager::CancelControl` | ❌ `error` | `root` | • **원인**: 이미 제어 상태가 변경되었거나 취소 처리 스레드가 응답하지 않음<br>• **조치**: ControlManager FSM 상태 확인 및 프로세스 재기동 |
-| `grpc_priority_rejected` | **우선순위 부족으로 명령 거부** | `priority too low\|request rejected by priority` | `ServiceAPI` | ❌ `error` | `root` | • **원인**: 현재 실행 중인 고우선순위 제어권 점유 상태<br>• **조치**: 이전 작업 완료 또는 우선순위 레벨 상향 요청 |
-| `unclassified_error` | **미분류 오류** | `error\|failed\|exception` (기타 미매칭) | 일반 서비스 | ❌ `error` | `root` | • **원인**: 정의되지 않은 런타임 오류<br>• **조치**: 원본 로그 전문(Raw Log)을 확인하여 신규 규칙 등록 |
+| `peripheral_gripper_udev_error` | **그리퍼 UDEV 미인식 또는 통신 이상** | `gripper (?:not found\|open failed)\|rby1_gripper` | 그리퍼, `UPC` | ❌ `error` | `root` | • **원인**: UPC 터미널 내 udev 미설정(`/dev/rby1_gripper` 미생성), WY2 CAN 단선, 백팩 바이패스 연결 불량<br>• **조치**: `ls -l /dev/`로 udev 확인 및 설정, 멀티미터로 바이패스-툴플렌지 간 도통 확인 |
+| `leader_arm_connection_error` | **리더암(Leader Arm) 미인식 또는 관절 이상** | `leader.?arm (?:not found\|failed)\|master.?arm` | 리더암, `U2D2` | ❌ `error` | `root` | • **원인**: UPC udev 미설정(`/dev/rby1_leader_arm`), U2D2 케이블 단선, 조인트 볼트 누락/조립자세 틀림<br>• **조치**: udev 설정 확인, U2D2 LED 및 케이블 점검, 조립 상태 확인 및 재체결 |
+| `head_firmware_reverse_direction` | **헤드 펌웨어 역방향 제어 오류** | `head direction (?:reversed\|opposite)` | `Head`, 모터 제어기 | ❌ `error` | `root` | • **원인**: 헤드 모터 제어 보드에 역방향 펌웨어가 플래싱됨<br>• **조치**: 펌웨어 부트로더 프로그램을 사용하여 정방향 펌웨어로 재플래싱 |
 
 ---
 
 ## 4. 진단 규칙(`error_guide.yaml`) 수정 및 신규 추가 방법
 
-새로운 에러 로그 패턴을 분석기에 추가하거나 기존 진단 설명을 수정하려면 [`config/error_guide.yaml`](file:///home/jsm/RBY1_utils/rby1_CS_ANALYZE/config/error_guide.yaml) 파일의 `rules` 목록에 아래 형식으로 항목을 추가하면 즉시 반영됩니다:
+새로운 에러 로그 패턴을 분석기에 추가하거나 기존 진단 설명을 수정하려면 [`config/error_guide.yaml`](file:///home/rainbow/utils_ws/rby1_CS_ANALYZE/config/error_guide.yaml) 파일의 `rules` 목록에 아래 형식으로 항목을 추가하면 즉시 반영됩니다:
 
 ```yaml
 - id: my_custom_error_id               # 고유 룰 ID
@@ -100,5 +84,7 @@
     - "적재 하중이 로봇 사양(Payload) 이내인지 확인하십시오."
   remedies:                            # 복구 조치 방안 (STEP 2)
     - "간섭 물체를 제거하고 모터를 재부팅하십시오."
+  evidence_gaps:                       # 로그만으로 확정할 수 없는 한계점 명시
+    - "물리적 충돌 흔적 및 가반 하중 실측이 필요합니다."
   specificity: 80                      # 우선순위 가중치 (높을수록 우선 매칭)
 ```

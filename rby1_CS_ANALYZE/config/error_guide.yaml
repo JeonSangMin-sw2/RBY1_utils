@@ -7,10 +7,10 @@ version: 1.0
 categories:
   - id: motor_joint
     label: "모터 / 조인트"
-    description: "모터 드라이버 오류, 서보온 실패, 전류/온도/비트 에러, 엔코더 이상"
+    description: "모터 드라이버 오류, 서보온 실패, 전류/온도/비트 에러, 엔코더 이상, 기구/브레이크 결함"
     subcategories:
       - id: arm6_wakeup
-        label: "Arm 6축 기동"
+        label: "Arm 6축 / 손목 기동"
       - id: motor_communication
         label: "모터 통신 미수신"
       - id: drive_bit_error
@@ -19,6 +19,12 @@ categories:
         label: "관절 추종 오차"
       - id: pid_gain
         label: "PID Gain 조회"
+      - id: motor_overheat_limit
+        label: "가동범위 초과 및 모터 과열"
+      - id: brake_mechanism
+        label: "브레이크 기구 이상"
+      - id: zero_position
+        label: "원점(Zero Position) 유실"
 
   - id: control_manager
     label: "Control Manager"
@@ -37,7 +43,7 @@ categories:
 
   - id: hardware_power
     label: "하드웨어 / 전원"
-    description: "48V/24V/12V/5V 전원 레일, EMO 스위치, 하드웨어 준비 상태"
+    description: "48V/24V/12V/5V 전원 레일, EMO 스위치, 하드웨어 준비 상태, PDU 퓨즈, 배터리"
     subcategories:
       - id: emo_switch
         label: "EMO 비상정지"
@@ -49,15 +55,21 @@ categories:
         label: "전원 명령 타임아웃"
       - id: hardware_readiness
         label: "하드웨어 준비 상태"
+      - id: part_fuse_blown
+        label: "파트별 전원 퓨즈 단선"
+      - id: battery_pdu_anomaly
+        label: "배터리 및 전원공급 불안정"
 
   - id: communication
     label: "CAN / 네트워크 통신"
-    description: "CAN 버스 타임아웃, 관절 상태 갱신 타임아웃"
+    description: "CAN 버스 타임아웃, 관절 상태 갱신 타임아웃, LAN 모듈"
     subcategories:
       - id: state_update_timeout
         label: "관절 상태 갱신 지연"
       - id: generic_timeout
         label: "일반 통신 타임아웃"
+      - id: lan_module
+        label: "RPC-UPC LAN 통신"
 
   - id: safety_kinematics
     label: "안전 / 기구학"
@@ -73,8 +85,8 @@ categories:
         label: "유효하지 않은 Reference"
 
   - id: service_api
-    label: "서비스 / RPC"
-    description: "gRPC 명령 타임아웃, 제어 취소 실패, 우선순위 부족"
+    label: "서비스 / RPC / 부가장치"
+    description: "gRPC 명령 타임아웃, 제어 취소 실패, 우선순위 부족, 부가장치(그리퍼/리더암/센서/헤드)"
     subcategories:
       - id: invalid_request
         label: "유효하지 않은 제어 요청"
@@ -88,6 +100,12 @@ categories:
         label: "제어 취소 프로세스 실패"
       - id: operation_failed
         label: "서비스 연산 실패"
+      - id: gripper_toolflange
+        label: "그리퍼 / 툴플렌지 연동"
+      - id: leader_arm
+        label: "리더암 연동"
+      - id: head_firmware
+        label: "헤드 펌웨어 설정"
       - id: generic_error
         label: "미분류 오류"
 
@@ -107,11 +125,11 @@ rules:
     role: reaction
     confidence: high
     causes:
-      - "이 행은 원인보다 앞선 장애에 대한 후속 반응일 가능성이 높습니다."
+      - "이 행은 최초 원인이 아닌 선행된 하드웨어/통신 장애에 대한 시스템의 안전 정지 반응입니다."
     checks:
-      - "같은 시각 직전의 최초 오류와 상태 변화를 확인하십시오."
+      - "같은 시각 직전의 최초 오류(Root Node)와 관절 상태 변화를 확인하십시오."
     remedies:
-      - "선행 원인을 확인한 뒤 Fault 복구 절차를 수행하십시오."
+      - "선행 원인을 점검·해소한 뒤 Fault 복구 절차를 수행하십시오."
     evidence_gaps:
       - "이 행만으로 MajorFault의 최초 원인은 확정할 수 없습니다."
     group_window: 1.0
@@ -128,9 +146,9 @@ rules:
     role: reaction
     confidence: high
     causes:
-      - "이 행은 선행 제어 오류에 대한 후속 반응일 가능성이 높습니다."
+      - "이 행은 선행 제어 오류에 대한 시스템의 후속 보호 반응입니다."
     checks:
-      - "같은 시각 직전의 제어 오류를 확인하십시오."
+      - "같은 시각 직전의 제어 오류 및 목표 위치 초과 로그를 확인하십시오."
     remedies:
       - "선행 원인을 제거한 뒤 Control Manager를 복구하십시오."
     evidence_gaps:
@@ -180,59 +198,96 @@ rules:
     group_window: 1.0
     specificity: 90
 
-  # 관절 상태 갱신 시간 초과
+  # 관절 상태 갱신 시간 초과 (배선 단선, BNO 리셋, CAN 통신 결함 등 종합 진단)
   - id: joint_state_update_timeout
     major_category: communication
     sub_category: state_update_timeout
     family: joint_state_timeout
-    title: "관절 상태 갱신 시간 초과"
+    title: "관절 상태 갱신 시간 초과 (CAN 통신/배선 이상)"
     pattern: "timeout:\\s*joint\\s*['\"]?([^'\" ]+).*state update exceeded timeout"
-    meaning: "해당 관절의 상태 업데이트가 설정된 200 ms 기준 안에 들어오지 않았습니다."
+    meaning: "해당 관절의 상태 업데이트 데이터가 설정된 주기(200ms) 내에 수신되지 않았습니다."
     severity: error
     role: root
     confidence: medium
-    confidence_reason: "상태 미수신은 확인되지만, 단선·보드·부하 중 어느 원인인지는 추가 확인이 필요합니다."
+    confidence_reason: "통신 타임아웃은 명확하나 배선 단선·BNO 초기화·퓨즈 단선 중 어느 원인인지는 하드웨어 계측 확인이 필요합니다."
     causes:
-      - "CAN 통신이 불안정하거나 해당 모터/보드가 응답하지 않았을 가능성이 있습니다."
-      - "RPC의 실시간 처리 지연으로 상태 갱신이 늦어졌을 가능성이 있습니다."
+      - "WY1(left_arm_4/right_arm_4) 등 중간 관절 조립체 내부 배선의 피복 손상, 찝힘 또는 단선/쇼트 가능성"
+      - "모터 제어기 EEPROM 휘발로 BNO(Board Numbering)가 15번으로 초기화되었을 가능성"
+      - "PDU 내부 해당 파트 48V 전원 퓨즈 단선 또는 CAN 커넥터 접촉 불량"
+      - "RPC 호스트의 일시적 실시간 루프 스케줄링 지연"
     checks:
-      - "CAN선 상태를 확인하십시오. Power ON 상태에서 모터를 움직였을 때 엔코더 값이 변하는지 확인하십시오."
-      - "같은 시각 다른 관절 timeout과 realtime loop 지연 로그가 함께 발생했는지 확인하십시오."
+      - "동일 암의 복수 관절(예: left_arm_3, left_arm_6)이 함께 타임아웃되는지 확인하십시오."
+      - "WY1(left_arm_4) 관절부 조립체 내부 배선의 선 찝힘 또는 쇼트 흔적을 점검하십시오."
+      - "모터 보드 번호 확인 시 BNO가 15번으로 변경되어 있는지 확인하십시오."
+      - "멀티미터로 CAN 라인(종단저항 120Ω) 및 신호선 저항/도통 상태를 측정하십시오."
+      - "PDU 해당 파트 퓨즈가 단선되었는지 점검하십시오."
     remedies:
-      - "통신 구간과 커넥터를 분리 점검한 뒤 Servo On을 다시 시도하십시오."
+      - "배선 쇼트/단선 확인 시: 모터 제어 보드 교체 및 BNO 설정 진행 후 WY1 조립체를 교체하십시오."
+      - "BNO 15번 확인 시: BNO 재설정 및 모터 제어 보드를 교체하십시오."
+      - "퓨즈 단선 시: 쇼트 원인 제거 후 규격 퓨즈로 교체하십시오."
+      - "단순 유격 시: 커넥터 재결착 및 케이블 걸림 방지 정리를 수행하십시오."
     evidence_gaps:
-      - "모터 전원, CAN 프레임 수신 및 호스트 부하 정보가 있으면 원인 범위를 좁힐 수 있습니다."
+      - "로그의 Timeout 문구만으로는 물리적 단선, BNO 리셋, 퓨즈 단선을 확정할 수 없으므로 하드웨어 계측(BNO/저항/전압)이 필요합니다."
     group_window: 1.0
     specificity: 100
 
-  # Arm 6축 서보온 실패
+  # Arm 6축 / 손목부 서보온 실패
   - id: isolated_arm6_servo_on_failure
     major_category: motor_joint
     sub_category: arm6_wakeup
     family: arm6_wakeup_failure
-    title: "Arm 6축 Servo On 실패"
+    title: "Arm 6축 / 손목부 Servo On 실패"
     pattern: "(?:(?:right|left)_arm_6.*(?:servo.?on|initializ).*fail|(?:no data received:\\s*\\[\\s*['\\\"](?:right|left)_arm_6['\\\"]\\s*\\]))"
-    meaning: "Arm 6축에서만 초기화 데이터가 수신되지 않았습니다."
+    meaning: "Arm 6축(손목 모터)에서 초기화 데이터가 수신되지 않았거나 서보온에 실패했습니다."
     severity: error
     role: root
     confidence: medium
-    confidence_reason: "Arm 6축 단독 미수신 패턴과 일치하지만 하드웨어 확인 전 원인은 추정입니다."
+    confidence_reason: "Arm 6축 단독 미수신 패턴과 일치하지만 물리적 원인은 보드/코인셀/프리셋핀/모터고착 확인이 필요합니다."
     causes:
-      - "보드가 정상적으로 깨어나지 않았을 가능성이 있습니다."
-      - "코인셀이 방전되었을 가능성이 있습니다."
-      - "WY2 커넥터의 접촉 상태가 불량할 가능성이 있습니다."
-      - "납땜부 쇼트가 있을 가능성이 있습니다."
+      - "EEPROM 휘발로 모터 BNO(Board Numbering)가 15번으로 초기화되었을 가능성"
+      - "WY2 손목 보드 프리셋 신호핀 납땜(쇼트) 누락으로 48V 전원 On/Off 시 Zero Position이 유실되었을 가능성"
+      - "손목 보드 신호핀 미납땜 또는 모터 고착, 타이밍 풀리/벨트 마모 발생 가능성"
+      - "코인셀 배터리 방전 또는 WY2 커넥터 접촉 불량"
     checks:
-      - "Preset 명령을 실행해 보십시오."
-      - "코인셀 전압을 확인하십시오."
-      - "WY2 커넥터의 접촉 상태를 확인하십시오."
-      - "납땜부에 쇼트가 있는지 확인하십시오."
+      - "BNO(Board Numbering) 확인 시 15번으로 설정되어 있는지 확인하십시오."
+      - "48V 전원을 껐다 켤 때마다 WY2 포지션(Zero Position) 값이 랜덤으로 바뀌는지 확인하십시오."
+      - "코인셀 배터리 전압(3V 이상) 및 WY2 커넥터 체결 상태를 확인하십시오."
+      - "손목 보드 프리셋 신호핀 및 신호선 납땜 상태와 쇼트 여부를 점검하십시오."
+      - "손목 모터 회전 축 고착 및 타이밍 벨트(MXL82), 풀리(MXL20, MXL40) 마모를 점검하십시오."
     remedies:
-      - "문제가 반복되면 커넥터, 코인셀 또는 관련 보드의 교체 점검을 진행하십시오."
+      - "BNO 15번 확인 시: BNO 재설정 및 모터 제어 보드 교체를 진행하십시오."
+      - "Zero Position 유실 시: WY2 손목 보드 프리셋 신호핀 납땜(쇼트) 후 케이블 글루건 고정 및 원점 재보정을 수행하십시오."
+      - "모터 고착 또는 벨트 손상 시: 타이밍 풀리/벨트 교체 후 Tool Flange 조립체 볼트에 록타이트를 도포하여 재체결하고 원점 재보정을 진행하십시오."
+      - "코인셀 방전 시: 코인셀 배터리를 교체하십시오."
     evidence_gaps:
-      - "Preset 전후 결과와 코인셀 실측 전압이 필요합니다."
+      - "로그만으로는 BNO 초기화 여부, 프리셋 납땜 상태, 물리적 모터 고착을 확정할 수 없으므로 하드웨어 계측 점검이 필요합니다."
     group_window: 30.0
     specificity: 110
+
+  # WY2 관절 원점(Zero Position) 유실
+  - id: wy2_zero_position_loss
+    major_category: motor_joint
+    sub_category: zero_position
+    family: zero_position_loss
+    title: "WY2 관절 원점(Zero Position) 유실"
+    pattern: "(?:zero position (?:lost|changed|random)|preset.*loss|encoder preset error)"
+    meaning: "로봇 전원을 켤 때마다 WY2(손목) 관절의 Zero Position 값이 랜덤하게 변경됩니다."
+    severity: error
+    role: root
+    confidence: high
+    causes:
+      - "WY2 손목 보드에서 프리셋 신호핀 쇼트(납땜) 작업이 누락되어 48V 전원 리셋 시 원점 값이 유실되었을 가능성이 있습니다."
+    checks:
+      - "로봇 48V 전원을 On/Off 할 때마다 WY2 조인트의 엔코더 포지션 값이 달라지는지 확인하십시오."
+      - "WY2 손목 보드의 프리셋 신호핀 납땜 상태를 육안 점검하십시오."
+    remedies:
+      - "WY2 손목 보드의 프리셋 신호핀을 납땜(쇼트) 처리하십시오."
+      - "프리셋 케이블 부위를 글루건으로 고정 처리하십시오."
+      - "해당 조인트의 원점(Zero Position) 재보정을 수행하십시오."
+    evidence_gaps:
+      - "전원 재인가 전후의 엔코더 절대값 로그와 보드 납땜 상태 육안 확인이 필요합니다."
+    group_window: 5.0
+    specificity: 115
 
   # 모터 초기화 데이터 미수신
   - id: motor_communication_no_data
@@ -241,20 +296,26 @@ rules:
     family: motor_communication_loss
     title: "모터 초기화 데이터 미수신"
     pattern: "(?:no data (?:received|coming|comming)|(?:initialize|initializing) motor.*(?:failed|timeout|error))"
-    meaning: "Servo On 과정에서 표시된 모터들의 응답 데이터가 수신되지 않았습니다."
+    meaning: "Servo On 과정에서 대상 모터들의 응답 데이터가 수신되지 않았습니다."
     severity: error
     role: root
     confidence: medium
-    confidence_reason: "미수신 대상은 확인되지만 CAN 배선, 전원, 보드 중 원인 구분이 필요합니다."
+    confidence_reason: "미수신 대상은 확인되지만 CAN 배선 단선, BNO 리셋, PDU 퓨즈 단선 중 원인 구분이 필요합니다."
     causes:
-      - "CAN 통신이 불안정할 가능성이 있습니다."
+      - "EEPROM 휘발로 BNO 번호가 15번으로 초기화되었을 가능성"
+      - "중간 관절 조립체(WY1 등) 배선 단선, 찝힘 또는 쇼트로 CAN 통신 단절"
+      - "PDU 내부 해당 파트 전원 퓨즈 단선으로 48V 전원 미공급"
     checks:
-      - "CAN선 상태를 확인하십시오. Power ON 상태에서 모터를 움직였을 때 엔코더 값이 변하는지 확인하십시오."
-      - "미수신 축이 한 축, 한 팔 전체 또는 전 로봇인지 범위를 확인하십시오."
+      - "BNO 확인 시 15번으로 변경되었는지 확인하십시오."
+      - "단독 관절 미수신인지 특정 암/파트 전체 미수신인지 범위를 확인하십시오."
+      - "멀티미터로 CAN 라인 종단 저항(120Ω) 및 신호선 도통을 측정하십시오."
+      - "PDU의 해당 파트 전원 퓨즈가 단선되었는지 점검하십시오."
     remedies:
-      - "문제 구간의 커넥터와 하네스를 분리 점검한 뒤 Servo On을 다시 시도하십시오."
+      - "BNO 15번 발생 시: BNO 재설정 및 모터 보드 교체."
+      - "배선 쇼트/단선 부위 확인 시: 해당 관절 조립체 교체."
+      - "퓨즈 단선 시: 쇼트 원인 제거 후 규격 퓨즈 교체."
     evidence_gaps:
-      - "CAN 프레임 수신 여부와 모터 전원 실측값이 필요합니다."
+      - "CAN 프레임 수신 여부, 모터 실측 전압 및 BNO 설정값 확인이 필요합니다."
     group_window: 30.0
     specificity: 100
 
@@ -288,18 +349,21 @@ rules:
     family: motor_drive_error
     title: "모터 JAM 오류"
     pattern: "\\bjam\\s+error\\b"
-    meaning: "모터가 목표를 따라가지 못하고 걸림 상태로 판단되었습니다."
+    meaning: "모터가 목표를 따라가지 못하고 기구적 걸림 상태로 판단되었습니다."
     severity: error
     role: root
     confidence: medium
-    confidence_reason: "JAM 오류 비트는 확인되지만 물리 원인은 상태값과 기구 점검이 필요합니다."
+    confidence_reason: "JAM 오류 비트는 확인되지만 물리 원인은 Limit 초과, 브레이크 간섭 등 기구 점검이 필요합니다."
     causes:
-      - "기구 간섭, 과부하, 브레이크 또는 구동부 걸림이 발생했을 가능성이 있습니다."
+      - "모터가 가동범위(Limit)를 벗어난 상태에서 Servo On되어 움직이지 못하고 걸림 발생"
+      - "기구 간섭, 과부하, 브레이크 솔레노이드 미해제 또는 구동부 걸림"
     checks:
-      - "표시된 축의 기구 간섭, 발열, 소음 및 수동 움직임을 확인하십시오."
-      - "Fault CSV에서 해당 축의 전류, 위치, 목표 위치 변화를 확인하십시오."
+      - "해당 관절이 물리적 스토퍼나 Limit 영역에 걸려 있는지 확인하십시오."
+      - "브레이크가 완전히 해제되었는지, 솔레노이드 작동 상태를 확인하십시오."
+      - "Fault CSV에서 해당 축의 전류 급증 및 위치 추종 오차를 확인하십시오."
     remedies:
-      - "부하와 간섭을 제거한 뒤 오류를 초기화하고 저속으로 재현 여부를 확인하십시오."
+      - "전원을 끄고 관절을 안전한 정상 가동 범위 내로 수동 이동시킨 뒤 재가동하십시오."
+      - "부하와 기구 간섭을 제거한 뒤 오류를 초기화하십시오."
     evidence_gaps:
       - "해당 축의 전류·온도·목표값과 발생 직전 명령이 필요합니다."
     group_window: 1.0
@@ -311,18 +375,18 @@ rules:
     family: motor_drive_error
     title: "모터 CUR 오류"
     pattern: "\\bcur\\s+error\\b"
-    meaning: "모터 전류 관련 보호 오류가 보고되었습니다."
+    meaning: "모터 전류 관련 과전류 보호 오류가 보고되었습니다."
     severity: error
     role: root
     confidence: medium
     confidence_reason: "CUR 오류 비트는 확인되지만 물리 원인은 상태값과 기구 점검이 필요합니다."
     causes:
-      - "과부하, 급격한 명령 또는 전류 센싱 이상이 발생했을 가능성이 있습니다."
+      - "과부하, 급격한 명령, 기구 충돌 또는 모터 코일/단자 쇼트 가능성"
     checks:
       - "표시된 축의 기구 간섭, 발열, 소음 및 수동 움직임을 확인하십시오."
-      - "Fault CSV에서 해당 축의 전류, 위치, 목표 위치 변화를 확인하십시오."
+      - "Fault CSV에서 해당 축의 피크 전류 및 목표 위치 급변 구간을 확인하십시오."
     remedies:
-      - "부하와 간섭을 제거한 뒤 오류를 초기화하고 저속으로 재현 여부를 확인하십시오."
+      - "부하와 간섭을 제거하고 감속 제어 후 재현 여부를 확인하십시오."
     evidence_gaps:
       - "해당 축의 전류·온도·목표값과 발생 직전 명령이 필요합니다."
     group_window: 1.0
@@ -353,22 +417,25 @@ rules:
 
   - id: motor_temp_error
     major_category: motor_joint
-    sub_category: drive_bit_error
+    sub_category: motor_overheat_limit
     family: motor_drive_error
-    title: "모터 TEMP 오류"
+    title: "모터 TEMP 오류 (과열 및 가동범위 초과 의심)"
     pattern: "\\btemp(?:erature)?\\s+error\\b"
-    meaning: "모터 온도 보호 오류가 보고되었습니다."
+    meaning: "모터 온도 보호 오류가 발생하여 드라이버가 정지되었습니다."
     severity: error
     role: root
     confidence: medium
-    confidence_reason: "TEMP 오류 비트는 확인되지만 물리 원인은 상태값과 기구 점검이 필요합니다."
+    confidence_reason: "TEMP 오류는 확인되지만 단순 고부하인지 가동범위(Limit) 초과로 인한 지속 전류 인가인지 구분이 필요합니다."
     causes:
-      - "연속 고부하 또는 냉각 불량으로 모터 온도가 상승했을 가능성이 있습니다."
+      - "모터가 가동범위(Limit)를 벗어난 상태에서 Servo On되어 움직이지 못하고 지속 전류가 인가되어 과열 발생"
+      - "연속 고부하 구동 또는 기구적 간섭/고착으로 인한 발열 누적"
     checks:
-      - "표시된 축의 발열 상태 및 쿨링 팬 동작을 확인하십시오."
-      - "Fault CSV에서 해당 축의 온도 변화를 확인하십시오."
+      - "해당 관절이 물리적 스토퍼나 Limit 영역에 닿아 있는지 확인하십시오."
+      - "모터 외관 발열 상태, 탄 냄새 및 수동 회전 시 부드러운지 확인하십시오."
+      - "Fault CSV에서 해당 축의 온도 상승 곡선 및 지속 전류 값을 확인하십시오."
     remedies:
-      - "모터를 충분히 냉각시키고 부하 조건을 완화하십시오."
+      - "전원을 끄고 관절을 안전한 정상 가동 범위 내로 수동 이동시킨 뒤 충분히 냉각시키십시오."
+      - "가동범위 초과로 지속 전류가 인가되어 코일 소손/고착이 발생한 경우 해당 모터를 교체하십시오."
     evidence_gaps:
       - "해당 축의 온도 및 지속 전류 데이터가 필요합니다."
     group_window: 1.0
@@ -384,7 +451,7 @@ rules:
     severity: error
     role: root
     confidence: low
-    confidence_reason: "모터 오류 발생은 확인되지만 이 행에는 오류 비트와 대상 축이 없습니다."
+    confidence_reason: "모터 오류 발생은 확인되지만 이 행에는 세부 오류 비트와 대상 축이 없습니다."
     causes:
       - "모터 드라이브 보호 오류, 과부하 또는 통신 이상이 발생했을 가능성이 있습니다."
     checks:
@@ -396,6 +463,88 @@ rules:
       - "이 행만으로는 대상 축과 세부 오류 비트를 확인할 수 없습니다."
     group_window: 1.0
     specificity: 85
+
+  # 브레이크 기구 이상 및 밀림
+  - id: brake_mechanism_failure
+    major_category: motor_joint
+    sub_category: brake_mechanism
+    family: brake_fault
+    title: "브레이크 기구 이상 및 밀림"
+    pattern: "(?:brake (?:slip|drag|stuck|late|delay|noise)|solenoid (?:fault|stuck))"
+    meaning: "브레이크가 제때 잡히지 않고 밀리거나, 솔레노이드 축 틀어짐/볼트 파손이 의심됩니다."
+    severity: warning
+    role: root
+    confidence: medium
+    causes:
+      - "브레이크 윙 스프링 탄성 저하 또는 브레이크 윙 마모"
+      - "외력 충격으로 인한 솔레노이드 축 틀어짐 / 편측 닫힘 불량"
+      - "브레이크 아우터 고정 볼트 풀림 또는 볼트 파손"
+      - "케이블 배선 정리 불량으로 브레이크 윙/솔레노이드 부위에 케이블 걸림"
+    checks:
+      - "브레이크 부근 케이블이 윙이나 솔레노이드 작동부에 걸려있는지 점검하십시오."
+      - "브레이크 아우터 볼트가 풀리거나 파손되지 않았는지 확인하십시오."
+      - "양측 솔레노이드 중 한쪽이 닫히지 않거나 축이 틀어졌는지 확인하십시오."
+    remedies:
+      - "케이블 걸림 제거 및 배선 정리를 수행하십시오."
+      - "브레이크 아우터 볼트를 규격 토크(28 kgf·cm)로 조이십시오."
+      - "스프링 탄성 저하 또는 윙 마모 시 브레이크 윙 스프링 교체 및 하체 원점 재보정을 수행하십시오."
+      - "솔레노이드 축 변형 시 브레이크 어셈블리를 교체하십시오."
+    evidence_gaps:
+      - "하체 원점 변화량 및 브레이크 기구 육안 점검이 필요합니다."
+    group_window: 1.0
+    specificity: 105
+
+  # 파트별 전원 퓨즈 단선 의심
+  - id: part_fuse_blown_servo_on_failure
+    major_category: hardware_power
+    sub_category: part_fuse_blown
+    family: fuse_blown
+    title: "로봇 특정 파트 전원 퓨즈 단선 의심"
+    pattern: "(?:(?:left_arm|right_arm|torso|head|mobile)\\s+servo.?on\\s+fail|failed to (?:servo.?on|enable)\\s+(?:left_arm|right_arm|torso|head|mobile))"
+    meaning: "다른 부위는 정상이나 특정 파트(Arm, Torso, Head, Mobile)만 단독으로 Servo On이 되지 않습니다."
+    severity: error
+    role: root
+    confidence: medium
+    causes:
+      - "PDU 내부 해당 파트(Arm/Torso/Head/Mobile)의 48V 전원 공급 퓨즈(Fuse)가 단선되었을 가능성"
+      - "해당 파트 전원 공급 케이블 단선 또는 커넥터 이탈 가능성"
+    checks:
+      - "다른 파트는 정상 동작하는데 해당 파트만 전원/서보온이 인가되지 않는지 확인하십시오."
+      - "PDU를 열어 해당 파트 전원 라인의 퓨즈 단선 여부를 멀티미터 도통 시험으로 점검하십시오."
+      - "해당 파트 배선에 선 찝힘 또는 쇼트 발생 부위가 없는지 점검하십시오."
+    remedies:
+      - "쇼트 유발 원인을 해결한 뒤 규격 퓨즈로 교체하십시오."
+    evidence_gaps:
+      - "PDU 퓨즈의 물리적 도통 상태 및 해당 파트의 48V 입력 전압 실측이 필요합니다."
+    group_window: 5.0
+    specificity: 110
+
+  # 서보온 시 전원 불안정 / PC 셧다운
+  - id: battery_shutdown_on_servo_on
+    major_category: hardware_power
+    sub_category: battery_pdu_anomaly
+    family: battery_power_drop
+    title: "서보온 시 전원 불안정 / PC 셧다운"
+    pattern: "(?:pc\\s*(?:shutdown|shutting down)|power drop detected|abrupt power loss)"
+    meaning: "모터 서보온 인가 시 순간적인 전압 강하 또는 쇼트로 인해 시스템 전원이 차단되었습니다."
+    severity: critical
+    role: root
+    confidence: medium
+    causes:
+      - "배터리 셀 불량 또는 과방전으로 인한 출력 전압 강하(54V 미만/불안정)"
+      - "Torso 모듈 UVW 단자 간 쇼트 또는 저항 이상으로 순간 과전류 발생"
+      - "전원 분배 보드(PDB) 결함"
+    checks:
+      - "배터리 무부하 및 충전 상태에서 출력 전압이 정상 범위(54V)인지 확인하십시오."
+      - "Torso 모듈의 UVW 쇼트 체크 및 상간 저항 측정 결과를 확인하십시오."
+      - "전원 분배 보드의 전원 출력단 및 결착 상태를 점검하십시오."
+    remedies:
+      - "충전 완료 후에도 부하 인가 시 급격히 방전되거나 전압이 떨어지는 경우 배터리를 교체하십시오."
+      - "Torso 모듈 쇼트 확인 시 모터 또는 제어 보드를 교체하십시오."
+    evidence_gaps:
+      - "배터리 실측 전압 및 Torso UVW 저항 측정값이 필요합니다."
+    group_window: 1.0
+    specificity: 110
 
   # 관절 Ready / Power 상태 해제
   - id: joint_ready_power_down
@@ -411,10 +560,11 @@ rules:
     confidence_reason: "상태 해제는 확인되지만 전원 차단, CAN 손실, 모터 Fault 중 선행 원인 확인이 필요합니다."
     causes:
       - "모터 Fault 또는 CAN 통신 손실로 Ready 상태가 해제되었을 가능성이 있습니다."
-      - "전원 상태 변화가 먼저 발생했을 가능성이 있습니다."
+      - "전원 상태 변화(PDU 퓨즈 단선, EMO 작동)가 먼저 발생했을 가능성이 있습니다."
     checks:
       - "가장 먼저 Ready/Power가 내려간 축과 직전 모터 오류를 확인하십시오."
       - "같은 시각 전원 상태 변화와 Fault CSV를 확인하십시오."
+      - "PDU 해당 파트 퓨즈 단선 여부를 점검하십시오."
     remedies:
       - "선행 축 또는 전원 문제를 해소한 뒤 Servo On을 다시 수행하십시오."
     evidence_gaps:
@@ -459,11 +609,14 @@ rules:
     confidence: high
     confidence_reason: "EMO 확인 요청이 오류 메시지에 직접 명시되어 있습니다."
     causes:
-      - "EMO가 눌려 있습니다."
+      - "로봇 본체 EMO 버튼이 눌려 있거나, 무선 리모컨 E-STOP 스위치가 동작 중일 가능성"
+      - "리모컨-리시버 페어링 불량 또는 PDU와의 접촉 불량"
     checks:
-      - "EMO가 눌려 있는지 확인하십시오."
+      - "본체 EMO 스위치가 눌려 있는지 확인하십시오."
+      - "무선 리모컨 배터리 상태 및 리모컨-리시버 페어링 상태를 점검하십시오."
     remedies:
       - "안전 상태를 확인한 뒤 EMO를 해제하고 Reset 절차를 수행하십시오."
+      - "리모컨 동작 불량 시: 리모컨-리시버 페어링 및 재부팅 후에도 불가 시 부품(리모컨/안테나/PDU 케이블)을 교체하십시오."
     evidence_gaps: []
     group_window: 1.0
     specificity: 120
@@ -528,11 +681,11 @@ rules:
     confidence: high
     confidence_reason: "현재 위치, 제한값 및 Enable 중단이 로그에 명시되어 있습니다."
     causes:
-      - "해당 축이 지정된 범위를 넘어갔습니다."
+      - "해당 축이 지정된 가동 범위를 벗어났습니다."
     checks:
       - "해당 축의 현재 위치와 모델별 joint limit을 확인하십시오."
     remedies:
-      - "해당 팔을 안전한 범위 내로 옮기거나 Unlimit을 통해 Control Manager를 Enable하십시오."
+      - "해당 팔을 안전한 범위 내로 수동 이동시키거나 Unlimit 모드를 통해 Control Manager를 Enable하십시오."
     evidence_gaps: []
     group_window: 1.0
     specificity: 125
@@ -774,6 +927,84 @@ rules:
       - "해당 시각의 CAN 수신 상태와 관절 상태값이 필요합니다."
     group_window: 1.0
     specificity: 105
+
+  # 그리퍼 UDEV 미인식 또는 통신 이상
+  - id: peripheral_gripper_udev_error
+    major_category: service_api
+    sub_category: gripper_toolflange
+    family: gripper_fault
+    title: "그리퍼 UDEV 미인식 또는 통신 이상"
+    pattern: "(?:gripper (?:not found|open failed|disconnected|no response)|rby1_gripper)"
+    meaning: "그리퍼 장치가 인식되지 않거나 동작하지 않습니다."
+    severity: error
+    role: root
+    confidence: medium
+    causes:
+      - "UPC 운영체제 내 그리퍼 UDEV 설정 누락으로 '/dev/rby1_gripper' 디바이스 노드가 생성되지 않았을 가능성"
+      - "WY2 CAN 케이블 단선 또는 백팩 바이패스 연결 불량"
+      - "그리퍼 커넥터 충돌 파손 또는 내부 이물질로 인한 동작 걸림"
+    checks:
+      - "UPC 터미널에서 'ls -l /dev/'를 실행하여 'rby1_gripper' 심볼릭 링크가 정상 생성되어 있는지 확인하십시오."
+      - "멀티미터로 백팩 바이패스 ↔ 툴플렌지 간의 통신/전원 선로 도통을 확인하십시오."
+      - "그리퍼 기구 내부에 이물질이 끼어 뻑뻑하지 않은지 점검하십시오."
+    remedies:
+      - "UDEV 미설정 시: UDEV 규칙(/etc/udev/rules.d/)을 설정하고 서비스를 리로드하십시오."
+      - "배선 결함 시: WY2 CAN 케이블 또는 커넥터를 교체하십시오."
+      - "이물질 발생 시: 내부 이물질을 제거하고 세척 후 재테스트하십시오."
+    evidence_gaps:
+      - "UPC의 '/dev/rby1_gripper' 존재 여부 및 멀티미터 도통 측정 결과가 필요합니다."
+    group_window: 5.0
+    specificity: 110
+
+  # 리더암(Leader Arm) 미인식 또는 관절 이상
+  - id: leader_arm_connection_error
+    major_category: service_api
+    sub_category: leader_arm
+    family: leader_arm_fault
+    title: "리더암(Leader Arm) 미인식 또는 관절 이상"
+    pattern: "(?:leader.?arm (?:not found|failed|disconnected)|master.?arm (?:not found|failed)|rby1_leader_arm|rby1_master_arm)"
+    meaning: "리더암이 UPC에서 인식되지 않거나 특정 관절 동작이 불량합니다."
+    severity: error
+    role: root
+    confidence: medium
+    causes:
+      - "UPC 내 UDEV 규칙 누락으로 '/dev/rby1_leader_arm' 또는 '/dev/rby1_master_arm' 노드가 미생성되었을 가능성"
+      - "U2D2 변환기 연결 불량, USB 케이블 단선 또는 다이나믹셀 모터 불량"
+      - "일부 관절 조립 불량(볼트 누락 또는 조립 자세 틀림)"
+    checks:
+      - "UPC 터미널에서 'ls -l /dev/'를 입력하여 'rby1_master_arm' 또는 'rby1_leader_arm'으로 인식되는지 확인하십시오."
+      - "U2D2 모듈의 USB 연결 및 상태 LED 점등 여부를 확인하십시오."
+      - "리더암 각 관절의 볼트 체결 상태 및 조립 기준 자세를 확인하십시오."
+    remedies:
+      - "UDEV 설정 누락 시 udev 규칙을 추가하고 다시 적용하십시오."
+      - "U2D2 및 케이블 상태 정상화 또는 불량 모터 교체."
+      - "조립 불량 부위 볼트 재체결 및 조립 자세 수정."
+    evidence_gaps:
+      - "UPC의 '/dev/' 디바이스 매핑 결과 및 U2D2 하드웨어 연결 상태 확인 필요."
+    group_window: 5.0
+    specificity: 110
+
+  # 헤드 펌웨어 역방향 제어 오류
+  - id: head_firmware_reverse_direction
+    major_category: service_api
+    sub_category: head_firmware
+    family: head_firmware_fault
+    title: "헤드 펌웨어 역방향 제어 오류"
+    pattern: "(?:head direction (?:reversed|opposite)|head motor firmware)"
+    meaning: "헤드 조인트 제어 방향이 의도와 반대로 동작합니다."
+    severity: error
+    role: root
+    confidence: high
+    causes:
+      - "헤드 모터 제어 보드에 펌웨어가 반대 방향(Reverse)으로 플래싱되었을 가능성이 있습니다."
+    checks:
+      - "Head 조인트에 정방향 각도 명령 인가 시 실제 물리 구동 방향이 반대로 회전하는지 확인하십시오."
+    remedies:
+      - "펌웨어 부트로더 프로그램 매뉴얼을 참고하여 정방향 모터 펌웨어를 재플래싱하십시오."
+    evidence_gaps:
+      - "헤드 제어 명령값 대비 실제 엔코더 이동 방향 데이터가 필요합니다."
+    group_window: 1.0
+    specificity: 110
 
   # 제어 종료 결과 확인 실패
   - id: control_destruction_result_unknown

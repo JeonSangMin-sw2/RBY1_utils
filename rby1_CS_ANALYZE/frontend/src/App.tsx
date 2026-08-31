@@ -1332,6 +1332,14 @@ export default function App() {
 
                 // B: Error / Fault Incident Selected -> Show Full Root Cause & Action Plan
                 if (selected) {
+                  const primary = detail?.evidence.find((item) => item.id === detail.incident.primary_event_id) ?? detail?.evidence[0];
+                  const primaryExcerpt = selectedFlowNode?.excerpt || primary?.excerpt || selected.start_raw || selected.summary;
+                  const primarySource = selectedFlowNode?.source_name && selectedFlowNode?.line
+                    ? `${selectedFlowNode.source_name}${selectedFlowNode.member_name ? `!/${selectedFlowNode.member_name}` : ""}:${selectedFlowNode.line}`
+                    : (primary
+                      ? `${primary.source_name}${primary.member_name ? `!/${primary.member_name}` : ""}:${primary.line}`
+                      : undefined);
+
                   return (
                     <div className="activeIncidentSection">
                       {/* Selected Error Header / Classification Bar */}
@@ -1368,6 +1376,18 @@ export default function App() {
                               <strong>📌 발생 장애 개요:</strong>
                               <p>{selected.meaning || selected.primary_cause || "장애 로그가 감지되었습니다."}</p>
                             </div>
+
+                            {primaryExcerpt && (
+                              <div className="rawLogHighlightBox">
+                                <div className="rawLogHeader">
+                                  <span className="rawLogTitle">📄 감지된 에러 원본 로그</span>
+                                  {primarySource && <span className="rawLogSource">{primarySource}</span>}
+                                </div>
+                                <pre className="rawLogExcerpt">
+                                  <code>{primaryExcerpt}</code>
+                                </pre>
+                              </div>
+                            )}
 
                             {detail?.hypotheses && detail.hypotheses.length > 0 ? (
                               <div className="hypothesisSection">
