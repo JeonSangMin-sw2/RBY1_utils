@@ -1,0 +1,296 @@
+# =============================================================================
+# RB-Y1 로봇 제어 커맨드 및 상태 이벤트 해석 사전 (Command & Event Dictionary)
+# =============================================================================
+version: 1.1
+
+commands:
+  # ---------------------------------------------------------------------------
+  # 1. 전원 및 SCB 제어 커맨드 (Power & SCB Commands)
+  # ---------------------------------------------------------------------------
+  - id: power_48v_on
+    category: hardware_power
+    name_ko: "48V 구동 전원 인가 (Power On 48V)"
+    pattern: "(?:power.*(?:48v|main).*on|request.*power.*48v.*true)"
+    description: "모터 및 액추에이터 구동을 위한 48V 주전원을 인가합니다."
+    normal_condition: "EMO가 해제되어 있고 SCB 및 릴레이가 정상 동작하여 48V 레일이 활성화됨."
+    abnormal_condition: "EMO 스위치가 눌려 있거나 SCB 통신 불량 시 '48V unmatched power states' 타임아웃 발생."
+    action_hint: "EMO 스위치 물리적 해제 여부 및 FORT 무선 비상정지 리모컨 전원을 점검하십시오."
+
+  - id: power_48v_off
+    category: hardware_power
+    name_ko: "48V 구동 전원 차단 (Power Off 48V)"
+    pattern: "(?:power.*(?:48v|main).*off|request.*power.*48v.*false)"
+    description: "안전 정지 또는 Fault 보호를 위해 48V 구동 전원을 차단합니다."
+    normal_condition: "사용자의 정상 종료 명령 또는 MajorFault 보호 절차에 따른 자동 차단."
+    abnormal_condition: "로봇 구동(Enable) 중에 비정상적으로 전원이 상실된 경우."
+    action_hint: "차단 직전의 에러 로그와 비상정지 신호 발생 여부를 확인하십시오."
+
+  - id: tool_flange_power
+    category: hardware_power
+    name_ko: "말단 툴(EE) 전원 제어 (Tool Flange Power)"
+    pattern: "(?:toolflangepowercommand|tool_flange_power|tool.*flange)"
+    description: "로봇 말단(End-Effector) 툴 플랜지의 12V/24V 전원 인가 및 차단을 제어합니다."
+    normal_condition: "그리퍼 또는 센서 구동을 위한 툴 플랜지 전원이 정상 인가/차단됨."
+    abnormal_condition: "툴 플랜지 전원 릴레이 미응답 또는 단락 보호 작동 시."
+    action_hint: "말단 그리퍼 하네스 배선 및 툴 전원 설정을 점검하십시오."
+
+  - id: system_power_command
+    category: hardware_power
+    name_ko: "시스템 전원 제어 명령 (System Power Command)"
+    pattern: "(?:powerservice::powercommand|powerservice.*power|powercommand)"
+    description: "로봇 시스템 주전원(48V 구동/24V 로직) 공급 및 전원 시퀀스를 제어합니다."
+    normal_condition: "SCB 및 메인 파워 릴레이가 시퀀스에 맞춰 순차 기동됨."
+    abnormal_condition: "EMO 스위치 차단 또는 파워 스테이트 불일치 타임아웃 발생."
+    action_hint: "EMO 비상정지 버튼 및 48V 파워 서플라이/배터리 전압을 확인하십시오."
+
+  - id: joint_power_command
+    category: hardware_power
+    name_ko: "관절 전원/브레이크 제어 (Joint Power Command)"
+    pattern: "(?:powerservice::jointcommand|powerservice.*joint|jointcommand)"
+    description: "특정 관절 구동 드라이브의 전원 인가 및 전자 브레이크 상태를 제어합니다."
+    normal_condition: "해당 축의 전원 공급 및 브레이크 해제가 정상 수행됨."
+    abnormal_condition: "관절 드라이버 통신 지연 또는 브레이크 전원 불량."
+    action_hint: "관절 드라이버 배선 및 브레이크 작동 상태를 점검하십시오."
+
+  - id: execute_power_hardware
+    category: hardware_power
+    name_ko: "하드웨어 전원 명령 실행 (Execute Power)"
+    pattern: "(?:hardware::executepowercommand|executepowercommand.*started)"
+    description: "SCB 및 하드웨어 릴레이를 통해 실제 물리적 전원 라인을 제어합니다."
+    normal_condition: "하드웨어 릴레이가 스위칭되어 목표 전원 상태로 전환됨."
+    abnormal_condition: "릴레이 응답 없음 또는 EMO 에러로 전원 인가 실패."
+    action_hint: "비상정지 스위치 및 하드웨어 릴레이 보드를 점검하십시오."
+
+  - id: scb_reset
+    category: hardware_power
+    name_ko: "SCB 제어기 리셋 (SCB Reset)"
+    pattern: "(?:scb.*reset|reset.*scb)"
+    description: "시스템 제어 보드(SCB)의 전원 래치 및 비상정지 래치 상태를 리셋합니다."
+    normal_condition: "비상정지 복구 후 전원 인가 전 필수 리셋 수행."
+    abnormal_condition: "SCB가 리셋 명령에 응답하지 않는 경우."
+    action_hint: "SCB 통신 배선 및 24V 로직 전원 상태를 점검하십시오."
+
+  - id: emo_pressed
+    category: hardware_power
+    name_ko: "EMO 비상정지 스위치 작동 (EMO Pressed)"
+    pattern: "(?:emo.*(?:pressed|error|check)|emergency.*stop)"
+    description: "물리적 비상정지 버튼(EMO) 또는 무선 비상정지 수신기가 작동되었습니다."
+    normal_condition: "정상 시 EMO 스위치는 풀려 있어야 함."
+    abnormal_condition: "EMO 스위치가 눌려 48V 전원 공급이 물리적으로 차단됨."
+    action_hint: "로봇 본체 및 무선 리모컨(FORT)의 EMO 버튼을 시계 방향으로 돌려 해제하십시오."
+
+  # ---------------------------------------------------------------------------
+  # 2. Control Manager 라이프사이클 및 상태 커맨드
+  # ---------------------------------------------------------------------------
+  - id: control_enable
+    category: control_manager
+    name_ko: "Control Manager 활성화 (Enable)"
+    pattern: "(?:enable.*request|control.*manager.*state.*(?:changed to 'enabled'|enabled)|request.*enable)"
+    description: "로봇의 실시간 제어 루프를 활성화하고 모터 서보를 켭니다."
+    normal_condition: "전원 48V가 켜져 있고 모든 관절 모터가 준비(Ready)된 상태에서 Enable 성공."
+    abnormal_condition: "관절 위치 한계 초과, 모터 서보온 실패, 또는 48V 미인가 시 거부됨."
+    action_hint: "관절이 소프트웨어 한계 내에 있는지 확인하고, 필요 시 Unlimit 모드로 전환하십시오."
+
+  - id: control_disable
+    category: control_manager
+    name_ko: "Control Manager 비활성화 (Disable)"
+    pattern: "(?:disable.*request|control.*manager.*state.*(?:changed to 'disabled'|disabled)|request.*disable)"
+    description: "로봇의 실시간 제어 루프를 해제하고 대기 상태로 전환합니다."
+    normal_condition: "작업 완료 후 정상 대기 상태로 진입."
+    abnormal_condition: "제어 중 의도치 않게 Disable로 강제 전환된 경우."
+    action_hint: "직전의 오류 로그 및 제어 취소 요청을 확인하십시오."
+
+  - id: cancel_control_command
+    category: control_manager
+    name_ko: "제어 명령 취소 (Cancel Control)"
+    pattern: "(?:cancelcontrol|control cancel request|canceling process)"
+    description: "현재 수행 중이던 모션 또는 컨트롤 궤적을 중단하고 취소합니다."
+    normal_condition: "사용자의 취소 요청에 따라 실행 중인 제어가 정상 중단됨."
+    abnormal_condition: "수행 중인 제어가 없거나 취소 프로세스 시작에 실패한 경우."
+    action_hint: "현재 로봇의 제어 상태(Idle/Running)를 확인하십시오."
+
+  - id: set_control_mode
+    category: control_manager
+    name_ko: "제어 모드/권한 설정 (Set Control)"
+    pattern: "(?:setcontrol|control activation)"
+    description: "Control Manager의 실시간 제어 모드 및 컨트롤러 파라미터를 설정합니다."
+    normal_condition: "새로운 제어 모드가 성공적으로 활성화됨."
+    abnormal_condition: "로봇이 Fault 상태이거나 비활성화되어 제어 모드 변경이 거부된 경우."
+    action_hint: "먼저 ResetFault 및 Enable 절차를 거친 후 제어 모드를 설정하십시오."
+
+  - id: control_completed
+    category: control_manager
+    name_ko: "제어 정상 수행 완료 (Control Completed)"
+    pattern: "(?:control completed successfully|controlinterface.*completed)"
+    description: "Control Manager에서 수신된 모션 지령의 궤적 추종을 성공적으로 완수하였습니다."
+    normal_condition: "목표 위치/자세에 도달하여 제어가 정상 종료됨."
+    abnormal_condition: "정상 완료 로그이므로 이상 없음."
+    action_hint: "다음 제어 명령을 정상적으로 송신할 수 있는 준비 상태입니다."
+
+  - id: servo_on
+    category: motor_joint
+    name_ko: "모터 서보 온 (Servo On)"
+    pattern: "(?:servo.?on|initialize.*motor|request.*servo.?on)"
+    description: "CAN 버스를 통해 각 관절 모터 드라이버를 기동하고 토크를 인가합니다."
+    normal_condition: "전체 22개(또는 해당) 관절 모터가 200ms 내에 정상 응답을 반환함."
+    abnormal_condition: "특정 축(예: Arm 6축)의 데이터 미수신 또는 통신 타임아웃 발생."
+    action_hint: "CAN 버스 커넥터(WY2 등), 코인셀 배터리 전압 및 모터 전원 배선을 점검하십시오."
+
+  - id: preset_command
+    category: motor_joint
+    name_ko: "관절 엔코더 프리셋 (Preset)"
+    pattern: "(?:preset.*command|request.*preset)"
+    description: "멀티턴 절대위치 엔코더의 원점 및 기준 위치를 설정/초기화합니다."
+    normal_condition: "Arm 6축 등 배터리 방전 후 원점 재설정 시 성공적으로 완료됨."
+    abnormal_condition: "프리셋 명령 후에도 엔코더 데이터가 갱신되지 않는 경우."
+    action_hint: "코인셀 전압 확인 후 프리셋 명령을 재실행하십시오."
+
+  - id: reset_fault
+    category: control_manager
+    name_ko: "Fault 상태 해제 (ResetFault)"
+    pattern: "(?:reset.?fault|clear.?fault)"
+    description: "발생했던 MajorFault / MinorFault 상태를 클리어하고 초기 상태로 복구합니다."
+    normal_condition: "원인 장애가 해소된 후 정상적으로 Ready/Disabled 상태로 복구됨."
+    abnormal_condition: "원인이 여전히 남아 있어 ResetFault 직후 다시 Fault로 재진입하는 경우."
+    action_hint: "물리적 걸림(Jam), 과전류, 통신 단선 원인을 먼저 해결한 뒤 실행하십시오."
+
+  - id: major_fault_state
+    category: control_manager
+    name_ko: "MajorFault 발생 (치명적 정지)"
+    pattern: "(?:control.*manager.*state.*changed to 'majorfault'|major.*fault.*reaction)"
+    description: "하드웨어 고장, 모터 통신 단선, 안전 한계 초과 등으로 인해 긴급 비상 정지되었습니다."
+    normal_condition: "발생하지 않아야 하는 비정상 긴급 정지 상태."
+    abnormal_condition: "모터 토크 차단 및 48V 전원 차단 절차가 즉각 실행됨."
+    action_hint: "직전 3초 이내의 최초 에러(Root) 로그를 확인하여 해당 축/전원부를 수리하십시오."
+
+  - id: minor_fault_state
+    category: control_manager
+    name_ko: "MinorFault 발생 (경미한 정지)"
+    pattern: "(?:control.*manager.*state.*changed to 'minorfault'|minor.*fault.*reaction)"
+    description: "궤적 오차, 특이점 접근, 명령 파라미터 불일치 등으로 인해 제어가 일시 정지되었습니다."
+    normal_condition: "발생하지 않아야 하는 경고성 정지 상태."
+    abnormal_condition: "현재 제어 명령이 중단되고 감속 정지됨."
+    action_hint: "목표 위치/속도 프로파일이 로봇의 가동 범위를 벗어났는지 확인하십시오."
+
+  # ---------------------------------------------------------------------------
+  # 3. 모션 제어 및 궤적 커맨드 (Motion & Trajectory Commands)
+  # ---------------------------------------------------------------------------
+  - id: joint_position_command
+    category: service_api
+    name_ko: "관절 목표 위치 지령 (Joint Position)"
+    pattern: "(?:joint_position_command|joint_position)"
+    description: "상위 PC에서 특정 관절(Body/Arm/Waist/Head)의 목표 각도 위치 지령을 전송합니다."
+    normal_condition: "관절 소프트웨어 가동 범위 내에서 지령 각도로 부드럽게 이동함."
+    abnormal_condition: "관절 한계 초과, 속도 상한 초과, 또는 비활성화(Disabled) 상태에서 전송 시 거절됨."
+    action_hint: "목표 위치가 한계 내에 있는지 확인하고, Control Manager가 Enabled 상태인지 점검하십시오."
+
+  - id: whole_body_stop_command
+    category: service_api
+    name_ko: "로봇 전신 정지 지령 (Stop Command)"
+    pattern: "(?:stop_command|whole_body_command)"
+    description: "안전 확보 또는 작업 종료를 위해 로봇의 모든 관절 모션을 즉각 감속 정지합니다."
+    normal_condition: "실행 중이던 궤적이 안전하게 감속하여 목표 위치에서 정지함."
+    abnormal_condition: "하드웨어 비상 정지 또는 Fault와 결합되어 급정지된 경우."
+    action_hint: "정지 사유(사용자 정지, 안전 트리거, 이전 에러)를 확인하십시오."
+
+  - id: joint_trajectory_stream
+    category: service_api
+    name_ko: "관절 궤적 스트림 명령 (Joint Trajectory)"
+    pattern: "(?:joint.*trajectory|stream.*command|send.*trajectory)"
+    description: "목표 관절 각도 및 각속도 시계열 궤적을 Control Manager로 전송합니다."
+    normal_condition: "부드러운 가감속 프로파일로 관절이 지령을 추종함."
+    abnormal_condition: "급격한 위치 점프 또는 최대 속도 한계 초과 시 에러 발생."
+    action_hint: "모션 플래너의 보간 주기(Interpolation) 및 속도 상한을 점검하십시오."
+
+  - id: robot_command_stream
+    category: service_api
+    name_ko: "로봇 명령 실시간 스트림 (Robot Command Stream)"
+    pattern: "(?:robotcommandstream|stream.*requested)"
+    description: "상위 PC에서 고주파 실시간 제어 스트림 패킷을 지속적으로 송신합니다."
+    normal_condition: "실시간 루프 주기(100Hz/1kHz)에 맞춰 지령이 연속 추종됨."
+    abnormal_condition: "네트워크 지연 또는 패킷 유실로 인해 지령 스트림이 중단된 경우."
+    action_hint: "상위 PC와 로봇 간 이더넷 통신 상태 및 패킷 전송 주기를 점검하십시오."
+
+  - id: cartesian_velocity
+    category: service_api
+    name_ko: "말단 데카르트 속도 제어 (Cartesian Velocity)"
+    pattern: "(?:cartesian.*velocity|se3.*velocity|body.*velocity)"
+    description: "로봇 말단(End-Effector) 또는 베이스의 6자유도 공간 속도를 제어합니다."
+    normal_condition: "기구학적 역변환(IK)이 유효 영역 내에서 정상 연산됨."
+    abnormal_condition: "특이점(Singularity) 영역에 진입하여 관절 각속도가 발산하는 경우."
+    action_hint: "팔이 완전히 펴지거나 접히는 특이점 자세를 회피하도록 경로를 수정하십시오."
+
+  - id: unlimit_mode
+    category: safety_kinematics
+    name_ko: "한계 무시 모드 활성화 (Unlimit Mode)"
+    pattern: "(?:unlimited mode enabled|set.*unlimit.*true)"
+    description: "소프트웨어 관절 위치 한계 체크를 일시적으로 해제하여 원점 복귀를 허용합니다."
+    normal_condition: "한계 영역을 벗어난 로봇을 안전 영역으로 수동 복구할 때 사용."
+    abnormal_condition: "하드웨어 간섭 위험이 있으므로 복구 후 즉시 해제해야 함."
+    action_hint: "로봇을 안전한 가동 범위 안으로 이동시킨 후 정규 제어를 재개하십시오."
+
+  - id: robot_command_generic
+    category: service_api
+    name_ko: "로봇 제어 명령 송신 (Robot Command)"
+    pattern: "(?:robotcommandservice::robotcommand|robot_command)"
+    description: "상위 PC에서 로봇 제어 명령(위치/속도/정지/동작)을 송신하였습니다."
+    normal_condition: "Control Manager에서 명령을 수신하여 궤적 생성을 시작함."
+    abnormal_condition: "파라미터 불일치, 안전 영역 위반 시 명령이 거부될 수 있음."
+    action_hint: "송신된 명령의 세부 파라미터(관절 지령값, 제어 모드)를 확인하십시오."
+
+  - id: control_interface_generic
+    category: control_manager
+    name_ko: "제어 인터페이스 응답 (Control Interface)"
+    pattern: "(?:controlinterface)"
+    description: "Control Manager가 상위 PC의 요청에 대한 제어 루프 응답 및 피드백을 반환합니다."
+    normal_condition: "제어 상태 피드백이 실시간으로 상위 PC에 전달됨."
+    abnormal_condition: "제어 루프 지연 또는 통신 패킷 타임아웃."
+    action_hint: "Control Manager 상태와 상위 PC 통신 상태를 점검하십시오."
+
+  # ---------------------------------------------------------------------------
+  # 4. 통신 및 드라이브 상태 이벤트 (Communication & Drive Events)
+  # ---------------------------------------------------------------------------
+  - id: joint_timeout_event
+    category: communication
+    name_ko: "관절 상태 수신 시간초과 (Joint Timeout)"
+    pattern: "(?:timeout:\\s*joint.*state update exceeded|joint.*timeout)"
+    description: "특정 관절로부터의 CAN 피드백 상태 패킷이 지정된 타임아웃(200ms) 내에 도착하지 않았습니다."
+    normal_condition: "1kHz/100Hz 주기로 주기적 수신되어야 함."
+    abnormal_condition: "CAN 버스 노이즈, 커넥터 접촉 불량, 모터 전원 꺼짐 등으로 패킷 유실."
+    action_hint: "해당 축의 CAN 배선 연속성 및 종단 저항(120Ω) 상태를 점검하십시오."
+
+  - id: motor_jam_event
+    category: motor_joint
+    name_ko: "모터 물리적 걸림 감지 (Motor Jam Error)"
+    pattern: "(?:\\bjam\\s+error\\b|motor.*jam)"
+    description: "모터에 전류를 흘렸으나 위치가 이동하지 않아 물리적 걸림 상태로 판단되었습니다."
+    normal_condition: "발생하지 않아야 함."
+    abnormal_condition: "외부 물체 충돌, 기계적 간섭, 하모닉 드라이브 고착, 브레이크 미해제."
+    action_hint: "외력 간섭을 제거하고, 전원을 끈 상태에서 수동으로 부드럽게 돌아가는지 확인하십시오."
+
+  - id: motor_big_event
+    category: motor_joint
+    name_ko: "모터 과부하/복합 에러 (Motor Big Error)"
+    pattern: "(?:\\bbig\\s+error\\b|motor.*big.*error)"
+    description: "모터 드라이버 내부 상태 레지스터에서 심각한 복합 에러 비트가 세트되었습니다."
+    normal_condition: "발생하지 않아야 함."
+    abnormal_condition: "순간 과부하, 인버터 FET 이상, 엔코더 신호 왜곡."
+    action_hint: "Fault CSV에서 순간 토크 및 전류 피크를 확인하고 모터 온도를 점검하십시오."
+
+  - id: loop_delay_event
+    category: control_manager
+    name_ko: "실시간 제어 루프 지연 (Loop Stat Delay)"
+    pattern: "(?:loop stat|control manager stat.*delay)"
+    description: "Control Manager의 실시간 주기 연산(1ms)이 호스트 CPU 부하로 인해 지연되었습니다."
+    normal_condition: "평균 1ms 이내, 최대 지연 2ms 이하."
+    abnormal_condition: "백그라운드 고부하 프로세스로 인해 루프 지연이 10ms를 초과하여 안전 차단."
+    action_hint: "호스트 PC의 CPU 점유율을 확인하고 실시간 커널(PREEMPT_RT) 스케줄링을 점검하십시오."
+
+  - id: csv_saved_event
+    category: control_manager
+    name_ko: "Fault 상태 CSV 덤프 저장 (CSV Saved)"
+    pattern: "(?:robot states have been saved|saved.*csv)"
+    description: "장애 발생 직전/직후의 1kHz 고주파 센서 데이터가 CSV 파일로 영구 저장되었습니다."
+    normal_condition: "Fault 발생 시 자동 트리거됨."
+    abnormal_condition: "없음 (분석용 데이터 파일 생성)."
+    action_hint: "연계된 CSV 파일을 'Plot & 시각화' 또는 '다이나믹스' 탭에서 정밀 분석하십시오."

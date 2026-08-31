@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 import json
+import sqlite3
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -9,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from rby1_analyzer.api.deps import bearer_token
 from rby1_analyzer.charts import ChartPoint, ChartSeries, DenseWindowError, window_series
 from rby1_analyzer.incidents.builder import IncidentRebuildBusy, ensure_fault_links, rebuild_incidents
+from rby1_analyzer.incidents.rules import match_command_info
 
 
 router = APIRouter(
@@ -434,8 +436,48 @@ def case_incident(case_id: str, incident_id: int, request: Request) -> dict[str,
     for item in evidence_items:
         timeline_by_id[str(item["id"])] = item
     timeline = sorted(timeline_by_id.values(), key=_timeline_sort_key)
+    primary_id_str = str(incident.get("primary_event_id") or "")
     for rank, item in enumerate(timeline, 1):
         item["rank"] = rank
+        excerpt = str(item.get("excerpt") or "")
+        cmd_meta = match_command_info(excerpt)
+        item["command_info"] = cmd_meta
+        role = str(item.get("role") or "")
+        is_primary = str(item.get("id")) == primary_id_str
+        item["is_primary"] = is_primary
+
+        lowered_excerpt = excerpt.lower()
+        if is_primary or role == "root":
+            item["flow_role"] = "root"
+        elif "majorfault" in lowered_excerpt or "minorfault" in lowered_excerpt or role == "status":
+            item["flow_role"] = "fault"
+        elif "robot states have been saved" in lowered_excerpt or "saved:" in lowered_excerpt:
+            item["flow_role"] = "csv_dump"
+        elif role in ("reaction", "fallout"):
+            item["flow_role"] = "reaction"
+        elif (
+            "requested:" in lowered_excerpt
+            or "request_header" in lowered_excerpt
+            or "command sent" in lowered_excerpt
+            or (role == "command" and not any(k in lowered_excerpt for k in ("response", "handled", "received", "result")))
+        ):
+            item["flow_role"] = "upc"
+        elif (
+            "response:" in lowered_excerpt
+            or "result:" in lowered_excerpt
+            or "received:" in lowered_excerpt
+            or "handling" in lowered_excerpt
+            or "executed" in lowered_excerpt
+            or role in ("result_success", "result_failure", "measurement")
+            or (cmd_meta and cmd_meta.get("category") in ("hardware_power", "service_api", "control_manager"))
+        ):
+            item["flow_role"] = "rpc"
+        elif str(item.get("severity")).lower() in ("error", "critical"):
+            item["flow_role"] = "error"
+        elif str(item.get("severity")).lower() == "warning":
+            item["flow_role"] = "warning"
+        else:
+            item["flow_role"] = "context"
     return {
         "incident": incident,
         "hypotheses": [dict(item) for item in hypotheses],
@@ -456,6 +498,207 @@ def case_incident(case_id: str, incident_id: int, request: Request) -> dict[str,
             for item in csv_links
         ],
     }
+
+
+def _match_date_in_raw(date_str: str, raw_str: str) -> bool:
+    if date_str == "all" or not date_str or not raw_str:
+        return True
+    clean_date = date_str.strip()
+    if clean_date in raw_str:
+        return True
+    parts = [p for p in clean_date.replace("/", "-").split("-") if p]
+    if len(parts) >= 2:
+        mm_dd_slash = f"{parts[-2]}/{parts[-1]}"
+        mm_dd_dash = f"{parts[-2]}-{parts[-1]}"
+        if mm_dd_slash in raw_str or mm_dd_dash in raw_str:
+            return True
+    return False
+
+
+@router.get("/cases/{case_id}/day_flowchart")
+def day_flowchart(
+    case_id: str,
+    date: str,
+    request: Request,
+) -> dict[str, object]:
+    db = _case_db(request, case_id)
+    _ensure_incidents(db, case_id)
+    with db.connect() as connection:
+        incident_rows = connection.execute(
+            "SELECT * FROM incidents WHERE case_id=? ORDER BY start_time, id",
+            (case_id,),
+        ).fetchall()
+
+        day_incidents: list[sqlite3.Row] = []
+        for row in incident_rows:
+            inc = dict(row)
+            start_raw = str(inc.get("start_raw") or "")
+            if _match_date_in_raw(date, start_raw):
+                day_incidents.append(row)
+
+        if not day_incidents and incident_rows:
+            day_incidents = list(incident_rows)
+
+        all_timeline_by_id: dict[str, dict[str, object]] = {}
+        incidents_data: list[dict[str, object]] = []
+
+        for inc_row in day_incidents:
+            inc = dict(inc_row)
+            inc_id = int(inc["id"])
+            primary_id = int(inc["primary_event_id"])
+            primary_id_str = str(primary_id)
+
+            hypotheses = connection.execute(
+                "SELECT rank,text,confidence,rationale,source_rule_id FROM incident_hypotheses "
+                "WHERE incident_id=? ORDER BY rank",
+                (inc_id,),
+            ).fetchall()
+            actions = connection.execute(
+                "SELECT kind,priority,text,source_rule_id FROM incident_actions "
+                "WHERE incident_id=? ORDER BY priority",
+                (inc_id,),
+            ).fetchall()
+            grouped_actions: dict[str, list[dict[str, object]]] = defaultdict(list)
+            for item in actions:
+                grouped_actions[str(item["kind"])].append(dict(item))
+            csv_links = connection.execute(
+                "SELECT l.artifact_id,a.original_name,l.delta_seconds,l.confidence,l.reason "
+                "FROM incident_csv_links l JOIN artifacts a ON a.id=l.artifact_id "
+                "WHERE l.incident_id=? ORDER BY ABS(l.delta_seconds),l.artifact_id",
+                (inc_id,),
+            ).fetchall()
+
+            evidence = connection.execute(
+                "SELECT e.*,ie.role,ie.relation FROM events e "
+                "JOIN incident_events ie ON ie.event_id=e.id "
+                "WHERE ie.incident_id=? ORDER BY e.id",
+                (inc_id,),
+            ).fetchall()
+
+            provenance_rows = connection.execute(
+                "SELECT DISTINCT e.id,p.original_name,p.member_name FROM incident_events ie "
+                "JOIN events e ON e.id=ie.event_id LEFT JOIN provenance p ON p.artifact_id=e.artifact_id "
+                "WHERE ie.incident_id=? ORDER BY e.id,p.id",
+                (inc_id,),
+            ).fetchall()
+            provenance: dict[int, list[dict[str, str | None]]] = defaultdict(list)
+            for item in provenance_rows:
+                if item["original_name"] is not None:
+                    provenance[int(item["id"])].append(
+                        {"original_name": item["original_name"], "member_name": item["member_name"]}
+                    )
+
+            primary_event = connection.execute(
+                "SELECT time_value,time_raw,artifact_id,member_name,line FROM events WHERE id=?", (primary_id,)
+            ).fetchone()
+            context_rows: list[sqlite3.Row] = []
+            if primary_event is not None and primary_event["time_value"] is not None:
+                center = float(primary_event["time_value"])
+                start_win = center - 60.0
+                end_win = center + 60.0
+                context_rows = connection.execute(
+                    "SELECT * FROM events WHERE time_value BETWEEN ? AND ? "
+                    "ORDER BY time_value,line LIMIT 400",
+                    (start_win, end_win),
+                ).fetchall()
+            elif primary_event is not None:
+                first_line = max(1, int(primary_event["line"]) - 50)
+                context_rows = connection.execute(
+                    "SELECT * FROM events WHERE artifact_id=? AND member_name IS ? "
+                    "AND line BETWEEN ? AND ? ORDER BY line LIMIT 200",
+                    (
+                        primary_event["artifact_id"],
+                        primary_event["member_name"],
+                        first_line,
+                        int(primary_event["line"]) + 50,
+                    ),
+                ).fetchall()
+
+            inc_events: dict[str, dict[str, object]] = {}
+            for item in context_rows:
+                t_item = dict(item)
+                role, relation = _timeline_role(t_item)
+                t_item["id"] = str(t_item["id"])
+                t_item["role"] = role
+                t_item["relation"] = relation
+                t_item["incident_id"] = str(inc_id)
+                t_item["incident_title"] = inc["title"]
+                t_item["is_primary"] = str(t_item["id"]) == primary_id_str
+                inc_events[str(t_item["id"])] = t_item
+
+            for item in evidence:
+                e_item = dict(item)
+                e_item["id"] = str(e_item["id"])
+                e_item["incident_id"] = str(inc_id)
+                e_item["incident_title"] = inc["title"]
+                e_item["is_primary"] = str(e_item["id"]) == primary_id_str
+                e_item["provenance"] = provenance.get(int(item["id"]), [])
+                inc_events[str(e_item["id"])] = e_item
+
+            for ev_id, ev_obj in inc_events.items():
+                if ev_id not in all_timeline_by_id:
+                    all_timeline_by_id[ev_id] = ev_obj
+                else:
+                    if ev_obj.get("is_primary"):
+                        all_timeline_by_id[ev_id]["is_primary"] = True
+                        all_timeline_by_id[ev_id]["incident_id"] = str(inc_id)
+                        all_timeline_by_id[ev_id]["incident_title"] = inc["title"]
+
+            incidents_data.append({
+                "incident": inc,
+                "hypotheses": [dict(h) for h in hypotheses],
+                "checks": grouped_actions["check"],
+                "remedies": grouped_actions["remedy"],
+                "evidence_gaps": grouped_actions["collect"],
+                "csv_links": [dict(c) for c in csv_links],
+            })
+
+        timeline = sorted(all_timeline_by_id.values(), key=_timeline_sort_key)
+        for rank, item in enumerate(timeline, 1):
+            item["rank"] = rank
+            excerpt = str(item.get("excerpt") or "")
+            cmd_meta = match_command_info(excerpt)
+            item["command_info"] = cmd_meta
+            role = str(item.get("role") or "")
+            is_primary = bool(item.get("is_primary"))
+            lowered_excerpt = excerpt.lower()
+            if is_primary or role == "root":
+                item["flow_role"] = "root"
+            elif "majorfault" in lowered_excerpt or "minorfault" in lowered_excerpt or role == "status":
+                item["flow_role"] = "fault"
+            elif "robot states have been saved" in lowered_excerpt or "saved:" in lowered_excerpt:
+                item["flow_role"] = "csv_dump"
+            elif role in ("reaction", "fallout"):
+                item["flow_role"] = "reaction"
+            elif (
+                "requested:" in lowered_excerpt
+                or "request_header" in lowered_excerpt
+                or "command sent" in lowered_excerpt
+                or (role == "command" and not any(k in lowered_excerpt for k in ("response", "handled", "received", "result")))
+            ):
+                item["flow_role"] = "upc"
+            elif (
+                "response:" in lowered_excerpt
+                or "result:" in lowered_excerpt
+                or "received:" in lowered_excerpt
+                or "handling" in lowered_excerpt
+                or "executed" in lowered_excerpt
+                or role in ("result_success", "result_failure", "measurement")
+                or (cmd_meta and cmd_meta.get("category") in ("hardware_power", "service_api", "control_manager"))
+            ):
+                item["flow_role"] = "rpc"
+            elif str(item.get("severity")).lower() in ("error", "critical"):
+                item["flow_role"] = "error"
+            elif str(item.get("severity")).lower() == "warning":
+                item["flow_role"] = "warning"
+            else:
+                item["flow_role"] = "context"
+
+        return {
+            "date": date,
+            "incidents": incidents_data,
+            "timeline": timeline,
+        }
 
 
 @router.get("/cases/{case_id}/incidents/{incident_id}/chart")

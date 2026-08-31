@@ -79,6 +79,8 @@ CREATE INDEX IF NOT EXISTS chart_samples_window
   ON chart_samples(artifact_id, name, sample_time);
 CREATE INDEX IF NOT EXISTS chart_samples_name_window
   ON chart_samples(name, sample_time, artifact_id);
+CREATE INDEX IF NOT EXISTS chart_samples_art_time
+  ON chart_samples(artifact_id, sample_time);
 CREATE TABLE IF NOT EXISTS analysis_runs (
   id INTEGER PRIMARY KEY, case_id TEXT NOT NULL, job_id TEXT,
   schema_version INTEGER NOT NULL, started_at TEXT NOT NULL, completed_at TEXT,

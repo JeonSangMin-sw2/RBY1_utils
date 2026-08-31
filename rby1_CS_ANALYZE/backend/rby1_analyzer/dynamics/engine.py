@@ -8,7 +8,6 @@ from typing import Any
 import xml.etree.ElementTree as ET
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 
 try:
     import rby1_sdk.dynamics as rd
@@ -60,6 +59,29 @@ def _smooth_derivative(time_arr: np.ndarray, val_arr: np.ndarray) -> np.ndarray:
             smoothed[:, i] = np.convolve(padded[:, i], kernel, mode="valid")
         return smoothed
     return dval
+
+
+def matrix_to_zyx_euler(rot_matrix: np.ndarray, degrees: bool = False) -> tuple[float, float, float]:
+    """Converts 3x3 rotation matrix to ZYX Euler angles (yaw, pitch, roll).
+    Exact equivalent to scipy.spatial.transform.Rotation.from_matrix(rot_matrix).as_euler('zyx')
+    without requiring the scipy dependency.
+    """
+    r02 = float(rot_matrix[0, 2])
+    pitch = float(np.arcsin(np.clip(r02, -1.0, 1.0)))
+    cos_pitch = np.cos(pitch)
+
+    if abs(cos_pitch) > 1e-7:
+        roll = float(np.arctan2(-rot_matrix[1, 2], rot_matrix[2, 2]))
+        yaw = float(np.arctan2(-rot_matrix[0, 1], rot_matrix[0, 0]))
+    else:
+        # Gimbal lock (pitch = +- 90 deg)
+        roll = 0.0
+        yaw = float(np.arctan2(rot_matrix[1, 0], rot_matrix[1, 1]))
+
+    if degrees:
+        return float(np.degrees(yaw)), float(np.degrees(pitch)), float(np.degrees(roll))
+    return float(yaw), float(pitch), float(roll)
+
 
 
 @dataclass
@@ -162,25 +184,25 @@ class DynamicsEngine:
                 
                 # Categorize joints
                 groups: dict[str, list[str]] = {
-                    "Torso": [],
+                    "Head": [],
                     "Right Arm": [],
                     "Left Arm": [],
-                    "Head": [],
-                    "Wheels & Base": [],
-                    "Other": []
+                    "Torso": [],
+                    "Wheel": [],
+                    "Other": [],
                 }
                 for j_name in joint_names:
                     nl = j_name.lower()
-                    if "torso" in nl:
-                        groups["Torso"].append(j_name)
-                    elif "right_arm" in nl or "r_arm" in nl or nl.endswith("r") or "right" in nl:
-                        groups["Right Arm"].append(j_name)
-                    elif "left_arm" in nl or "l_arm" in nl or nl.endswith("l") or "left" in nl:
-                        groups["Left Arm"].append(j_name)
+                    if "wheel" in nl or "mobility" in nl or "steering" in nl:
+                        groups["Wheel"].append(j_name)
                     elif "head" in nl:
                         groups["Head"].append(j_name)
-                    elif "wheel" in nl or "mobility" in nl or "steering" in nl:
-                        groups["Wheels & Base"].append(j_name)
+                    elif "right_arm" in nl or "r_arm" in nl or nl.startswith("right_") or nl.endswith("_r"):
+                        groups["Right Arm"].append(j_name)
+                    elif "left_arm" in nl or "l_arm" in nl or nl.startswith("left_") or nl.endswith("_l"):
+                        groups["Left Arm"].append(j_name)
+                    elif "torso" in nl:
+                        groups["Torso"].append(j_name)
                     else:
                         groups["Other"].append(j_name)
 
@@ -279,9 +301,8 @@ class DynamicsEngine:
         # Euler ZYX
         try:
             rot_matrix = T[:3, :3]
-            r = R.from_matrix(rot_matrix)
-            yaw_d, pitch_d, roll_d = r.as_euler("zyx", degrees=True)
-            yaw_r, pitch_r, roll_r = r.as_euler("zyx", degrees=False)
+            yaw_d, pitch_d, roll_d = matrix_to_zyx_euler(rot_matrix, degrees=True)
+            yaw_r, pitch_r, roll_r = matrix_to_zyx_euler(rot_matrix, degrees=False)
         except Exception:
             yaw_d = pitch_d = roll_d = 0.0
             yaw_r = pitch_r = roll_r = 0.0

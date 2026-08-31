@@ -292,10 +292,17 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   font-weight: 700;
 }
 
-.investigationGrid { height: calc(100vh - 165px); min-height: 650px; display: grid; grid-template-columns: minmax(330px, .85fr) minmax(440px, 1.25fr) minmax(330px, .85fr); grid-template-rows: 1fr; grid-template-areas: "list detail response"; border-bottom: 1px solid var(--line); }
+.investigationGrid {
+  height: calc(100vh - 165px);
+  min-height: 650px;
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  grid-template-rows: 1fr;
+  grid-template-areas: "list detail";
+  border-bottom: 1px solid var(--line);
+}
 .incidentPanel { grid-area: list; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 14px 0 0; border-right: 1px solid var(--line); overflow: hidden; }
-.incidentDetailPanel { grid-area: detail; min-width: 0; display: flex; flex-direction: column; padding: 14px 16px 0; border-right: 1px solid var(--line); overflow: hidden; }
-.responsePanel { grid-area: response; min-width: 0; display: flex; flex-direction: column; padding: 14px 0 0 16px; overflow: hidden; }
+.incidentDetailPanel { grid-area: detail; min-width: 0; display: flex; flex-direction: column; padding: 14px 16px 0; overflow: hidden; }
 .panelTitleRow { min-height: 34px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
 .panelTitleRow h2 { margin-bottom: 2px; font-size: 14px; }
 .panelTitleRow p { margin: 0; color: #aeb7be; font-size: 12px; }
@@ -1350,7 +1357,362 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 }
 
 /* ---------------------------------------------------------
-   2-Column Workspace Grid System: [Plots] | [Resizer] | [3D Sim]
+   Unified Timeline Zoom Control Toolbar
+   --------------------------------------------------------- */
+.csvUnifiedZoomBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #111519;
+  border: 1px solid #2a353f;
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.zoomBarInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a4b3c0;
+}
+
+.zoomBarIcon {
+  font-size: 13px;
+}
+
+.zoomBarLabel {
+  color: #83919e;
+  font-weight: 600;
+}
+
+.zoomSpanBadge {
+  font-size: 11px;
+  color: #65c8b3;
+  background: #172623;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid #28443e;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+}
+
+/* Timeline Dual-Handle Brush Scrubber */
+.timelineBrushWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 280px;
+  width: 100%;
+  min-width: 200px;
+}
+
+.timelineBrushTrack {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 26px;
+  background: #151b20;
+  border: 1px solid #2d3844;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+}
+
+.timelineBrushGridLines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.timelineBrushGridLines span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.timelineBrushWindow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(101, 200, 179, 0.22);
+  border-top: 1.5px solid #65c8b3;
+  border-bottom: 1.5px solid #65c8b3;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  min-width: 16px;
+}
+
+.timelineBrushWindow:active {
+  cursor: grabbing;
+  background: rgba(101, 200, 179, 0.32);
+}
+
+.brushWindowLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: var(--font-mono, monospace);
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
+}
+
+.timelineBrushHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  background: #65c8b3;
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  transition: background 0.1s ease;
+}
+
+.timelineBrushHandle:hover {
+  background: #84dbc7;
+}
+
+.timelineBrushHandle.handleLeft {
+  left: 0;
+  border-radius: 3px 0 0 3px;
+}
+
+.timelineBrushHandle.handleRight {
+  right: 0;
+  border-radius: 0 3px 3px 0;
+}
+
+.handleGrip {
+  width: 2px;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 1px;
+}
+
+/* Direct Numeric Range Input Group */
+.zoomDirectTimeInputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timeInputItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #8c98a0;
+}
+
+.inputWithUnit {
+  display: inline-flex;
+  align-items: center;
+  background: #171d23;
+  border: 1px solid #364452;
+  border-radius: 4px;
+  padding: 1px 6px;
+  transition: border-color 0.15s ease;
+}
+
+.inputWithUnit:focus-within {
+  border-color: var(--teal);
+  box-shadow: 0 0 6px rgba(101, 200, 179, 0.2);
+}
+
+.inputWithUnit input {
+  width: 58px;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: #e2e8f0;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  padding: 2px 2px;
+}
+
+.inputWithUnit input::-webkit-inner-spin-button,
+.inputWithUnit input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timeStepperBtns {
+  display: inline-flex;
+  flex-direction: column;
+  margin-left: 3px;
+  margin-right: 2px;
+  gap: 1px;
+}
+
+.btnStepper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 9px;
+  padding: 0;
+  background: #242c36;
+  border: 1px solid #374554;
+  border-radius: 2px;
+  color: #a4b3c0;
+  font-size: 7px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.btnStepper:hover {
+  background: #334252;
+  border-color: var(--teal);
+  color: #65c8b3;
+}
+
+.unitTag {
+  font-size: 11px;
+  color: #71808e;
+  font-family: var(--font-mono, monospace);
+  margin-left: 2px;
+}
+
+.timeInputSep {
+  color: #556270;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.zoomPresetGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btnZoomPreset {
+  padding: 3px 8px;
+  background: #192026;
+  border: 1px solid #2f3a44;
+  border-radius: 4px;
+  color: #9aa7b2;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btnZoomPreset:hover {
+  background: #242e37;
+  color: #ffffff;
+  border-color: #495968;
+}
+
+.btnZoomPreset.active {
+  background: #182e29;
+  border-color: var(--teal);
+  color: #65c8b3;
+}
+
+.btnZoomReset {
+  padding: 3px 8px;
+  background: #251c1c;
+  border: 1px solid #4a3030;
+  border-radius: 4px;
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btnZoomReset:hover {
+  background: #362222;
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+/* Joint Selector Action Buttons */
+.jointSelectorTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jointCountBadge {
+  font-size: 11px;
+  color: #65c8b3;
+  background: #172a26;
+  border: 1px solid #244740;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.jointQuickActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btnMiniAction {
+  padding: 2px 8px;
+  background: #1e262e;
+  border: 1px solid #364450;
+  border-radius: 4px;
+  color: #a4b3c0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btnMiniAction:hover {
+  background: #2a3642;
+  color: #ffffff;
+  border-color: #4e6375;
+}
+
+.jointGroupBtn.partial {
+  border-color: #46605a;
+  color: #9adbc9;
+}
+
+.groupCount {
+  font-size: 10px;
+  opacity: 0.8;
+  margin-left: 3px;
+}
+
+.csvPlotEmptyWarning {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-size: 13px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px dashed #334155;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+/* ---------------------------------------------------------
+   2-Column Workspace Grid System: [Plots Box] | [Resizer] | [3D Sim Box]
    --------------------------------------------------------- */
 .csvWorkspace2Col {
   display: grid;
@@ -1358,6 +1720,9 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   gap: 12px;
   align-items: stretch;
   min-width: 0;
+  height: calc(100vh - 210px);
+  min-height: 520px;
+  max-height: calc(100vh - 210px);
 }
 
 .csvWorkspace2Col.noSim3D {
@@ -1371,6 +1736,8 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 @media (max-width: 1100px) {
   .csvWorkspace2Col.hasSim3D {
     grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    max-height: none;
   }
   .csvWorkspace2Col.hasSim3D .csvColSimulation {
     grid-column: 1 / -1;
@@ -1379,22 +1746,22 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   }
 }
 
-/* Col 1: Main Plots Area (Scrollable Column) */
+/* Col 1: Main Plots Area (Synchronized Box) */
 .csvColPlots {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
   width: 100%;
-  height: calc(100vh - 210px);
-  min-height: 520px;
+  height: 100%;
+  max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 6px;
+  padding-right: 4px;
 }
 
 .csvColPlots::-webkit-scrollbar {
-  width: 7px;
+  width: 6px;
 }
 .csvColPlots::-webkit-scrollbar-track {
   background: #111417;
@@ -1408,36 +1775,16 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   background: var(--teal);
 }
 
-/* Plots Grid */
+/* Plots Grid: Distributes available height equally among active plots */
 .csvPlotsGrid {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   width: 100%;
-}
-
-.csvPlotsGrid.singleRow {
-  flex: 1;
-  min-height: 520px;
   height: 100%;
-}
-
-.csvPlotsGrid.singleRow .csvPlotCard {
-  flex: 1;
-  min-height: 520px;
-  height: 100%;
-}
-
-.csvPlotsGrid.singleRow .csvPlotMain {
-  flex: 1;
-  height: 100%;
-}
-
-.csvPlotsGrid.singleRow .csvTimeline {
-  flex: 1;
-  min-height: 440px;
-  height: 100%;
+  min-height: 0;
+  flex: 1 1 0;
 }
 
 /* Plot Card with Left Embedded Mini Category Nav */
@@ -1448,6 +1795,10 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   border-radius: 6px;
   overflow: hidden;
   min-width: 0;
+  flex: 1 1 0;
+  min-height: 180px;
+  height: 100%;
+  transition: border-color 0.15s ease;
 }
 
 .csvPlotCard.csvPlot-secondary {
@@ -1456,90 +1807,101 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 
 /* Left: Embedded Mini Category Nav in each Plot */
 .csvPlotMiniCategoryNav {
-  width: 96px;
-  min-width: 96px;
+  width: 136px;
+  min-width: 136px;
   background: #14181c;
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   padding: 0;
+  flex-shrink: 0;
 }
 
 .miniNavHeader {
-  padding: 6px 8px;
+  padding: 9px 12px;
   background: #181d22;
   border-bottom: 1px solid var(--line);
-  font-size: 10px;
-  font-weight: 700;
-  color: #8c98a0;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #b8c4ce;
   text-transform: uppercase;
   text-align: center;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
 }
 
 .miniNavBtnList {
   display: flex;
   flex-direction: column;
   flex: 1;
+  overflow-y: auto;
 }
 
 .miniNavBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 7px 6px;
+  padding: 9px 8px;
   background: transparent;
   border: 0;
   border-bottom: 1px solid #1c2228;
-  border-left: 3px solid transparent;
   cursor: pointer;
-  color: #8c98a0;
-  font-size: 11px;
+  color: #9aa7b2;
+  font-size: 14px;
+  font-weight: 700;
   text-align: center;
+  line-height: 1.3;
   transition: all 0.12s ease;
+  width: 100%;
 }
 
 .miniNavBtn:hover {
   background: #1a2026;
-  color: #d6dde1;
+  color: #ffffff;
 }
 
 .miniNavBtn.active {
-  background: #172421;
-  border-left-color: var(--teal);
+  background: #172623;
   color: #65c8b3;
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: inset 3px 0 0 var(--teal);
 }
 
 .miniNavBtn strong {
-  font-size: 11px;
-  font-weight: inherit;
+  font-size: 14px;
+  text-align: center;
 }
 
 /* Right: Plot Main (Header + Timeline + Embedded State Section) */
 .csvPlotMain {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  padding: 8px 12px 10px;
+  padding: 6px 12px 8px;
   min-width: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .csvChartHeader {
-  min-height: 32px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   padding: 0 0 4px;
-  flex-wrap: wrap;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .csvChartHeaderTitleWrap {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 10px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .csvChartHeader h3 {
@@ -1548,34 +1910,114 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   gap: 8px;
   margin: 0;
   font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .csvChartHeader h3 span {
   color: var(--teal);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .csvChartHeader .plotPriority {
   border: 1px solid #405049;
   background: #17201e;
-  padding: 2px 5px;
+  padding: 2px 6px;
   color: var(--teal);
   font-size: 10px;
+  border-radius: 3px;
   line-height: 1;
 }
 
-.csvTimeline {
-  min-height: 240px;
-  height: 300px;
+.csvTimelineContainer {
+  flex: 1 1 0;
+  min-height: 0;
   width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.csvTimeline {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
   position: relative;
   border-top: 1px solid var(--line-soft);
 }
 
-.csvPlotsGrid.splitRows .csvTimeline {
-  min-height: 210px;
-  height: 240px;
+.csvTimeline .csvChart {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Offscreen Incident Floating Badges */
+.offscreenIncidentOverlay {
+  position: absolute;
+  top: 6px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.offscreenIncidentOverlay.left {
+  left: 70px;
+}
+
+.offscreenIncidentOverlay.right {
+  right: 16px;
+}
+
+.offscreenBadgeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(30, 20, 10, 0.92);
+  border: 1px solid #ff9900;
+  color: #ffb84d;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.offscreenBadgeBtn:hover {
+  background: #d97706;
+  color: #ffffff;
+  border-color: #fbbf24;
+  transform: scale(1.04);
+}
+
+.offscreenBadgeBtn.left {
+  border-left-width: 2px;
+}
+
+.offscreenBadgeBtn.right {
+  border-right-width: 2px;
+}
+
+.offscreenMoreCount {
+  font-size: 10px;
+  color: #f59e0b;
+  font-weight: 700;
+  background: rgba(20, 15, 10, 0.85);
+  padding: 2px 5px;
+  border-radius: 8px;
 }
 
 /* Embedded State & System Section inside Plot Card */
@@ -1767,13 +2209,14 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .dynamicsContainer {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 130px);
-  min-height: 680px;
+  min-height: calc(100vh - 130px);
+  height: auto;
   background: #0b0e10;
   color: #eeeeee;
   padding: 12px 16px;
   gap: 12px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   box-sizing: border-box;
 }
 
@@ -2464,7 +2907,8 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 }
 
 .unifiedMultiGridCard {
-  flex: 1;
+  height: 580px;
+  min-height: 580px;
   background: #101418;
   border: 1px solid #222831;
   border-radius: 8px;
@@ -2472,14 +2916,12 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  min-height: 480px;
 }
 
 .unifiedEChartBox {
-  flex: 1;
   width: 100%;
   height: 100%;
-  min-height: 450px;
+  min-height: 570px;
 }
 
 .loadingBanner {
@@ -2646,28 +3088,167 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   border: 1px solid #ff2e63;
 }
 
-/* Sidebar Styling with Smooth Scrolling */
-.csvSidebarPane {
-  width: 390px;
-  min-width: 350px;
-  max-width: 430px;
+/* 3-Column Body: Left MultiGrid Plot, Middle 1-Col Breakdown, Right 3D Simulation */
+.csvDynamicsBody {
+  display: flex;
+  min-height: 580px;
+  gap: 10px;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.dynamicsCenterColumn {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+
+.dynamicsBreakdownColumn {
+  width: 220px;
+  min-width: 200px;
+  max-width: 240px;
+  display: flex;
+  flex-direction: column;
+  min-height: 580px;
+  flex-shrink: 0;
+}
+
+.instantBreakdownCard {
+  background: #12161a;
+  border: 1px solid #222831;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  min-height: 0;
+  min-height: 580px;
   overflow: hidden;
 }
 
+.instantCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #161b21;
+  padding: 6px 10px;
+  border-bottom: 1px solid #222831;
+  flex-shrink: 0;
+}
+
+.instantTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.instantTitleGroup h4 {
+  margin: 0;
+  font-size: 11.5px;
+  color: #00adb5;
+}
+
+.instantJointSubheader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  background: #14191f;
+  border-bottom: 1px solid #1f2730;
+  font-size: 10.5px;
+  color: #8fa0ac;
+  flex-shrink: 0;
+}
+
+.instantDataSingleColumn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  overflow-y: auto;
+}
+
+.instantItemCard {
+  background: #0d1013;
+  border: 1px solid #1e2630;
+  border-radius: 5px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.instantItemCard .itemMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.instantItemCard .itemLabel {
+  font-size: 9.5px;
+  color: #8fa0ac;
+}
+
+.instantItemCard .itemSymbol {
+  font-family: 'Consolas', monospace;
+  font-size: 9px;
+  color: #586978;
+}
+
+.instantItemCard strong {
+  font-family: 'Consolas', monospace;
+  font-size: 12.5px;
+  color: #eee;
+}
+
+.instantItemCard strong small {
+  font-size: 9.5px;
+  color: #718290;
+  margin-left: 2px;
+}
+
+.instantItemCard strong.tqAct {
+  color: #00ff66;
+}
+
+.instantItemCard strong.tqModel {
+  color: #00adb5;
+}
+
+.instantItemCard strong.tqExt.anomaly {
+  color: #ff2e63;
+  font-weight: bold;
+}
+
+.dynamicsSimulationColumn {
+  width: 430px;
+  min-width: 370px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  min-height: 580px;
+  flex-shrink: 0;
+}
+
 .sidebar3DCard {
-  height: 200px;
-  min-height: 180px;
+  height: 100%;
+  min-height: 580px;
   background: #12161a;
   border: 1px solid #222831;
   border-radius: 6px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.viewerPlaybackBar {
+  padding: 6px 10px;
+  background: #14191f;
+  border-top: 1px solid #222831;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   flex-shrink: 0;
 }
 
@@ -2691,157 +3272,32 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .sidebarViewer {
   flex: 1;
   position: relative;
+  min-height: 440px;
 }
 
-.instantCard {
-  background: #12161a;
-  border: 1px solid #222831;
-  border-radius: 6px;
-  padding: 7px 10px;
-  flex-shrink: 0;
-}
-
-.instantCard h4 {
-  margin: 0 0 5px 0;
-  font-size: 11px;
+.jointHighlightBadge {
+  background: rgba(0, 173, 181, 0.15);
+  border: 1px solid #00adb5;
   color: #00adb5;
-  border-bottom: 1px solid #222831;
-  padding-bottom: 3px;
-}
-
-.instantDataGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5px;
-}
-
-.instantItem {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  font-size: 9.5px;
-  color: #8fa0ac;
-}
-
-.instantItem strong {
-  font-family: 'Consolas', monospace;
-  font-size: 11px;
-  color: #eee;
-}
-
-.instantItem .tqAct {
-  color: #00ff66;
-}
-
-.instantItem .tqModel {
-  color: #00adb5;
-}
-
-.instantItem .tqExt.anomaly {
-  color: #ff2e63;
-  font-weight: bold;
-}
-
-/* 4x4 Matrix & FK Card */
-.matrixKinematicsCard {
-  background: #12161a;
-  border: 1px solid #222831;
-  border-radius: 6px;
-  padding: 7px 10px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.matrixKinematicsCard h4 {
-  margin: 0;
-  font-size: 11px;
-  color: #00adb5;
-  border-bottom: 1px solid #222831;
-  padding-bottom: 3px;
-}
-
-.fkLinksGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.fkLinksReadout {
   font-size: 10px;
-  color: #00adb5;
-  font-family: 'Consolas', monospace;
-}
-
-.coordGridCompact {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  background: #0d1013;
-  padding: 4px 6px;
+  font-weight: 700;
+  padding: 1px 6px;
   border-radius: 4px;
-  border: 1px solid #1e2630;
 }
 
-.coordGridCompact .coordItem {
-  display: flex;
-  gap: 4px;
-  font-size: 9.5px;
-  color: #8fa0ac;
-}
-
-.coordGridCompact .coordItem strong {
-  color: #eee;
-  font-family: 'Consolas', monospace;
-}
-
-.matrixViewCompact {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.matrixTitle {
-  font-size: 9.5px;
-  color: #718290;
-}
-
-.matrixPreCompact {
-  margin: 0;
-  font-family: 'Consolas', monospace;
-  font-size: 9px;
-  line-height: 1.25;
-  color: #00adb5;
-  background: #090c0e;
-  padding: 4px 6px;
-  border-radius: 4px;
-  border: 1px solid #1c242c;
-  overflow-x: auto;
-}
-
-.comRowCompact {
-  font-size: 9.5px;
-  color: #8fa0ac;
-  display: flex;
-  gap: 4px;
-}
-
-.comRowCompact strong {
-  font-family: 'Consolas', monospace;
-  color: #ccc;
-}
-
-/* Grouped Anomalies Card */
-.anomaliesCard {
-  flex: 1;
+/* Bottom Anomalies Section (Allocated for up to 5 items) */
+.anomaliesBottomSection {
+  height: 310px;
+  min-height: 280px;
+  max-height: 360px;
   background: #12161a;
   border: 1px solid #222831;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  min-height: 0;
+  flex-shrink: 0;
+  margin-top: 8px;
 }
 
 .anomaliesCardHeader {
@@ -2849,30 +3305,59 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   justify-content: space-between;
   align-items: center;
   background: #161b21;
-  padding: 6px 10px;
+  padding: 8px 14px;
   border-bottom: 1px solid #222831;
   flex-shrink: 0;
 }
 
-.anomaliesCardHeader h4 {
+.anomaliesTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.anomaliesTitleGroup h4 {
   margin: 0;
-  font-size: 11px;
+  font-size: 12.5px;
+  font-weight: 700;
   color: #ff9f43;
 }
 
 .totalAnomBadge {
-  font-size: 9.5px;
+  font-size: 10px;
   color: #ff9f43;
   background: rgba(255, 159, 67, 0.15);
   border: 1px solid rgba(255, 159, 67, 0.4);
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 3px;
   font-weight: 700;
 }
 
-.anomaliesList {
+.anomaliesBottomScrollList {
   flex: 1;
-  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.anomaliesBottomScrollList .anomalyJointGroupCard {
+  min-width: 320px;
+  max-width: 390px;
+  height: 100%;
+  background: #141a20;
+  border: 1px solid #24303c;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.anomaliesBottomScrollList .groupItemsList {
+  flex: 1;
   overflow-y: auto;
   padding: 6px;
   display: flex;
@@ -2899,14 +3384,15 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   align-items: center;
   gap: 6px;
   background: #1a222a;
-  padding: 5px 8px;
+  padding: 6px 10px;
   cursor: pointer;
   border-bottom: 1px solid #24303c;
+  flex-shrink: 0;
 }
 
 .groupDot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
 
@@ -2919,31 +3405,29 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 }
 
 .groupJointName {
-  font-size: 11px;
+  font-size: 11.5px;
   color: #eee;
 }
 
 .groupCountBadge {
-  font-size: 9.5px;
+  font-size: 10px;
   color: #ff9f43;
   margin-left: auto;
   font-weight: 600;
 }
 
-.groupItemsList {
+.anomalyItem {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 5px;
-}
-
-.anomalyItem {
+  gap: 3px;
   background: #0f1317;
   border: 1px solid #1f2832;
   border-radius: 4px;
-  padding: 5px 7px;
+  padding: 6px 8px;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .anomalyItem:hover {
@@ -2963,7 +3447,7 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 
 .anomIndexBadge {
@@ -2976,9 +3460,9 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 }
 
 .severityBadge {
-  font-size: 8px;
+  font-size: 8.5px;
   font-weight: 800;
-  padding: 1px 3px;
+  padding: 1px 4px;
   border-radius: 3px;
 }
 
@@ -3003,19 +3487,26 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 
 .anomalySummary {
   margin: 0;
-  font-size: 10px;
-  color: #b0c0ce;
-  line-height: 1.25;
+  font-size: 10.5px;
+  color: #d1dbe4;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .anomalyDiagnosis {
-  margin: 3px 0 0 0;
+  margin: 2px 0 0 0;
   font-size: 9.5px;
   color: #8fa0ac;
-  line-height: 1.2;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.noAnomalies {
+  padding: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: #6a7c8a;
   font-style: italic;
-  border-top: 1px dashed rgba(255, 255, 255, 0.08);
-  padding-top: 2px;
 }
 
 /* ==========================================================================
@@ -3196,8 +3687,1100 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .dynamicsDiscrepancyContainer {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  gap: 12px;
+  min-height: auto;
+  overflow: visible;
+}
+
+/* ==========================================================================
+   INCIDENT TAB REDESIGN: DATE ACCORDION, FLOWCHART & ACTION PLAN
+   ========================================================================== */
+
+/* 1. Date Group Accordion (Left Panel) */
+.dateAccordionGroup {
+  margin-bottom: 8px;
+  border: 1px solid #252b31;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #111417;
+}
+
+.dateAccordionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #181d22;
+  border-bottom: 1px solid #252b31;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.dateAccordionHeader:hover {
+  background: #20272e;
+}
+
+.dateAccordionHeader.isCollapsed {
+  border-bottom: none;
+}
+
+.dateAccordionHeaderTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #e2e8f0;
+}
+
+.dateAccordionHeaderTitle .calendarIcon {
+  font-size: 13px;
+}
+
+.dateAccordionHeaderMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.countPill {
+  background: #27313a;
+  color: #94a3b8;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+}
+
+.faultPill {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+}
+
+.chevronIcon {
+  font-size: 10px;
+  color: #64748b;
+  margin-left: 4px;
+}
+
+.dateAccordionItems {
+  display: flex;
+  flex-direction: column;
+}
+
+.dateAccordionItems .incidentRow {
+  border-bottom: 1px solid #1c2228;
+}
+
+.dateAccordionItems .incidentRow:last-child {
+  border-bottom: none;
+}
+
+/* 2. Incident Detail Scroll Wrapper */
+.incidentDetailScrollWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+  padding-right: 6px;
+}
+
+.incidentDetailScrollWrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.incidentDetailScrollWrapper::-webkit-scrollbar-track {
+  background: #111417;
+}
+
+.incidentDetailScrollWrapper::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+.headerActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 3. Horizontal Sequential Flowchart */
+.incidentFlowchartContainer {
+  background: #0f1317;
+  border: 1px solid #252b31;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  min-height: 0;
+}
+
+.flowchartToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #1f272f;
+  padding-bottom: 10px;
+}
+
+.flowchartToolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flowchartTitle {
+  font-size: 13.5px;
+  color: #f1f5f9;
+}
+
+.flowchartCount {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.flowchartToolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flowchartActionBtn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.flowchartActionBtn:hover {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.flowchartScopeToggle {
+  display: flex;
+  background: #151a20;
+  border: 1px solid #27313a;
+  border-radius: 5px;
+  padding: 2px;
+  margin-left: 8px;
+}
+
+.scopeToggleBtn {
+  background: transparent;
+  border: none;
+  color: #8fa0ac;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.scopeToggleBtn.active {
+  background: #0284c7;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.flowchartFilterToggle {
+  display: flex;
+  background: #151a20;
+  border: 1px solid #27313a;
+  border-radius: 5px;
+  padding: 2px;
+}
+
+.filterToggleBtn {
+  background: transparent;
+  border: none;
+  color: #8fa0ac;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filterToggleBtn.active {
+  background: #00adb5;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Horizontal Flow Track & Nodes */
+.flowchartScrollWrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px 4px;
+  scrollbar-gutter: stable;
+  cursor: grab;
+  user-select: none;
+}
+
+.flowchartScrollWrapper.isDraggingFlowchart {
+  cursor: grabbing !important;
+}
+
+.flowchartScrollWrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.flowchartScrollWrapper::-webkit-scrollbar-track {
+  background: #13171b;
+  border-radius: 4px;
+}
+
+.flowchartScrollWrapper::-webkit-scrollbar-thumb {
+  background: #3b4856;
+  border-radius: 4px;
+}
+
+.flowchartScrollWrapper::-webkit-scrollbar-thumb:hover {
+  background: #00adb5;
+}
+
+.flowchartTrack {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 100%;
+}
+
+.flowNode {
+  flex: 0 0 230px;
+  width: 230px;
+  background: #161b20;
+  border: 1px solid #2a333d;
+  border-radius: 7px;
+  padding: 10px 12px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flowNode:hover {
+  transform: translateY(-2px);
+  border-color: #485666;
+  background: #1c232a;
+}
+
+.flowNode.isSelected {
+  border-color: #00adb5 !important;
+  box-shadow: 0 0 0 2px rgba(0, 173, 181, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: #1c262d;
+}
+
+.flowNodeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flowNodeStep {
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.flowNodeTime {
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.flowNodeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+/* Badges for UPC & RPC */
+.badgeUpc {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+}
+.flowNode.badgeUpc {
+  border-left: 4px solid #38bdf8;
+}
+
+.badgeRpc {
+  background: rgba(45, 212, 191, 0.18);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.45);
+}
+.flowNode.badgeRpc {
+  border-left: 4px solid #2dd4bf;
+}
+
+/* Badges for roles */
+.badgeRoot {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+.flowNode.badgeRoot {
+  border-left: 4px solid #ef4444;
+}
+
+.badgeFault {
+  background: rgba(249, 115, 22, 0.18);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+}
+.flowNode.badgeFault {
+  border-left: 4px solid #f97316;
+}
+
+.badgeReaction {
+  background: rgba(234, 179, 8, 0.18);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+.flowNode.badgeReaction {
+  border-left: 4px solid #eab308;
+}
+
+.badgeCommand {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+.flowNode.badgeCommand {
+  border-left: 4px solid #38bdf8;
+}
+
+.badgeCsv {
+  background: rgba(168, 85, 247, 0.18);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+.flowNode.badgeCsv {
+  border-left: 4px solid #a855f7;
+}
+
+.badgeWarning {
+  background: rgba(250, 204, 21, 0.15);
+  color: #fde047;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+}
+.flowNode.badgeWarning {
+  border-left: 4px solid #facc15;
+}
+
+.badgeError {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+}
+.flowNode.badgeError {
+  border-left: 4px solid #f43f5e;
+}
+
+.badgeContext {
+  background: rgba(100, 116, 139, 0.18);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+}
+.flowNode.badgeContext {
+  border-left: 4px solid #64748b;
+}
+
+/* Primary Root Glow Pulse */
+.flowNode.isPrimaryNode {
+  border-color: #ef4444 !important;
+  background: #221417;
+  animation: primaryPulse 2.5s infinite;
+}
+
+@keyframes primaryPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.15);
+  }
+}
+
+.primaryGlowMarker {
+  margin-top: auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-align: center;
+}
+
+/* Thin horizontal green strip for compacted normal RPC responses */
+.flowNodeSuccessStrip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  border-radius: 4px;
+  padding: 3px 7px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: #4ade80;
+}
+
+.successStripIcon {
+  font-size: 11px;
+}
+
+.successStripLabel {
+  font-weight: 700;
+  flex: 1;
+}
+
+.successStripTime {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #86efac;
+}
+
+.flowNodeBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flowNodeTitle {
+  font-size: 12.5px;
+  color: #f8fafc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flowNodeSubtitle {
+  font-size: 10.5px;
+  color: #00adb5;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Day Mode Specific Styles */
+.dayIncidentNode {
+  flex: 0 0 250px;
+  width: 250px;
+}
+
+.dayIncidentMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 4px;
+  border-top: 1px solid #1f2730;
+}
+
+.occurrencePill {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.currentActiveMark {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.dayIncidentTotalBadge {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+/* Cluster Banner Separator between Incidents */
+.clusterBanner {
+  flex: 0 0 160px;
+  width: 160px;
+  background: #182028;
+  border: 1px dashed #334155;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clusterBanner:hover {
+  background: #202b37;
+  border-color: #00adb5;
+}
+
+.clusterBanner.activeClusterBanner {
+  background: rgba(0, 173, 181, 0.15);
+  border: 1px solid #00adb5;
+  box-shadow: 0 0 8px rgba(0, 173, 181, 0.3);
+}
+
+.clusterIcon {
+  font-size: 16px;
+}
+
+.clusterInfo {
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
+
+.clusterInfo strong {
+  font-size: 11.5px;
+  color: #f1f5f9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clusterInfo small {
+  font-size: 9.5px;
+  color: #00adb5;
+  font-weight: 700;
+}
+
+/* Active vs Dim Inactive Flow Nodes in Continuous Flow */
+.flowNode.activeIncidentNode {
+  opacity: 1;
+}
+
+.flowNode.dimInactiveNode {
+  opacity: 0.85;
+}
+
+.flowNode.dimInactiveNode:hover {
+  opacity: 1;
+}
+
+/* Long Gap Connectors between Incidents occurring hours/minutes apart */
+.flowConnector.longGapConnector {
+  flex: 0 0 80px;
+  width: 80px;
+}
+
+.connectorDelta.longGapDelta {
+  background: #1a222d;
+  border-color: #3b4d61;
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+.dayConnector {
+  flex: 0 0 65px;
+  width: 65px;
+}
+
+.dayDelta {
+  background: #17202a;
+  border-color: #293847;
+  color: #facc15;
+  font-weight: 700;
+}
+
+/* Flow Connectors */
+.flowConnector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex: 0 0 38px;
+  width: 38px;
+}
+
+.connectorLine {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #334155;
+  z-index: 1;
+}
+
+.connectorDelta {
+  position: absolute;
+  top: 14px;
+  font-family: ui-monospace, monospace;
+  font-size: 9.5px;
+  color: #38bdf8;
+  background: #0f172a;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid #1e293b;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.connectorArrow {
+  position: absolute;
+  right: -3px;
+  top: calc(50% - 7px);
+  font-size: 12px;
+  color: #64748b;
+  z-index: 2;
+}
+
+/* Node Inspector Box */
+.nodeInspectorCard {
+  background: #14191f;
+  border: 1px solid #2a3440;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inspectorHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #232b35;
+  padding-bottom: 8px;
+}
+
+.inspectorTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.inspectorIcon {
+  font-size: 18px;
+}
+
+.inspectorTitleGroup h4 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  color: #f1f5f9;
+}
+
+.inspectorTitleGroup span {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.inspectorHintBadge {
+  background: rgba(0, 173, 181, 0.15);
+  border: 1px solid rgba(0, 173, 181, 0.4);
+  color: #38bdf8;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  max-width: 450px;
+}
+
+.inspectorBodyGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.inspectorField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #0f1317;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #1e252d;
+}
+
+.inspectorField.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.inspectorFieldLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.inspectorFieldValue {
+  margin: 0;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+.inspectorFieldValue.successText {
+  color: #34d399;
+}
+
+.inspectorFieldValue.dangerText {
+  color: #f87171;
+}
+
+.rawLogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.copyLogBtn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.copyLogBtn:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.rawLogBox {
+  margin: 0;
+  background: #0a0d10;
+  border: 1px solid #1a2027;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: #38bdf8;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 4. Action Plan Grid (Below Flowchart) */
+.incidentActionPlanGrid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(420px, 1.2fr);
+  gap: 14px;
+}
+
+.actionPlanCard {
+  background: #0f1317;
+  border: 1px solid #252b31;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.actionPlanCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #161b21;
+  border-bottom: 1px solid #232a32;
+}
+
+.rootCauseCard .actionPlanCardHeader {
+  border-left: 4px solid #ef4444;
+}
+
+.commandInfoCard .actionPlanCardHeader {
+  border-left: 4px solid #38bdf8;
+}
+
+.stepByStepCard .actionPlanCardHeader {
+  border-left: 4px solid #00adb5;
+}
+
+.cardIcon {
+  font-size: 16px;
+}
+
+.actionPlanCardHeader h3 {
+  margin: 0 0 2px;
+  font-size: 13.5px;
+  color: #f1f5f9;
+}
+
+.actionPlanCardHeader span {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.actionPlanCardBody {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.causeHighlightBox {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.causeHighlightBox strong {
+  display: block;
+  font-size: 11.5px;
+  color: #f87171;
+  margin-bottom: 4px;
+}
+
+.causeHighlightBox p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #fecaca;
+  line-height: 1.45;
+}
+
+.commandHighlightBox {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.commandHighlightBox strong {
+  display: block;
+  font-size: 11.5px;
+  color: #38bdf8;
+  margin-bottom: 4px;
+}
+
+.commandHighlightBox p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #e0f2fe;
+  line-height: 1.45;
+}
+
+.hypothesisSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionSubtitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.hypothesisList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hypothesisList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #14181e;
+  border: 1px solid #1f262f;
+  padding: 8px 10px;
+  border-radius: 5px;
+}
+
+.rankBadge {
+  background: #27313a;
+  color: #facc15;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.hypothesisList strong {
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.4;
+}
+
+.confidenceReasonBox {
+  background: #12161b;
+  border: 1px solid #202730;
+  padding: 6px 10px;
+  border-radius: 4px;
+  color: #94a3b8;
+}
+
+/* Action Step Blocks */
+.actionStepBlock {
+  background: #13171d;
+  border: 1px solid #202730;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stepBlockHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepNumber {
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.remedyStepNumber {
+  background: #10b981;
+}
+
+.gapStepNumber {
+  background: #64748b;
+}
+
+.csvStepNumber {
+  background: #8b5cf6;
+}
+
+.stepBlockHeader strong {
+  font-size: 12px;
+  color: #f1f5f9;
+}
+
+.actionStepList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.actionStepList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #0f1317;
+  border: 1px solid #1a2027;
+  padding: 7px 10px;
+  border-radius: 4px;
+}
+
+.actionItemPriority {
+  background: #1e293b;
+  color: #38bdf8;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.remedyPriority {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.actionStepList p {
+  margin: 0;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.gapList {
+  list-style: disc;
+  padding-left: 18px;
+  margin: 0;
+  color: #94a3b8;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* Linked Fault CSVs */
+.linkedCsvList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.linkedCsvItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #0f1317;
+  border: 1px solid #1e252d;
+  padding: 8px 10px;
+  border-radius: 5px;
+}
+
+.csvInfo strong {
+  font-size: 12px;
+  color: #f1f5f9;
+  display: block;
+}
+
+.csvInfo span {
+  font-size: 10.5px;
+  color: #a855f7;
+  font-family: ui-monospace, monospace;
+}
+
+.csvButtonActions {
+  display: flex;
+  gap: 6px;
+}
+
+.csvButtonActions .smallBtn {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+

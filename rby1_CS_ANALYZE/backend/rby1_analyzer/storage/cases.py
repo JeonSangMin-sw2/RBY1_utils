@@ -122,6 +122,9 @@ class CaseStore:
 
     def _verify_artifacts(self, database: Database) -> None:
         with database.connect() as connection:
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS chart_samples_art_time ON chart_samples(artifact_id, sample_time)"
+            )
             rows = connection.execute(
                 "SELECT id,sha256,size,stored_path,status FROM artifacts"
             ).fetchall()

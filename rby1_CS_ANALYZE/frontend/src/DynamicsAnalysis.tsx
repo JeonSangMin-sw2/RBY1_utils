@@ -18,6 +18,7 @@ import {
   type TrajectoryDynamicsPayload,
 } from "./api";
 import { RobotViewer, type RobotModelDescriptor } from "./RobotViewer";
+import { UnifiedTimelineBrushBar, type ZoomRange } from "./CsvAnalysis";
 
 registerECharts([
   LineChart,
@@ -56,9 +57,9 @@ type MarkLineEntry = {
   symbol?: string[];
   lineStyle?: { color: string; type: string; width: number };
   label?: {
-    show: boolean;
-    formatter: string;
-    color: string;
+    show?: boolean;
+    formatter?: string;
+    color?: string;
     backgroundColor?: string;
     padding?: number[];
     borderRadius?: number;
@@ -85,6 +86,7 @@ export function DynamicsAnalysis({
   const [selectedJoint, setSelectedJoint] = useState<string>("");
   const [cursorIndex, setCursorIndex] = useState<number>(0);
   const [anomalyFilterOnly, setAnomalyFilterOnly] = useState<boolean>(true);
+  const [zoomRange, setZoomRange] = useState<ZoomRange>({ start: 0, end: 100 });
 
   // Timeline playback state
   const [playing, setPlaying] = useState<boolean>(false);
@@ -218,21 +220,33 @@ export function DynamicsAnalysis({
     if (!playing || !csvPayload || csvPayload.times.length <= 1) return;
     let animFrame: number;
     let lastTime = performance.now();
+    let virtualTime = csvPayload.times[cursorIndex] ?? csvPayload.times[0];
 
     const tick = (now: number) => {
       const dt = (now - lastTime) / 1000;
       lastTime = now;
       if (playRef.current.playing) {
-        setCursorIndex((prev) => {
-          const total = csvPayload.times.length;
-          const advance = Math.max(1, Math.round(dt * 30 * playRef.current.speed));
-          const next = prev + advance;
-          if (next >= total) {
-            setPlaying(false);
-            return total - 1;
+        virtualTime += dt * playRef.current.speed;
+        const times = csvPayload.times;
+        const maxTime = times[times.length - 1];
+        if (virtualTime >= maxTime) {
+          setCursorIndex(times.length - 1);
+          setPlaying(false);
+          return;
+        }
+
+        // Binary search to find closest sample index matching virtualTime
+        let low = 0;
+        let high = times.length - 1;
+        while (low < high) {
+          const mid = (low + high) >> 1;
+          if (times[mid] < virtualTime) {
+            low = mid + 1;
+          } else {
+            high = mid;
           }
-          return next;
-        });
+        }
+        setCursorIndex(low);
         animFrame = requestAnimationFrame(tick);
       }
     };
@@ -308,6 +322,23 @@ export function DynamicsAnalysis({
     return map;
   }, [instantPose]);
 
+  const isDispatchingZoomRef = useRef(false);
+  const isInteractingRef = useRef(false);
+
+  useEffect(() => {
+    const chart = multiChartInstRef.current;
+    if (!chart) return;
+    if (isInteractingRef.current) return;
+    isDispatchingZoomRef.current = true;
+    chart.dispatchAction({
+      type: "dataZoom",
+      dataZoomIndex: 0,
+      start: zoomRange.start,
+      end: zoomRange.end,
+    });
+    isDispatchingZoomRef.current = false;
+  }, [zoomRange.start, zoomRange.end]);
+
   // 4. One-Time Multi-Grid Chart Initialization (Zero-Lag Native Multi-Grid Engine)
   useEffect(() => {
     if (subTab !== "discrepancy") return;
@@ -331,6 +362,28 @@ export function DynamicsAnalysis({
     };
     chart.on("click", handleChartClick);
 
+    const handleZoom = (event: unknown) => {
+      if (isDispatchingZoomRef.current) return;
+      const value = event as { start?: number; end?: number; batch?: { start?: number; end?: number }[] };
+      const range = value.batch?.[0] ?? value;
+      if (typeof range.start !== "number" || typeof range.end !== "number") return;
+      setZoomRange({ start: range.start, end: range.end });
+    };
+    chart.on("datazoom", handleZoom);
+
+    const handleMouseDown = () => {
+      isInteractingRef.current = true;
+    };
+    const handleMouseUp = () => {
+      setTimeout(() => {
+        isInteractingRef.current = false;
+      }, 50);
+    };
+
+    chart.getZr().on("mousedown", handleMouseDown);
+    chart.getZr().on("mouseup", handleMouseUp);
+    window.addEventListener("mouseup", handleMouseUp);
+
     const handleResize = () => {
       chart.resize();
     };
@@ -338,6 +391,11 @@ export function DynamicsAnalysis({
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("mouseup", handleMouseUp);
+      chart.getZr().off("mousedown", handleMouseDown);
+      chart.getZr().off("mouseup", handleMouseUp);
+      chart.off("click", handleChartClick);
+      chart.off("datazoom", handleZoom);
       chart.dispose();
       multiChartInstRef.current = null;
     };
@@ -378,34 +436,13 @@ export function DynamicsAnalysis({
     const targetVel = toPoints(jData.target_vel_deg_s);
     const velErr = toPoints(jData.vel_error_deg_s);
 
-    // Subtle anomaly background tint (Clean, high contrast)
-    const jointAnomalies = csvPayload.anomalies.filter((a) => a.joint === selectedJoint);
-    const markAreas = jointAnomalies.map((a) => [
-      {
-        xAxis: Number((a.start_time - tMin).toFixed(3)),
-        itemStyle: {
-          color: a.severity === "major" ? "rgba(255, 46, 99, 0.08)" : "rgba(255, 159, 67, 0.06)",
-        },
-      },
-      { xAxis: Number((a.end_time - tMin).toFixed(3)) },
-    ]);
-
     // Synchronized vertical cyan cursor markline across ALL 3 subplots
     const cursorMarkLineItem: MarkLineEntry = {
       name: "현재 시점",
       xAxis: currentSec,
       symbol: ["none", "none"],
-      lineStyle: { color: "#00ADB5", width: 2, type: "dashed" },
-      label: {
-        show: true,
-        formatter: `t = ${currentSec.toFixed(3)}s`,
-        color: "#0b0e10",
-        backgroundColor: "#00ADB5",
-        padding: [2, 5],
-        borderRadius: 3,
-        fontWeight: "bold",
-        position: "insideEndTop",
-      },
+      lineStyle: { color: "#00ADB5", width: 1.8, type: "dashed" },
+      label: { show: false },
     };
 
     // Horizontal limit lines on torque subplot
@@ -432,64 +469,64 @@ export function DynamicsAnalysis({
         {
           text: `📊 [1] 관절 토크 분석 (Nm)  ·  ${selectedJoint}`,
           top: 8,
-          left: 10,
+          left: 14,
           textStyle: { color: "#00ADB5", fontSize: 11.5, fontWeight: "bold" },
         },
         {
           text: `📐 [2] 관절 위치 분석 (deg)`,
-          top: "34%",
-          left: 10,
+          top: "36%",
+          left: 14,
           textStyle: { color: "#10B981", fontSize: 11.5, fontWeight: "bold" },
         },
         {
           text: `🚀 [3] 관절 속도 분석 (deg/s)`,
-          top: "66%",
-          left: 10,
+          top: "69%",
+          left: 14,
           textStyle: { color: "#38BDF8", fontSize: 11.5, fontWeight: "bold" },
         },
       ],
       legend: [
         {
-          top: 6,
-          right: 15,
+          top: 8,
+          right: 18,
           type: "scroll",
-          itemGap: 8,
+          itemGap: 10,
           textStyle: { color: "#CCC", fontSize: 9.5 },
           pageIconColor: "#00ADB5",
           pageIconInactiveColor: "#444",
           data: [
-            "측정 토크 (Measured)",
-            "이론 모델 토크 (Model τ)",
-            "중력 토크 (Gravity)",
-            "목표 FF 토크 (Target FF)",
-            "외란/잔차 토크 (Residual Δτ)",
+            "측정 τ (Actual)",
+            "이론 τ (Model)",
+            "중력 τ (Gravity)",
+            "목표 FF (Target)",
+            "외란/잔차 Δτ (Residual)",
           ],
         },
         {
-          top: "33.5%",
-          right: 15,
+          top: "36%",
+          right: 18,
           type: "scroll",
-          itemGap: 8,
+          itemGap: 10,
           textStyle: { color: "#CCC", fontSize: 9.5 },
           pageIconColor: "#10B981",
           pageIconInactiveColor: "#444",
-          data: ["측정 위치 (Actual Pos)", "목표 위치 (Target Pos)", "위치 오차 (Pos Error)"],
+          data: ["실제 위치 (Actual)", "목표 위치 (Target)", "위치 오차 (Error)"],
         },
         {
-          top: "65.5%",
-          right: 15,
+          top: "69%",
+          right: 18,
           type: "scroll",
-          itemGap: 8,
+          itemGap: 10,
           textStyle: { color: "#CCC", fontSize: 9.5 },
           pageIconColor: "#38BDF8",
           pageIconInactiveColor: "#444",
-          data: ["측정 속도 (Actual Vel)", "목표 속도 (Target Vel)", "속도 오차 (Vel Error)"],
+          data: ["실제 속도 (Actual)", "목표 속도 (Target)", "속도 오차 (Error)"],
         },
       ],
       grid: [
-        { id: "gTorque", top: 34, height: "24%", left: 55, right: 15 },
-        { id: "gPos", top: "37%", height: "24%", left: 55, right: 15 },
-        { id: "gVel", top: "69%", height: "20%", left: 55, right: 15 },
+        { id: "gTorque", top: 34, height: "23%", left: 62, right: 18 },
+        { id: "gPos", top: "40.5%", height: "22%", left: 62, right: 18 },
+        { id: "gVel", top: "73.5%", height: "18%", left: 62, right: 18 },
       ],
       xAxis: [
         {
@@ -523,26 +560,20 @@ export function DynamicsAnalysis({
         {
           gridIndex: 0,
           type: "value",
-          name: "토크 (Nm)",
-          nameTextStyle: { color: "#00ADB5", fontWeight: "bold", fontSize: 10 },
           splitLine: { lineStyle: { color: "rgba(57, 62, 70, 0.35)" } },
-          axisLabel: { color: "#AAA" },
+          axisLabel: { color: "#AAA", margin: 6 },
         },
         {
           gridIndex: 1,
           type: "value",
-          name: "위치 (deg)",
-          nameTextStyle: { color: "#10B981", fontWeight: "bold", fontSize: 10 },
           splitLine: { lineStyle: { color: "rgba(57, 62, 70, 0.3)" } },
-          axisLabel: { color: "#AAA" },
+          axisLabel: { color: "#AAA", margin: 6 },
         },
         {
           gridIndex: 2,
           type: "value",
-          name: "속도 (deg/s)",
-          nameTextStyle: { color: "#38BDF8", fontWeight: "bold", fontSize: 10 },
           splitLine: { lineStyle: { color: "rgba(57, 62, 70, 0.3)" } },
-          axisLabel: { color: "#AAA" },
+          axisLabel: { color: "#AAA", margin: 6 },
         },
       ],
       tooltip: {
@@ -559,7 +590,7 @@ export function DynamicsAnalysis({
           let html = `<div style="font-weight:bold;color:#00ADB5;margin-bottom:3px;">⏱ ${Number(tVal).toFixed(3)}s · 동역학 데이터 (${selectedJoint})</div>`;
           (params as TooltipItem[]).forEach((item) => {
             const rawVal = Array.isArray(item.value) ? item.value[1] : item.value;
-            const unit = item.seriesName?.includes("토크") ? "Nm" : item.seriesName?.includes("위치") ? "°" : "°/s";
+            const unit = item.seriesName?.includes("토크") || item.seriesName?.includes("τ") ? "Nm" : item.seriesName?.includes("위치") ? "°" : "°/s";
             const val = typeof rawVal === "number" ? `${rawVal.toFixed(2)} ${unit}` : rawVal ?? "";
             html += `<div style="display:flex;justify-content:space-between;gap:12px;margin:2px 0;">
               <span style="color:${item.color ?? "#fff"}">${item.marker ?? ""} ${item.seriesName ?? ""}:</span>
@@ -577,26 +608,14 @@ export function DynamicsAnalysis({
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
           moveOnMouseWheel: false,
-        },
-        {
-          type: "slider",
-          xAxisIndex: [0, 1, 2],
-          filterMode: "none",
-          bottom: 2,
-          height: 16,
-          zoomLock: false,
-          brushSelect: false,
-          showDataShadow: false,
-          showDetail: false,
-          borderColor: "#393E46",
-          fillerColor: "rgba(0, 173, 181, 0.2)",
-          textStyle: { color: "#888" },
+          start: zoomRange.start,
+          end: zoomRange.end,
         },
       ],
       series: [
         // --- Grid 0: Torque ---
         {
-          name: "측정 토크 (Measured)",
+          name: "측정 τ (Actual)",
           type: "line",
           xAxisIndex: 0,
           yAxisIndex: 0,
@@ -604,11 +623,10 @@ export function DynamicsAnalysis({
           showSymbol: false,
           itemStyle: { color: "#00FF66" },
           lineStyle: { width: 2, type: "solid" },
-          markArea: { data: markAreas },
           markLine: { data: torqueMarkLines, symbol: ["none", "none"] },
         },
         {
-          name: "이론 모델 토크 (Model τ)",
+          name: "이론 τ (Model)",
           type: "line",
           xAxisIndex: 0,
           yAxisIndex: 0,
@@ -618,7 +636,7 @@ export function DynamicsAnalysis({
           lineStyle: { width: 1.8, type: "solid" },
         },
         {
-          name: "중력 토크 (Gravity)",
+          name: "중력 τ (Gravity)",
           type: "line",
           xAxisIndex: 0,
           yAxisIndex: 0,
@@ -628,17 +646,17 @@ export function DynamicsAnalysis({
           lineStyle: { width: 1.5, type: "solid" },
         },
         {
-          name: "목표 FF 토크 (Target FF)",
+          name: "목표 FF (Target)",
           type: "line",
           xAxisIndex: 0,
           yAxisIndex: 0,
           data: ffTq,
           showSymbol: false,
-          itemStyle: { color: "#A370F7" },
+          itemStyle: { color: "#A855F7" },
           lineStyle: { width: 1.5, type: "solid" },
         },
         {
-          name: "외란/잔차 토크 (Residual Δτ)",
+          name: "외란/잔차 Δτ (Residual)",
           type: "line",
           xAxisIndex: 0,
           yAxisIndex: 0,
@@ -650,7 +668,7 @@ export function DynamicsAnalysis({
 
         // --- Grid 1: Position ---
         {
-          name: "측정 위치 (Actual Pos)",
+          name: "실제 위치 (Actual)",
           type: "line",
           xAxisIndex: 1,
           yAxisIndex: 1,
@@ -658,21 +676,20 @@ export function DynamicsAnalysis({
           showSymbol: false,
           itemStyle: { color: "#00FF66" },
           lineStyle: { width: 2, type: "solid" },
-          markArea: { data: markAreas },
           markLine: { data: [cursorMarkLineItem], symbol: ["none", "none"] },
         },
         {
-          name: "목표 위치 (Target Pos)",
+          name: "목표 위치 (Target)",
           type: "line",
           xAxisIndex: 1,
           yAxisIndex: 1,
           data: targetPos,
           showSymbol: false,
-          itemStyle: { color: "#A370F7" },
+          itemStyle: { color: "#A855F7" },
           lineStyle: { width: 1.8, type: "solid" },
         },
         {
-          name: "위치 오차 (Pos Error)",
+          name: "위치 오차 (Error)",
           type: "line",
           xAxisIndex: 1,
           yAxisIndex: 1,
@@ -684,29 +701,28 @@ export function DynamicsAnalysis({
 
         // --- Grid 2: Velocity ---
         {
-          name: "측정 속도 (Actual Vel)",
+          name: "실제 속도 (Actual)",
           type: "line",
           xAxisIndex: 2,
           yAxisIndex: 2,
           data: actualVel,
           showSymbol: false,
           itemStyle: { color: "#00FF66" },
-          lineStyle: { width: 2.2, type: "solid" },
-          markArea: { data: markAreas },
+          lineStyle: { width: 2, type: "solid" },
           markLine: { data: [cursorMarkLineItem], symbol: ["none", "none"] },
         },
         {
-          name: "목표 속도 (Target Vel)",
+          name: "목표 속도 (Target)",
           type: "line",
           xAxisIndex: 2,
           yAxisIndex: 2,
           data: targetVel,
           showSymbol: false,
-          itemStyle: { color: "#A370F7" },
+          itemStyle: { color: "#A855F7" },
           lineStyle: { width: 1.8, type: "solid" },
         },
         {
-          name: "속도 오차 (Vel Error)",
+          name: "속도 오차 (Error)",
           type: "line",
           xAxisIndex: 2,
           yAxisIndex: 2,
@@ -718,7 +734,7 @@ export function DynamicsAnalysis({
       ],
     };
 
-    chart.setOption(multiOption, { notMerge: false, lazyUpdate: true });
+    chart.setOption(multiOption, { notMerge: true, lazyUpdate: false });
   }, [subTab, csvPayload, selectedJoint, cursorIndex]);
 
   // Diagnostic reason description helper
@@ -1156,6 +1172,15 @@ export function DynamicsAnalysis({
                 </div>
               )}
 
+              {/* Unified Timeline Brush Bar Controller */}
+              {csvPayload && (
+                <UnifiedTimelineBrushBar
+                  durationSec={parseFloat(totalDuration) || 5.0}
+                  zoomRange={zoomRange}
+                  onZoomChange={setZoomRange}
+                />
+              )}
+
               {/* Single Multi-Grid Canvas Container (Torque + Position + Velocity) */}
               <div className="unifiedMultiGridCard">
                 <div ref={multiChartRef} className="unifiedEChartBox" />
@@ -1195,18 +1220,6 @@ export function DynamicsAnalysis({
                     ⏱ <strong>{currentCursorSec}s</strong> / {totalDuration}s
                   </div>
 
-                  <input
-                    type="range"
-                    className="timelineSlider"
-                    min={0}
-                    max={Math.max(0, (csvPayload?.times.length ?? 1) - 1)}
-                    value={cursorIndex}
-                    onChange={(e) => {
-                      setPlaying(false);
-                      setCursorIndex(Number(e.target.value));
-                    }}
-                  />
-
                   <div className="speedButtons">
                     {[0.5, 1.0, 2.0].map((s) => (
                       <button
@@ -1223,14 +1236,101 @@ export function DynamicsAnalysis({
               </div>
             </div>
 
-            {/* Right Sidebar: 3D Robot Pose + Instant Breakdown + Smooth Scrolling All Anomalies */}
-            <aside className="csvSidebarPane">
-              {/* 3D Robot Pose at Cursor */}
+            {/* Middle Column: 1-Column Instantaneous Breakdown Data between Plots and 3D Simulation */}
+            {csvPayload && selectedJoint && csvPayload.joints[selectedJoint] && (
+              <div className="dynamicsBreakdownColumn">
+                <div className="instantBreakdownCard">
+                  <div className="instantCardHeader">
+                    <div className="instantTitleGroup">
+                      <span className="cardIcon">⚡</span>
+                      <h4>순간 분해 데이터</h4>
+                    </div>
+                    <span className="timeIndicator">t = {currentCursorSec}s</span>
+                  </div>
+
+                  <div className="instantJointSubheader">
+                    <span>선택 관절:</span>
+                    <span className="jointHighlightBadge">{selectedJoint}</span>
+                  </div>
+
+                  <div className="instantDataSingleColumn">
+                    <div className="instantItemCard">
+                      <div className="itemMeta">
+                        <span className="itemLabel">측정 토크</span>
+                        <span className="itemSymbol">τ_act</span>
+                      </div>
+                      <strong className="tqAct">
+                        {csvPayload.joints[selectedJoint].tau_actual[cursorIndex]?.toFixed(2)} <small>Nm</small>
+                      </strong>
+                    </div>
+
+                    <div className="instantItemCard">
+                      <div className="itemMeta">
+                        <span className="itemLabel">모델 이론 토크</span>
+                        <span className="itemSymbol">τ_model</span>
+                      </div>
+                      <strong className="tqModel">
+                        {csvPayload.joints[selectedJoint].tau_model[cursorIndex]?.toFixed(2)} <small>Nm</small>
+                      </strong>
+                    </div>
+
+                    <div className="instantItemCard">
+                      <div className="itemMeta">
+                        <span className="itemLabel">외란/잔차 토크</span>
+                        <span className="itemSymbol">Δτ</span>
+                      </div>
+                      <strong
+                        className={`tqExt ${
+                          Math.abs(csvPayload.joints[selectedJoint].tau_ext[cursorIndex] ?? 0) > 10
+                            ? "anomaly"
+                            : ""
+                        }`}
+                      >
+                        {csvPayload.joints[selectedJoint].tau_ext[cursorIndex]?.toFixed(2)} <small>Nm</small>
+                      </strong>
+                    </div>
+
+                    <div className="instantItemCard">
+                      <div className="itemMeta">
+                        <span className="itemLabel">중력 보상 토크</span>
+                        <span className="itemSymbol">τ_g</span>
+                      </div>
+                      <strong>
+                        {csvPayload.joints[selectedJoint].tau_gravity[cursorIndex]?.toFixed(2)} <small>Nm</small>
+                      </strong>
+                    </div>
+
+                    <div className="instantItemCard">
+                      <div className="itemMeta">
+                        <span className="itemLabel">위치 추종 오차</span>
+                        <span className="itemSymbol">e_q</span>
+                      </div>
+                      <strong>
+                        {csvPayload.joints[selectedJoint].pos_error_deg[cursorIndex]?.toFixed(2)}<small>°</small>
+                      </strong>
+                    </div>
+
+                    <div className="instantItemCard">
+                      <div className="itemMeta">
+                        <span className="itemLabel">속도 추종 오차</span>
+                        <span className="itemSymbol">e_v</span>
+                      </div>
+                      <strong>
+                        {csvPayload.joints[selectedJoint].vel_error_deg_s[cursorIndex]?.toFixed(2)}<small>°/s</small>
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Right Column: 3D Robot Simulation + Playback Controls */}
+            <div className="dynamicsSimulationColumn">
               <div className="sidebar3DCard">
                 <div className="sidebarHeader">
-                  <span>⏱ 3D 로봇 자세 (t = {currentCursorSec}s)</span>
+                  <span>🤖 3D 로봇 자세 시뮬레이션 ({csvPayload?.model_label ?? modelKey})</span>
                   <span className="frameIndicator">
-                    프레임 {cursorIndex + 1} / {csvPayload?.times.length ?? 0}
+                    ⏱ t = {currentCursorSec}s (프레임 {cursorIndex + 1} / {csvPayload?.times.length ?? 0})
                   </span>
                 </div>
                 <div className="sidebarViewer">
@@ -1240,124 +1340,143 @@ export function DynamicsAnalysis({
                     cursorLabel={`t = ${currentCursorSec}s`}
                   />
                 </div>
-              </div>
 
-              {/* Instantaneous Values at Cursor */}
-              {csvPayload && selectedJoint && csvPayload.joints[selectedJoint] && (
-                <div className="instantCard">
-                  <h4>
-                    순간 동역학 분해 데이터 (t = {currentCursorSec}s) ·{" "}
-                    <span className="jointHighlight">{selectedJoint}</span>
-                  </h4>
-                  <div className="instantDataGrid">
-                    <div className="instantItem">
-                      <span>측정 토크 (τ_act):</span>
-                      <strong className="tqAct">
-                        {csvPayload.joints[selectedJoint].tau_actual[cursorIndex]?.toFixed(2)} Nm
-                      </strong>
+                {/* Integrated Playback & Scrubber Controls in 3D Viewer */}
+                <div className="viewerPlaybackBar">
+                  <div className="scrubberControls">
+                    <button
+                      type="button"
+                      className="playBtn"
+                      onClick={() => {
+                        if (!playing && cursorIndex >= (csvPayload?.times.length ?? 0) - 1) {
+                          setCursorIndex(0);
+                        }
+                        setPlaying(!playing);
+                      }}
+                    >
+                      {playing ? "⏸ 일시정지" : "▶ 재생"}
+                    </button>
+                    <button
+                      type="button"
+                      className="stepBtn"
+                      onClick={() => setCursorIndex((prev) => Math.max(0, prev - 1))}
+                      title="이전 프레임"
+                    >
+                      ⏮
+                    </button>
+                    <button
+                      type="button"
+                      className="stepBtn"
+                      onClick={() => setCursorIndex((prev) => Math.min((csvPayload?.times.length ?? 1) - 1, prev + 1))}
+                      title="다음 프레임"
+                    >
+                      ⏭
+                    </button>
+
+                    <div className="timeReadout">
+                      ⏱ <strong>{currentCursorSec}s</strong> / {totalDuration}s
                     </div>
-                    <div className="instantItem">
-                      <span>모델 이론 토크 (τ_model):</span>
-                      <strong className="tqModel">
-                        {csvPayload.joints[selectedJoint].tau_model[cursorIndex]?.toFixed(2)} Nm
-                      </strong>
-                    </div>
-                    <div className="instantItem">
-                      <span>외란/잔차 토크 (Δτ):</span>
-                      <strong
-                        className={`tqExt ${
-                          Math.abs(csvPayload.joints[selectedJoint].tau_ext[cursorIndex] ?? 0) > 10
-                            ? "anomaly"
-                            : ""
-                        }`}
-                      >
-                        {csvPayload.joints[selectedJoint].tau_ext[cursorIndex]?.toFixed(2)} Nm
-                      </strong>
-                    </div>
-                    <div className="instantItem">
-                      <span>중력 보상 토크 (τ_g):</span>
-                      <strong>{csvPayload.joints[selectedJoint].tau_gravity[cursorIndex]?.toFixed(2)} Nm</strong>
-                    </div>
-                    <div className="instantItem">
-                      <span>위치 추종 오차 (e_q):</span>
-                      <strong>{csvPayload.joints[selectedJoint].pos_error_deg[cursorIndex]?.toFixed(2)}°</strong>
-                    </div>
-                    <div className="instantItem">
-                      <span>속도 추종 오차 (e_v):</span>
-                      <strong>{csvPayload.joints[selectedJoint].vel_error_deg_s[cursorIndex]?.toFixed(2)}°/s</strong>
+
+                    <div className="speedButtons">
+                      {[0.5, 1.0, 2.0].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          className={`speedBtn ${playSpeed === s ? "active" : ""}`}
+                          onClick={() => setPlaySpeed(s)}
+                        >
+                          {s}x
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Grouped Anomaly Events with Full Scroll and Visibility for all items */}
-              <div className="anomaliesCard">
-                <div className="anomaliesCardHeader">
-                  <h4>⚠️ 동역학 불일치 / 이상 감지 목록</h4>
-                  <span className="totalAnomBadge">{csvPayload?.anomalies.length ?? 0}건 감지</span>
-                </div>
-
-                <div className="anomaliesList">
-                  {(!csvPayload?.anomalies || csvPayload.anomalies.length === 0) && (
-                    <div className="noAnomalies">감지된 동역학적 불일치 이상이 없습니다 (정상 동작).</div>
-                  )}
-
-                  {Object.entries(anomaliesByJoint).map(([jointName, jointAnomList]) => {
-                    const isSelectedJoint = jointName === selectedJoint;
-                    const hasMajor = jointAnomList.some((a) => a.severity === "major");
-
-                    return (
-                      <div
-                        key={jointName}
-                        className={`anomalyJointGroupCard ${isSelectedJoint ? "selectedGroup" : ""}`}
-                      >
-                        <div
-                          className="groupHeader"
-                          onClick={() => setSelectedJoint(jointName)}
-                        >
-                          <span className={`groupDot ${hasMajor ? "major" : "minor"}`} />
-                          <strong className="groupJointName">{jointName}</strong>
-                          <span className="groupCountBadge">{jointAnomList.length}건 이상</span>
-                        </div>
-
-                        <div className="groupItemsList">
-                          {jointAnomList.map((anom, aIdx) => {
-                            const tMin = csvPayload?.times[0] ?? 0;
-                            const relStart = (anom.start_time - tMin).toFixed(2);
-                            const relEnd = (anom.end_time - tMin).toFixed(2);
-                            const desc = getAnomalyDescription(anom);
-
-                            return (
-                              <div
-                                key={anom.id}
-                                className={`anomalyItem ${anom.severity}`}
-                                onClick={() => {
-                                  setSelectedJoint(anom.joint);
-                                  const idx = csvPayload?.times.findIndex((t) => t >= anom.start_time) ?? -1;
-                                  if (idx !== -1) setCursorIndex(idx);
-                                }}
-                              >
-                                <div className="anomalyHeader">
-                                  <span className="anomIndexBadge">#{aIdx + 1}</span>
-                                  <span className={`severityBadge ${anom.severity}`}>
-                                    {anom.severity.toUpperCase()}
-                                  </span>
-                                  <span className="anomalyTime">
-                                    {relStart}s ~ {relEnd}s
-                                  </span>
-                                </div>
-                                <p className="anomalySummary">{anom.summary}</p>
-                                <p className="anomalyDiagnosis">{desc}</p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <input
+                    type="range"
+                    className="timelineSlider"
+                    min={0}
+                    max={Math.max(0, (csvPayload?.times.length ?? 1) - 1)}
+                    value={cursorIndex}
+                    onChange={(e) => {
+                      setPlaying(false);
+                      setCursorIndex(Number(e.target.value));
+                    }}
+                  />
                 </div>
               </div>
-            </aside>
+            </div>
+          </div>
+
+          {/* Bottom Panel: Full Width Anomalies List (Sized to fit up to 5 items comfortably) */}
+          <div className="anomaliesBottomSection">
+            <div className="anomaliesCardHeader">
+              <div className="anomaliesTitleGroup">
+                <span className="cardIcon">⚠️</span>
+                <h4>동역학 불일치 / 이상 감지 목록 (Dynamic Anomalies)</h4>
+              </div>
+              <span className="totalAnomBadge">{csvPayload?.anomalies.length ?? 0}건 감지</span>
+            </div>
+
+            <div className="anomaliesBottomScrollList">
+              {(!csvPayload?.anomalies || csvPayload.anomalies.length === 0) && (
+                <div className="noAnomalies">감지된 동역학적 불일치 이상이 없습니다 (정상 동작).</div>
+              )}
+
+              {Object.entries(anomaliesByJoint).map(([jointName, jointAnomList]) => {
+                const isSelectedJoint = jointName === selectedJoint;
+                const hasMajor = jointAnomList.some((a) => a.severity === "major");
+
+                return (
+                  <div
+                    key={jointName}
+                    className={`anomalyJointGroupCard ${isSelectedJoint ? "selectedGroup" : ""}`}
+                  >
+                    <div
+                      className="groupHeader"
+                      onClick={() => setSelectedJoint(jointName)}
+                    >
+                      <span className={`groupDot ${hasMajor ? "major" : "minor"}`} />
+                      <strong className="groupJointName">{jointName}</strong>
+                      <span className="groupCountBadge">{jointAnomList.length}건</span>
+                    </div>
+
+                    <div className="groupItemsList">
+                      {jointAnomList.map((anom, aIdx) => {
+                        const tMin = csvPayload?.times[0] ?? 0;
+                        const relStart = (anom.start_time - tMin).toFixed(2);
+                        const relEnd = (anom.end_time - tMin).toFixed(2);
+                        const desc = getAnomalyDescription(anom);
+
+                        return (
+                          <div
+                            key={anom.id}
+                            className={`anomalyItem ${anom.severity}`}
+                            onClick={() => {
+                              setSelectedJoint(anom.joint);
+                              const idx = csvPayload?.times.findIndex((t) => t >= anom.start_time) ?? -1;
+                              if (idx !== -1) setCursorIndex(idx);
+                            }}
+                          >
+                            <div className="anomalyHeader">
+                              <span className="anomIndexBadge">#{aIdx + 1}</span>
+                              <span className={`severityBadge ${anom.severity}`}>
+                                {anom.severity.toUpperCase()}
+                              </span>
+                              <span className="anomalyTime">
+                                {relStart}s ~ {relEnd}s
+                              </span>
+                            </div>
+                            <p className="anomalySummary">{anom.summary}</p>
+                            {desc && desc !== anom.summary && (
+                              <p className="anomalyDiagnosis">💡 {desc}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

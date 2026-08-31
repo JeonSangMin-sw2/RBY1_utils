@@ -324,9 +324,9 @@ def _link_fault_csvs(
                 continue
             anchor = end if end is not None else start
             delta = fault_time - float(anchor)
-            if -1.0 <= delta <= duration + 1.0:
-                csv_timeline_pos = max(min_t, min(max_t, max_t - delta))
-                confidence = "high" if 0 <= delta <= duration else "medium"
+            if 0.0 <= delta <= duration:
+                csv_timeline_pos = max_t - delta
+                confidence = "high"
                 connection.execute(
                     "INSERT OR REPLACE INTO incident_csv_links(incident_id,artifact_id,delta_seconds,confidence,reason) "
                     "VALUES (?,?,?,?,?)",
@@ -350,7 +350,6 @@ def ensure_fault_links(db: Database, case_id: str) -> None:
             (case_id,),
         ).fetchall()
 
-        repaired = False
         for art in csv_artifacts:
             art_id = int(art["id"])
             obs = connection.execute(
@@ -374,25 +373,21 @@ def ensure_fault_links(db: Database, case_id: str) -> None:
                             "VALUES (?, 'fault_wall', ?, ?, 0, 'decimal', 0, 'parsed')",
                             (art_id, val, iso_str),
                         )
-                        repaired = True
 
-        link_count = connection.execute(
-            "SELECT COUNT(*) AS count FROM incident_csv_links l "
-            "JOIN incidents i ON i.id=l.incident_id WHERE i.case_id=?",
+        incident_rows = connection.execute(
+            "SELECT id, start_time, end_time, time_basis FROM incidents WHERE case_id=?",
             (case_id,),
-        ).fetchone()
-
-        if repaired or link_count is None or link_count["count"] == 0:
-            incident_rows = connection.execute(
-                "SELECT id, start_time, end_time, time_basis FROM incidents WHERE case_id=?",
+        ).fetchall()
+        incident_tuples = [
+            (int(r["id"]), r["start_time"], r["end_time"], r["time_basis"])
+            for r in incident_rows
+        ]
+        if incident_tuples:
+            connection.execute(
+                "DELETE FROM incident_csv_links WHERE incident_id IN (SELECT id FROM incidents WHERE case_id=?)",
                 (case_id,),
-            ).fetchall()
-            incident_tuples = [
-                (int(r["id"]), r["start_time"], r["end_time"], r["time_basis"])
-                for r in incident_rows
-            ]
-            if incident_tuples:
-                _link_fault_csvs(connection, incident_tuples)
+            )
+            _link_fault_csvs(connection, incident_tuples)
 
 
 def rebuild_incidents(db: Database, case_id: str, *, job_id: str | None = None) -> int:

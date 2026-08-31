@@ -81,7 +81,7 @@ type SignalCategory = "position" | "velocity" | "current" | "torque" | "temperat
 type SemanticPoint = { rawValue: number; name: string; label: string };
 type DisplaySeries = CsvSeries & { lane?: number; semanticPoints?: SemanticPoint[] };
 type LaneChart = { series: DisplaySeries[]; labels: Map<number, string> };
-type ZoomRange = { start: number; end: number };
+export type ZoomRange = { start: number; end: number };
 
 registerECharts([
   LineChart,
@@ -264,11 +264,23 @@ function signalTooltip(
   params: SystemTooltipParam | SystemTooltipParam[],
   start: number,
   unit?: string,
+  incidents?: LinkedIncident[],
 ): string {
   const items = Array.isArray(params) ? params : [params];
   if (!items.length) return "";
   const time = items[0].value[0];
   const lines = [`시간: +${(time - start).toFixed(3)}s (${time.toFixed(3)}s)`];
+
+  if (incidents && incidents.length > 0) {
+    const matched = incidents.filter((inc) => {
+      const incTime = inc.csv_sample_time ?? inc.start_time;
+      return typeof incTime === "number" && Math.abs(incTime - time) <= 0.04;
+    });
+    matched.forEach((inc) => {
+      lines.push(`<div style="margin:4px 0 2px;padding:3px 6px;background:rgba(220,38,38,0.35);border-left:3px solid #ef4444;border-radius:2px;color:#fca5a5;font-size:11px;">⚠️ <b>[장애 사건] ${inc.title}</b> (${inc.csv_time_display || inc.log_time_display})</div>`);
+    });
+  }
+
   items.forEach((item) => {
     const rawValue = item.value[1];
     const value = typeof rawValue === "number" ? rawValue.toFixed(3) : String(rawValue);
@@ -726,6 +738,9 @@ function CsvPlot({
   }, [category, lanes, series]);
   const categoryLabel = CATEGORY_META.find((item) => item.key === category)?.label ?? "신호";
 
+  const isDispatchingZoomRef = useRef(false);
+  const isInteractingRef = useRef(false);
+
   useEffect(() => {
     zoomCallbackRef.current = onZoomRangeChange;
   }, [onZoomRangeChange]);
@@ -735,10 +750,25 @@ function CsvPlot({
   }, [onCursorChange]);
 
   useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    if (isInteractingRef.current) return;
+    isDispatchingZoomRef.current = true;
+    chart.dispatchAction({
+      type: "dataZoom",
+      dataZoomIndex: 0,
+      start: zoomRange.start,
+      end: zoomRange.end,
+    });
+    isDispatchingZoomRef.current = false;
+  }, [zoomRange.start, zoomRange.end]);
+
+  useEffect(() => {
     if (!chartNode.current) return;
     const chart = init(chartNode.current);
     chartRef.current = chart;
     const handleZoom = (event: unknown) => {
+      if (isDispatchingZoomRef.current) return;
       const value = event as { start?: number; end?: number; batch?: { start?: number; end?: number }[] };
       const range = value.batch?.[0] ?? value;
       if (typeof range.start !== "number" || typeof range.end !== "number") return;
@@ -749,6 +779,7 @@ function CsvPlot({
     let isDragging = false;
     let downPos = { x: 0, y: 0 };
     const handleMouseDown = (e: { offsetX: number; offsetY: number }) => {
+      isInteractingRef.current = true;
       isDragging = false;
       downPos = { x: e.offsetX, y: e.offsetY };
     };
@@ -758,6 +789,9 @@ function CsvPlot({
       }
     };
     const handleMouseUp = (event: { offsetX: number; offsetY: number }) => {
+      setTimeout(() => {
+        isInteractingRef.current = false;
+      }, 50);
       if (isDragging) return;
       const pointInPixel = [event.offsetX, event.offsetY];
       if (chart.containPixel("grid", pointInPixel)) {
@@ -767,9 +801,16 @@ function CsvPlot({
         }
       }
     };
+    const handleGlobalMouseUp = () => {
+      setTimeout(() => {
+        isInteractingRef.current = false;
+      }, 50);
+    };
+
     chart.getZr().on("mousedown", handleMouseDown);
     chart.getZr().on("mousemove", handleMouseMove);
     chart.getZr().on("mouseup", handleMouseUp);
+    window.addEventListener("mouseup", handleGlobalMouseUp);
 
     const resize = () => chart.resize();
     window.addEventListener("resize", resize);
@@ -778,6 +819,7 @@ function CsvPlot({
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", resize);
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
       chart.getZr().off("mousedown", handleMouseDown);
       chart.getZr().off("mousemove", handleMouseMove);
       chart.getZr().off("mouseup", handleMouseUp);
@@ -786,6 +828,24 @@ function CsvPlot({
       chartRef.current = null;
     };
   }, []);
+
+  // Calculate visible window and offscreen incidents
+  const totalDuration = payload ? Math.max(0.001, payload.end - payload.start) : 1;
+  const visibleStart = payload ? payload.start + (totalDuration * zoomRange.start) / 100 : 0;
+  const visibleEnd = payload ? payload.start + (totalDuration * zoomRange.end) / 100 : 1;
+
+  const validIncidents = useMemo(() => {
+    if (!payload) return [];
+    return incidentMarks
+      .map((inc) => {
+        const t = inc.csv_sample_time ?? (typeof inc.start_time === "number" ? inc.start_time : undefined);
+        return {
+          ...inc,
+          validTime: t,
+        };
+      })
+      .filter((inc): inc is typeof inc & { validTime: number } => typeof inc.validTime === "number" && inc.validTime >= payload.start && inc.validTime <= payload.end);
+  }, [incidentMarks, payload]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -797,26 +857,31 @@ function CsvPlot({
     const laneMode = Boolean(lanes);
     const laneCount = lanes?.labels.size ?? 0;
 
-    const selectedIncident = incidentMarks.find((inc) => inc.id === selectedIncidentId);
-    const incidentTimeVal = selectedIncident ? (selectedIncident.csv_sample_time ?? selectedIncident.start_time) : undefined;
-    const selectedIncidentMark = typeof incidentTimeVal === "number" && incidentTimeVal >= payload.start && incidentTimeVal <= payload.end ? [{
-      name: selectedIncident?.title ?? "오류 발생 지점",
-      xAxis: incidentTimeVal,
-      lineStyle: { color: "#ff7a00", width: 2, type: "dashed" as const },
-      label: {
-        show: true,
-        position: "insideEndTop" as const,
-        formatter: `⚠️ ${selectedIncident?.title ?? "오류 발생 지점"}`,
-        color: "#ffffff",
-        fontSize: 11,
-        fontWeight: "bold" as const,
-        backgroundColor: "rgba(211, 84, 0, 0.92)",
-        padding: [3, 7],
-        borderRadius: 3,
-        borderColor: "#ff7a00",
-        borderWidth: 1,
-      },
-    }] : [];
+    const allIncidentMarks = validIncidents.flatMap((inc) => {
+      const isSelected = inc.id === selectedIncidentId;
+      return [{
+        name: inc.title,
+        xAxis: inc.validTime,
+        lineStyle: {
+          color: isSelected ? "#ff3366" : "rgba(255, 153, 0, 0.85)",
+          width: isSelected ? 2.5 : 1.5,
+          type: isSelected ? ("solid" as const) : ("dashed" as const),
+        },
+        label: {
+          show: isSelected,
+          position: "insideEndTop" as const,
+          formatter: `⚠️ ${inc.title}`,
+          color: "#ffffff",
+          fontSize: 11,
+          fontWeight: isSelected ? ("bold" as const) : ("normal" as const),
+          backgroundColor: isSelected ? "rgba(220, 20, 60, 0.95)" : "rgba(180, 83, 9, 0.88)",
+          padding: [3, 7],
+          borderRadius: 3,
+          borderColor: isSelected ? "#ff3366" : "#ff9900",
+          borderWidth: 1,
+        },
+      }];
+    });
 
     const playbackMark = typeof cursorTime === "number" && cursorTime >= payload.start && cursorTime <= payload.end ? [{
       name: "재생 위치",
@@ -827,7 +892,7 @@ function CsvPlot({
 
     const markLineData = [
       ...playbackMark,
-      ...selectedIncidentMark,
+      ...allIncidentMarks,
     ];
 
     chart.setOption({
@@ -837,23 +902,24 @@ function CsvPlot({
       legend: {
         type: "scroll",
         textStyle: { color: "#c8d0d5", fontSize: 11 },
-        top: 0,
+        top: 2,
         left: 0,
         right: 0,
+        height: 20,
         show: category !== "state" || laneCount <= 8,
       },
       grid: {
-        left: 80,
-        right: 24,
-        top: 36,
-        bottom: 50,
+        left: 68,
+        right: 18,
+        top: 28,
+        bottom: 24,
       },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "line" },
         formatter: category === "system"
           ? (params: SystemTooltipParam | SystemTooltipParam[]) => systemTooltip(params, displayed, payload.start)
-          : (params: SystemTooltipParam | SystemTooltipParam[]) => signalTooltip(params, payload.start, signalUnit?.symbol),
+          : (params: SystemTooltipParam | SystemTooltipParam[]) => signalTooltip(params, payload.start, signalUnit?.symbol, validIncidents),
       },
       dataZoom: [
         {
@@ -864,22 +930,6 @@ function CsvPlot({
           moveOnMouseWheel: false,
           start: zoomRange.start,
           end: zoomRange.end,
-        },
-        {
-          type: "slider",
-          start: zoomRange.start,
-          end: zoomRange.end,
-          bottom: 4,
-          height: 20,
-          zoomLock: false,
-          brushSelect: false,
-          showDataShadow: false,
-          showDetail: false,
-          handleSize: 14,
-          moveHandleSize: 8,
-          borderColor: "#394148",
-          fillerColor: "rgba(101,200,179,.16)",
-          textStyle: { color: "#aab4bc", fontSize: 11 },
         },
       ],
       xAxis: {
@@ -897,7 +947,7 @@ function CsvPlot({
         axisLabel: {
           color: "#c1c9ce",
           fontSize: 10,
-          width: 72,
+          width: 60,
           overflow: "truncate",
           ellipsis: "...",
           formatter: (value: number) => lanes.labels.get(Math.round(value)) ?? "",
@@ -908,7 +958,7 @@ function CsvPlot({
         scale: true,
         name: signalUnit?.axisLabel,
         nameLocation: "middle",
-        nameGap: 52,
+        nameGap: 46,
         nameTextStyle: { color: "#c9d1d6", fontSize: 11, fontWeight: 700 },
         axisLabel: { color: "#aab4bc", fontSize: 11 },
         splitLine: { lineStyle: { color: "#252b31" } },
@@ -938,8 +988,8 @@ function CsvPlot({
           data: [{ xAxis: payload.end }],
         } : undefined,
       })),
-    }, { notMerge: false, lazyUpdate: true });
-  }, [category, cursorTime, displayed, incidentMarks, lanes, payload, selectedIncidentId, signalUnit, zoomRange]);
+    }, { notMerge: true, lazyUpdate: false });
+  }, [category, cursorTime, displayed, incidentMarks, lanes, payload, selectedIncidentId, signalUnit, validIncidents]);
 
   const handlePrevStateGroup = () => {
     if (!stateGroups.length) return;
@@ -1024,22 +1074,23 @@ function CsvPlot({
         {onRemove && <button type="button" className="textButton danger smallBtn" aria-label={`비교 Plot 삭제: ${categoryLabel}`} onClick={onRemove}>✕ Plot 삭제</button>}
       </div>
 
-      <div
-        className="csvTimeline"
-        data-zoom-start={zoomRange.start.toFixed(3)}
-        data-zoom-end={zoomRange.end.toFixed(3)}
-        data-y-unit={signalUnit?.symbol ?? ""}
-        data-y-scale={signalUnit?.scale ?? 1}
-        style={{ height: lanes ? Math.min(500, Math.max(220, lanes.labels.size * 26 + 74)) : undefined }}
-        role="img"
-        aria-label={`${kind === "comparison" ? "비교 " : ""}CSV ${categoryLabel} 그래프${signalUnit ? `, Y축 ${signalUnit.axisLabel}` : ""}: ${
-          lanes ? [...lanes.labels.values()].join(", ") : (category === "state" ? stateFilteredSeries.map((s) => s.name) : selectedNames).join(", ")
-        }`}
-      >
-        {loading && <div className="chartLoading">CSV 신호를 불러오는 중입니다.</div>}
-        {error && <div className="chartLoading errorText">{error}</div>}
-        {!loading && !error && !displayed.length && <div className="chartLoading">선택한 항목에 표시할 샘플이 없습니다.</div>}
-        <div className={!loading && !error && displayed.length ? "csvChart" : "csvChart isHidden"} ref={chartNode} />
+      <div className="csvTimelineContainer">
+        <div
+          className="csvTimeline"
+          data-zoom-start={zoomRange.start.toFixed(3)}
+          data-zoom-end={zoomRange.end.toFixed(3)}
+          data-y-unit={signalUnit?.symbol ?? ""}
+          data-y-scale={signalUnit?.scale ?? 1}
+          role="img"
+          aria-label={`${kind === "comparison" ? "비교 " : ""}CSV ${categoryLabel} 그래프${signalUnit ? `, Y축 ${signalUnit.axisLabel}` : ""}: ${
+            lanes ? [...lanes.labels.values()].join(", ") : (category === "state" ? stateFilteredSeries.map((s) => s.name) : selectedNames).join(", ")
+          }`}
+        >
+          {loading && <div className="chartLoading">CSV 신호를 불러오는 중입니다.</div>}
+          {error && <div className="chartLoading errorText">{error}</div>}
+          {!loading && !error && !displayed.length && <div className="chartLoading">선택한 항목에 표시할 샘플이 없습니다.</div>}
+          <div className={!loading && !error && displayed.length ? "csvChart" : "csvChart isHidden"} ref={chartNode} />
+        </div>
       </div>
 
       {/* Embedded State & System Interpretation inside this plot */}
@@ -1075,6 +1126,323 @@ export type IncidentSummary = {
   fault_level?: "major" | "minor" | null;
 };
 
+export function UnifiedTimelineBrushBar({
+  durationSec,
+  zoomRange,
+  onZoomChange,
+}: {
+  durationSec: number;
+  zoomRange: ZoomRange;
+  onZoomChange: (range: ZoomRange) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef<"center" | "left" | "right" | null>(null);
+  const dragStartRef = useRef<{ startX: number; initStart: number; initEnd: number }>({
+    startX: 0,
+    initStart: 0,
+    initEnd: 100,
+  });
+
+  const currentStartSec = (durationSec * zoomRange.start) / 100;
+  const currentEndSec = (durationSec * zoomRange.end) / 100;
+
+  const [startInput, setStartInput] = useState(() => currentStartSec.toFixed(3));
+  const [endInput, setEndInput] = useState(() => currentEndSec.toFixed(3));
+
+  useEffect(() => {
+    setStartInput(((durationSec * zoomRange.start) / 100).toFixed(3));
+    setEndInput(((durationSec * zoomRange.end) / 100).toFixed(3));
+  }, [durationSec, zoomRange.start, zoomRange.end]);
+
+  function handleStartInputCommit() {
+    let val = parseFloat(startInput);
+    if (isNaN(val)) {
+      setStartInput(((durationSec * zoomRange.start) / 100).toFixed(3));
+      return;
+    }
+    const curEndSec = (durationSec * zoomRange.end) / 100;
+    val = Math.max(0, Math.min(val, curEndSec - 0.01));
+    const newStartPct = (val / durationSec) * 100;
+    onZoomChange({ start: Math.max(0, newStartPct), end: zoomRange.end });
+  }
+
+  function handleEndInputCommit() {
+    let val = parseFloat(endInput);
+    if (isNaN(val)) {
+      setEndInput(((durationSec * zoomRange.end) / 100).toFixed(3));
+      return;
+    }
+    const curStartSec = (durationSec * zoomRange.start) / 100;
+    val = Math.min(durationSec, Math.max(val, curStartSec + 0.01));
+    const newEndPct = (val / durationSec) * 100;
+    onZoomChange({ start: zoomRange.start, end: Math.min(100, newEndPct) });
+  }
+
+  function handleStepStart(delta: number) {
+    const curStart = (durationSec * zoomRange.start) / 100;
+    const curEnd = (durationSec * zoomRange.end) / 100;
+    const nextVal = Math.max(0, Math.min(parseFloat((curStart + delta).toFixed(2)), curEnd - 0.05));
+    const newStartPct = (nextVal / durationSec) * 100;
+    onZoomChange({ start: Math.max(0, newStartPct), end: zoomRange.end });
+  }
+
+  function handleStepEnd(delta: number) {
+    const curStart = (durationSec * zoomRange.start) / 100;
+    const curEnd = (durationSec * zoomRange.end) / 100;
+    const nextVal = Math.min(durationSec, Math.max(parseFloat((curEnd + delta).toFixed(2)), curStart + 0.05));
+    const newEndPct = (nextVal / durationSec) * 100;
+    onZoomChange({ start: zoomRange.start, end: Math.min(100, newEndPct) });
+  }
+
+  const hasMovedRef = useRef<boolean>(false);
+
+  function startDrag(type: "center" | "left" | "right", e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingRef.current = type;
+    hasMovedRef.current = false;
+    const startX = e.clientX;
+    const initStart = zoomRange.start;
+    const initEnd = zoomRange.end;
+
+    function onMouseMove(moveEvent: MouseEvent) {
+      if (!isDraggingRef.current || !trackRef.current) return;
+      const rect = trackRef.current.getBoundingClientRect();
+      const trackWidth = rect.width || 1;
+      const deltaX = moveEvent.clientX - startX;
+      if (Math.abs(deltaX) > 2) {
+        hasMovedRef.current = true;
+      }
+      const deltaPct = (deltaX / trackWidth) * 100;
+
+      if (isDraggingRef.current === "center") {
+        const span = initEnd - initStart;
+        let newStart = initStart + deltaPct;
+        if (newStart < 0) newStart = 0;
+        if (newStart + span > 100) newStart = 100 - span;
+        onZoomChange({ start: Math.max(0, newStart), end: Math.min(100, newStart + span) });
+      } else if (isDraggingRef.current === "left") {
+        let newStart = initStart + deltaPct;
+        if (newStart < 0) newStart = 0;
+        if (newStart > initEnd - 0.2) newStart = initEnd - 0.2;
+        onZoomChange({ start: newStart, end: initEnd });
+      } else if (isDraggingRef.current === "right") {
+        let newEnd = initEnd + deltaPct;
+        if (newEnd > 100) newEnd = 100;
+        if (newEnd < initStart + 0.2) newEnd = initStart + 0.2;
+        onZoomChange({ start: initStart, end: newEnd });
+      }
+    }
+
+    function onMouseUp() {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      setTimeout(() => {
+        isDraggingRef.current = null;
+        hasMovedRef.current = false;
+      }, 60);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
+
+  function handleTrackClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (isDraggingRef.current || hasMovedRef.current) return;
+    if (!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickPct = (clickX / rect.width) * 100;
+    if (clickPct < zoomRange.start) {
+      onZoomChange({ start: Math.max(0, clickPct), end: zoomRange.end });
+    } else if (clickPct > zoomRange.end) {
+      onZoomChange({ start: zoomRange.start, end: Math.min(100, clickPct) });
+    }
+  }
+
+  const windowLeft = Math.max(0, Math.min(100, zoomRange.start));
+  const windowWidth = Math.max(0.5, Math.min(100 - windowLeft, zoomRange.end - zoomRange.start));
+
+  return (
+    <div className="csvUnifiedZoomBar" role="toolbar" aria-label="통합 타임라인 줌 제어">
+      <div className="timelineBrushWrap">
+        <div
+          className="timelineBrushTrack"
+          ref={trackRef}
+          onClick={handleTrackClick}
+          title="클릭하여 해당 위치로 줌 윈도우 이동 / 드래그하여 구간 및 핸들 조절"
+        >
+          <div className="timelineBrushGridLines">
+            <span style={{ left: "25%" }} />
+            <span style={{ left: "50%" }} />
+            <span style={{ left: "75%" }} />
+          </div>
+
+          <div
+            className="timelineBrushWindow"
+            style={{
+              left: `${windowLeft}%`,
+              width: `${windowWidth}%`,
+            }}
+            onMouseDown={(e) => startDrag("center", e)}
+            onClick={(e) => e.stopPropagation()}
+            title="드래그하여 선택된 시간 구간 이동 (Pan)"
+          >
+            <div
+              className="timelineBrushHandle handleLeft"
+              onMouseDown={(e) => startDrag("left", e)}
+              onClick={(e) => e.stopPropagation()}
+              title="드래그하여 시작 시점 조절"
+            >
+              <div className="handleGrip" />
+            </div>
+
+            <div className="brushWindowLabel">
+              {currentStartSec.toFixed(2)}s ~ {currentEndSec.toFixed(2)}s
+            </div>
+
+            <div
+              className="timelineBrushHandle handleRight"
+              onMouseDown={(e) => startDrag("right", e)}
+              onClick={(e) => e.stopPropagation()}
+              title="드래그하여 종료 시점 조절"
+            >
+              <div className="handleGrip" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="zoomDirectTimeInputs">
+        <label className="timeInputItem">
+          <span>시작</span>
+          <div className="inputWithUnit">
+            <input
+              type="number"
+              step="0.1"
+              min={0}
+              max={durationSec}
+              value={startInput}
+              onChange={(e) => setStartInput(e.target.value)}
+              onBlur={handleStartInputCommit}
+              onKeyDown={(e) => { if (e.key === "Enter") handleStartInputCommit(); }}
+              title="시작 시간 (초 단위 입력 / 0.1s 증감 버튼 지원)"
+            />
+            <div className="timeStepperBtns">
+              <button
+                type="button"
+                className="btnStepper"
+                onClick={() => handleStepStart(+0.1)}
+                title="+0.1초 증가"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                className="btnStepper"
+                onClick={() => handleStepStart(-0.1)}
+                title="-0.1초 감소"
+              >
+                ▼
+              </button>
+            </div>
+            <span className="unitTag">s</span>
+          </div>
+        </label>
+        <span className="timeInputSep">~</span>
+        <label className="timeInputItem">
+          <span>종료</span>
+          <div className="inputWithUnit">
+            <input
+              type="number"
+              step="0.1"
+              min={0}
+              max={durationSec}
+              value={endInput}
+              onChange={(e) => setEndInput(e.target.value)}
+              onBlur={handleEndInputCommit}
+              onKeyDown={(e) => { if (e.key === "Enter") handleEndInputCommit(); }}
+              title="종료 시간 (초 단위 입력 / 0.1s 증감 버튼 지원)"
+            />
+            <div className="timeStepperBtns">
+              <button
+                type="button"
+                className="btnStepper"
+                onClick={() => handleStepEnd(+0.1)}
+                title="+0.1초 증가"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                className="btnStepper"
+                onClick={() => handleStepEnd(-0.1)}
+                title="-0.1초 감소"
+              >
+                ▼
+              </button>
+            </div>
+            <span className="unitTag">s</span>
+          </div>
+        </label>
+      </div>
+
+      <div className="zoomPresetGroup">
+        <button
+          type="button"
+          className={`btnZoomPreset ${Math.abs(zoomRange.end - zoomRange.start - 100) < 1 ? "active" : ""}`}
+          onClick={() => onZoomChange({ start: 0, end: 100 })}
+        >
+          전체 (100%)
+        </button>
+        <button
+          type="button"
+          className={`btnZoomPreset ${Math.abs(zoomRange.end - zoomRange.start - 50) < 1 ? "active" : ""}`}
+          onClick={() => {
+            const center = (zoomRange.start + zoomRange.end) / 2;
+            const newStart = Math.max(0, Math.min(50, center - 25));
+            onZoomChange({ start: newStart, end: newStart + 50 });
+          }}
+        >
+          50%
+        </button>
+        <button
+          type="button"
+          className={`btnZoomPreset ${Math.abs(zoomRange.end - zoomRange.start - 25) < 1 ? "active" : ""}`}
+          onClick={() => {
+            const center = (zoomRange.start + zoomRange.end) / 2;
+            const newStart = Math.max(0, Math.min(75, center - 12.5));
+            onZoomChange({ start: newStart, end: newStart + 25 });
+          }}
+        >
+          25%
+        </button>
+        <button
+          type="button"
+          className={`btnZoomPreset ${Math.abs(zoomRange.end - zoomRange.start - 10) < 1 ? "active" : ""}`}
+          onClick={() => {
+            const center = (zoomRange.start + zoomRange.end) / 2;
+            const newStart = Math.max(0, Math.min(90, center - 5));
+            onZoomChange({ start: newStart, end: newStart + 10 });
+          }}
+        >
+          10%
+        </button>
+        {Math.abs(zoomRange.end - zoomRange.start - 100) >= 1 && (
+          <button
+            type="button"
+            className="btnZoomReset"
+            onClick={() => onZoomChange({ start: 0, end: 100 })}
+            title="기본 100% 배율로 초기화"
+          >
+            🔄 리셋
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CsvAnalysis({
   client,
   caseId,
@@ -1091,16 +1459,16 @@ export function CsvAnalysis({
   const [listResult, setListResult] = useState<{ caseId: string; csvs: CsvArtifact[]; error?: string } | null>(null);
   const [artifactId, setArtifactId] = useState(selectedArtifactId ?? 0);
   const [plotCategories, setPlotCategories] = useState<SignalCategory[]>(["position"]);
-  const [selectedJointNames, setSelectedJointNames] = useState<string[]>(() => {
+  const [selectedJointNames, setSelectedJointNames] = useState<string[] | null>(() => {
     try {
       const raw = window.sessionStorage.getItem("rby1_selected_joints_global");
       if (raw) return JSON.parse(raw);
     } catch {}
-    return [];
+    return null;
   });
   const [zoomRange, setZoomRange] = useState<ZoomRange>({ start: 0, end: 100 });
-  const [artifactPayloads, setArtifactPayloads] = useState<Record<number, CsvChartPayload>>({});
-  const [fetchingArtifactId, setFetchingArtifactId] = useState<number | null>(null);
+  const [artifactPayloads, setArtifactPayloads] = useState<Record<string, CsvChartPayload>>({});
+  const [fetchingKey, setFetchingKey] = useState<string | null>(null);
   const [artifactFetchError, setArtifactFetchError] = useState<string>("");
 
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
@@ -1155,6 +1523,12 @@ export function CsvAnalysis({
   useEffect(() => {
     cursorRef.current = cursorTime;
   }, [cursorTime]);
+
+  useEffect(() => {
+    setArtifactPayloads({});
+    setFetchingKey(null);
+    setArtifactFetchError("");
+  }, [caseId]);
 
   useEffect(() => {
     let active = true;
@@ -1220,9 +1594,8 @@ export function CsvAnalysis({
   );
   const resolvedSelectorJoints = useMemo(() => {
     if (!selectorEligibleJoints.length) return [];
-    if (!selectedJointNames.length) return selectorEligibleJoints;
-    const matched = selectorEligibleJoints.filter((j) => selectedJointNames.includes(j));
-    return matched.length > 0 ? matched : selectorEligibleJoints;
+    if (selectedJointNames === null) return selectorEligibleJoints;
+    return selectorEligibleJoints.filter((j) => selectedJointNames.includes(j));
   }, [selectedJointNames, selectorEligibleJoints]);
 
   const plots = useMemo(() => plotCategoryEntries.map((entry) => {
@@ -1251,14 +1624,23 @@ export function CsvAnalysis({
   }
 
   function toggleJoint(name: string, checked: boolean) {
+    const current = resolvedSelectorJoints;
     const next = checked
-      ? selectorEligibleJoints.filter((joint) => joint === name || resolvedSelectorJoints.includes(joint))
-      : resolvedSelectorJoints.filter((joint) => joint !== name);
+      ? selectorEligibleJoints.filter((joint) => joint === name || current.includes(joint))
+      : current.filter((joint) => joint !== name);
     setSelectedJointNames(next);
   }
 
   function setSelectedJoints(next: string[]) {
     setSelectedJointNames(next);
+  }
+
+  function handleSelectAllJoints() {
+    setSelectedJointNames(selectorEligibleJoints);
+  }
+
+  function handleDeselectAllJoints() {
+    setSelectedJointNames([]);
   }
 
   function handleIncidentClick(inc: LinkedIncident) {
@@ -1270,28 +1652,36 @@ export function CsvAnalysis({
   }
 
   useEffect(() => {
-    if (!resolvedArtifactId) return;
-    if (artifactPayloads[resolvedArtifactId]) return;
+    if (!caseId || !resolvedArtifactId) return;
+    const cacheKey = `${caseId}:${resolvedArtifactId}`;
+    if (artifactPayloads[cacheKey]) return;
     let active = true;
-    setFetchingArtifactId(resolvedArtifactId);
+    setFetchingKey(cacheKey);
     setArtifactFetchError("");
     client.json<CsvChartPayload>(`/api/v3/cases/${caseId}/csvs/${resolvedArtifactId}/chart?max_points=2000&skip_dense=true`)
       .then((result) => {
         if (!active) return;
-        setArtifactPayloads((prev) => ({ ...prev, [resolvedArtifactId]: result }));
+        setArtifactPayloads((prev) => ({ ...prev, [cacheKey]: result }));
         setCursorTime(result.start);
-        setFetchingArtifactId(null);
       })
       .catch((reason: unknown) => {
         if (!active) return;
         setArtifactFetchError(reason instanceof Error ? reason.message : String(reason));
-        setFetchingArtifactId(null);
+      })
+      .finally(() => {
+        if (active) {
+          setFetchingKey((curr) => (curr === cacheKey ? null : curr));
+        }
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      setFetchingKey((curr) => (curr === cacheKey ? null : curr));
+    };
   }, [caseId, client, resolvedArtifactId, artifactPayloads]);
 
-  const payload = resolvedArtifactId ? artifactPayloads[resolvedArtifactId] ?? null : null;
-  const chartLoading = Boolean(resolvedArtifactId && fetchingArtifactId === resolvedArtifactId && !payload);
+  const currentCacheKey = `${caseId}:${resolvedArtifactId}`;
+  const payload = resolvedArtifactId ? artifactPayloads[currentCacheKey] ?? null : null;
+  const chartLoading = Boolean(resolvedArtifactId && fetchingKey === currentCacheKey && !payload);
   const chartError = artifactFetchError;
 
   const allStateSeries = useMemo(() => {
@@ -1300,14 +1690,15 @@ export function CsvAnalysis({
   }, [payload]);
 
   const activeIncidents: LinkedIncident[] = useMemo(() => {
-    if (payload?.linked_incidents && payload.linked_incidents.length > 0) {
-      return payload.linked_incidents;
-    }
-    if (csv?.linked_incidents && csv.linked_incidents.length > 0) {
-      return csv.linked_incidents;
-    }
-    return [];
-  }, [csv?.linked_incidents, payload?.linked_incidents]);
+    const list = payload?.linked_incidents && payload.linked_incidents.length > 0
+      ? payload.linked_incidents
+      : (csv?.linked_incidents && csv.linked_incidents.length > 0 ? csv.linked_incidents : []);
+    if (!payload) return list;
+    return list.filter((inc) => {
+      const t = inc.csv_sample_time ?? inc.start_time;
+      return typeof t === "number" && t >= payload.start && t <= payload.end;
+    });
+  }, [csv?.linked_incidents, payload]);
 
   const baseModel = normalizeModel(csv?.robot_model);
   const activeModel: RobotModelDescriptor = baseModel;
@@ -1375,17 +1766,17 @@ export function CsvAnalysis({
     let frame = 0;
     let previous = performance.now();
     const tick = (now: number) => {
-      frame = window.requestAnimationFrame(tick);
-      const elapsed = Math.min((now - previous) / 1000, 0.1) * speed;
+      const dt = (now - previous) / 1000;
       previous = now;
+      const elapsed = dt * speed;
       const next = cursorRef.current + elapsed;
       if (next >= payload.end) {
         setCursorTime(payload.end);
         setPlaying(false);
-        window.cancelAnimationFrame(frame);
         return;
       }
       setCursorTime(next);
+      frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
@@ -1430,25 +1821,55 @@ export function CsvAnalysis({
     {selectorEligibleJoints.length > 0 && (
       <section className="jointSelector" aria-labelledby="joint-selector-title">
         <div className="jointSelectorHead">
-          <div><h3 id="joint-selector-title">조인트 선택</h3><span>{resolvedSelectorJoints.length} / {selectorEligibleJoints.length}개 선택</span></div>
+          <div className="jointSelectorTitleRow">
+            <h3 id="joint-selector-title">조인트 선택</h3>
+            <span className="jointCountBadge">{resolvedSelectorJoints.length} / {selectorEligibleJoints.length}개 선택</span>
+          </div>
+          <div className="jointQuickActions">
+            <button
+              type="button"
+              className="btnMiniAction"
+              onClick={handleSelectAllJoints}
+              title="모든 관절 선택"
+            >
+              전체 선택
+            </button>
+            <button
+              type="button"
+              className="btnMiniAction"
+              onClick={handleDeselectAllJoints}
+              title="모든 관절 선택 해제"
+            >
+              전체 해제
+            </button>
+          </div>
         </div>
         <div className="jointGroupActions" role="group" aria-label="CSV 조인트 그룹 선택">
           {jointGroups.map((group) => {
-            const groupSelected = group.joints.every((joint) => resolvedSelectorJoints.includes(joint));
+            const groupJointsList = group.joints;
+            const isAllGroupSelected = groupJointsList.length > 0 && groupJointsList.every((j) => resolvedSelectorJoints.includes(j));
+            const isSomeGroupSelected = !isAllGroupSelected && groupJointsList.some((j) => resolvedSelectorJoints.includes(j));
             return (
               <button
                 type="button"
-                className={`textButton${groupSelected ? " active" : ""}`}
-                aria-pressed={groupSelected}
+                className={`textButton jointGroupBtn${isAllGroupSelected ? " active" : isSomeGroupSelected ? " partial" : ""}`}
+                aria-pressed={isAllGroupSelected}
                 aria-label={`CSV ${group.label} 그룹 선택 전환`}
                 onClick={() => {
-                  const groupSet = new Set(group.joints);
-                  setSelectedJoints(groupSelected
-                    ? resolvedSelectorJoints.filter((joint) => !groupSet.has(joint))
-                    : selectorEligibleJoints.filter((joint) => groupSet.has(joint) || resolvedSelectorJoints.includes(joint)));
+                  const groupSet = new Set(groupJointsList);
+                  if (isAllGroupSelected) {
+                    setSelectedJointNames(resolvedSelectorJoints.filter((j) => !groupSet.has(j)));
+                  } else {
+                    setSelectedJointNames(selectorEligibleJoints.filter((j) => groupSet.has(j) || resolvedSelectorJoints.includes(j)));
+                  }
                 }}
                 key={group.key}
-              >{group.label}</button>
+              >
+                {group.label}
+                <span className="groupCount">
+                  ({groupJointsList.filter((j) => resolvedSelectorJoints.includes(j)).length}/{groupJointsList.length})
+                </span>
+              </button>
             );
           })}
         </div>
@@ -1535,6 +1956,13 @@ export function CsvAnalysis({
         <span className="topBarHint">💡 각 Plot 좌측에서 신호를 클릭하여 원하는 그래프로 개별 변경할 수 있습니다.</span>
       </div>
     </div>
+
+    {/* Unified Timeline Zoom Control Toolbar with Dual-Handle Brush & Direct Numeric Time Inputs */}
+    <UnifiedTimelineBrushBar
+      durationSec={csv ? Math.max(0.001, (csv.max_sample_time ?? 5) - (csv.min_sample_time ?? 0)) : (payload ? Math.max(0.001, payload.end - payload.start) : 5.0)}
+      zoomRange={zoomRange}
+      onZoomChange={setZoomRange}
+    />
 
     {/* Workspace 2-Column Area: [Plots List (scrollable)] | [Resizer] | [3D Simulation] */}
     <div

@@ -393,10 +393,13 @@ def generate_csv_meta(cases: Any, case_id: str) -> dict[str, Any]:
         series_items = by_artifact.get(art_id, [])
         csv_max = max((item["max_sample_time"] for item in series_items if item["max_sample_time"] is not None), default=5.0)
         csv_min = min((item["min_sample_time"] for item in series_items if item["min_sample_time"] is not None), default=0.0)
+        duration = csv_max - csv_min
+        if not (-0.05 <= delta <= duration + 0.05):
+            continue
         if csv_min > 1_000_000_000 and inc_row["start_time"] is not None:
             csv_sample_time = float(inc_row["start_time"])
         else:
-            csv_sample_time = round(max(csv_min, min(csv_max, csv_max - delta)), 3)
+            csv_sample_time = round(csv_max - delta, 3)
         raw_time = str(inc_row["start_raw"] or "")
         display_log_time = raw_time.split(" ")[-1] if " " in raw_time else raw_time
         incidents_by_csv[art_id].append(
@@ -640,11 +643,24 @@ def csv_artifact_chart(
             (artifact_id,),
         ).fetchone()
         if bounds is None or bounds["start"] is None or bounds["end"] is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "csv artifact has no samples")
+            return {
+                "case_id": case_id,
+                "artifact": {"id": int(artifact["id"]), "name": artifact["original_name"]},
+                "start": 0.0,
+                "end": 0.0,
+                "available_series": [],
+                "state_metadata": {},
+                "motor_state_bits": motor_state_definitions(),
+                "motor_state_contract": _MOTOR_STATE_CONTRACT,
+                "system_state_contract": {},
+                "dense_series": [],
+                "linked_incidents": [],
+                "series": [],
+            }
         window_start = float(bounds["start"] if start is None else start)
         window_end = float(bounds["end"] if end is None else end)
         if window_end <= window_start:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "end must be greater than start")
+            window_end = window_start + 1.0
         available_rows = connection.execute(
             "SELECT name,kind FROM chart_samples WHERE artifact_id=? GROUP BY name,kind ORDER BY name",
             (artifact_id,),
@@ -756,10 +772,11 @@ def csv_artifact_chart(
                 "start_raw": str(r["start_raw"] or ""),
                 "log_time_display": str(r["start_raw"] or "").split(" ")[-1] if " " in str(r["start_raw"] or "") else str(r["start_raw"] or ""),
                 "delta_seconds": float(r["delta_seconds"]) if r["delta_seconds"] is not None else 0.0,
-                "csv_sample_time": float(r["start_time"]) if window_start > 1_000_000_000 and r["start_time"] is not None else round(max(window_start, min(window_end, window_end - (float(r["delta_seconds"]) if r["delta_seconds"] is not None else 0.0))), 3),
-                "csv_time_display": f"{round(max(window_start, min(window_end, window_end - (float(r['delta_seconds']) if r['delta_seconds'] is not None else 0.0))), 3):.3f}s" if window_start < 1_000_000_000 else (str(r["start_raw"] or "").split(" ")[-1] if " " in str(r["start_raw"] or "") else str(r["start_raw"] or "")),
+                "csv_sample_time": float(r["start_time"]) if window_start > 1_000_000_000 and r["start_time"] is not None else round(window_end - (float(r["delta_seconds"]) if r["delta_seconds"] is not None else 0.0), 3),
+                "csv_time_display": f"{round(window_end - (float(r['delta_seconds']) if r['delta_seconds'] is not None else 0.0), 3):.3f}s" if window_start < 1_000_000_000 else (str(r["start_raw"] or "").split(" ")[-1] if " " in str(r["start_raw"] or "") else str(r["start_raw"] or "")),
             }
             for r in linked_incidents_rows
+            if r["delta_seconds"] is not None and -0.05 <= float(r["delta_seconds"]) <= (window_end - window_start + 0.05)
         ],
         "series": [
             {

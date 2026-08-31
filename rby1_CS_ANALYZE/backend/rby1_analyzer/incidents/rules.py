@@ -158,11 +158,79 @@ def load_compiled_rules() -> tuple[list[dict[str, Any]], list[CompiledRule]]:
     return categories, compiled
 
 
+@dataclass(frozen=True, slots=True)
+class CompiledCommand:
+    id: str
+    category: str
+    name_ko: str
+    compiled_pattern: re.Pattern
+    description: str
+    normal_condition: str
+    abnormal_condition: str
+    action_hint: str
+
+
+def load_command_dictionary() -> list[CompiledCommand]:
+    candidates = [
+        Path.cwd() / "config" / "command_dictionary.yaml",
+    ]
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        candidates.append(parent / "config" / "command_dictionary.yaml")
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "config" / "command_dictionary.yaml")
+    if sys.executable:
+        candidates.append(Path(sys.executable).parent / "config" / "command_dictionary.yaml")
+
+    for path in candidates:
+        if path.is_file():
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+                raw_cmds = data.get("commands", [])
+                compiled: list[CompiledCommand] = []
+                for c in raw_cmds:
+                    pattern_str = str(c.get("pattern", ".*"))
+                    compiled.append(
+                        CompiledCommand(
+                            id=str(c.get("id", "")),
+                            category=str(c.get("category", "")),
+                            name_ko=str(c.get("name_ko", "")),
+                            compiled_pattern=re.compile(pattern_str, re.IGNORECASE),
+                            description=str(c.get("description", "")),
+                            normal_condition=str(c.get("normal_condition", "")),
+                            abnormal_condition=str(c.get("abnormal_condition", "")),
+                            action_hint=str(c.get("action_hint", "")),
+                        )
+                    )
+                return compiled
+            except Exception:
+                pass
+    return []
+
+
 CATEGORIES, COMPILED_RULES = load_compiled_rules()
+COMPILED_COMMANDS = load_command_dictionary()
 
 
 def get_error_guide_categories() -> list[dict[str, Any]]:
     return CATEGORIES
+
+
+def match_command_info(excerpt: str) -> dict[str, str] | None:
+    for cmd in COMPILED_COMMANDS:
+        if cmd.compiled_pattern.search(excerpt):
+            return {
+                "id": cmd.id,
+                "category": cmd.category,
+                "name_ko": cmd.name_ko,
+                "description": cmd.description,
+                "normal_condition": cmd.normal_condition,
+                "abnormal_condition": cmd.abnormal_condition,
+                "action_hint": cmd.action_hint,
+            }
+    return None
 
 
 def classify_event(event: Mapping[str, object]) -> IncidentRuleMatch | None:
