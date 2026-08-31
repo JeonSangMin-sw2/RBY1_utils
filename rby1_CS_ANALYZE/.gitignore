@@ -12,6 +12,8 @@ cases/
 *.log
 *.jsonl
 rby1-cs-analyzer-v4
+rby1-cs-analyzer-v5
+*.tar.gz
 
 frontend/node_modules/
 frontend/dist/

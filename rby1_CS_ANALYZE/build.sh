@@ -25,11 +25,19 @@ ARCH="$(uname -m)"
 PACKAGE_NAME="rby1-cs-analyzer-v5-linux-${ARCH}.tar.gz"
 tar -czvf "dist/${PACKAGE_NAME}" -C dist rby1-cs-analyzer-v5
 
+# 현재 루트 경로로 실행파일 및 압축본 복사 (바로 실행 및 전달 가능)
+cp dist/rby1-cs-analyzer-v5 ./rby1-cs-analyzer-v5
+cp "dist/${PACKAGE_NAME}" "./${PACKAGE_NAME}"
+chmod 755 ./rby1-cs-analyzer-v5
+
 echo ""
 echo "================================================================="
 echo "🎉 Build & Packaging Successful (V5)!"
-echo "  - Single Binary : dist/rby1-cs-analyzer-v5"
-echo "  - Release Archive: dist/${PACKAGE_NAME}"
+echo "  - Root Binary   : ./rby1-cs-analyzer-v5  (현재 폴더에서 바로 실행 가능)"
+echo "  - Root Archive  : ./${PACKAGE_NAME}"
+echo "  - Dist Backup   : dist/rby1-cs-analyzer-v5"
 echo "================================================================="
-echo "💡 다른 PC로 전달할 때는 'dist/${PACKAGE_NAME}' 파일을 전달하시면"
-echo "   압축 해제 시 chmod 없이 바로 실행 가능합니다."
+echo "💡 현재 경로에서 바로 './rby1-cs-analyzer-v5'를 실행하거나,"
+echo "   '${PACKAGE_NAME}' 파일을 다른 PC로 전달하여 사용하실 수 있습니다."
+
+
