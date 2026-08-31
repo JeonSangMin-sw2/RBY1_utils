@@ -10,7 +10,7 @@ if (-not (Test-Path $Launcher)) {
 
 $runtimeDir = Join-Path ([IO.Path]::GetTempPath()) ("rby1-onefile-smoke-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $runtimeDir | Out-Null
-$env:RBY1_CS_ANALYZER_V4_DATA_ROOT = Join-Path $runtimeDir "data"
+$env:RBY1_CS_ANALYZER_DATA_ROOT = Join-Path $runtimeDir "data"
 $env:http_proxy = "http://127.0.0.1:9"
 $env:https_proxy = "http://127.0.0.1:9"
 $env:no_proxy = "127.0.0.1,localhost,::1"

@@ -1,7 +1,7 @@
 {
-  "name": "rby1-cs-analyzer-v4-frontend",
+  "name": "rby1-cs-analyzer-v5-frontend",
   "private": true,
-  "version": "4.1.4",
+  "version": "5.0.0",
   "type": "module",
   "scripts": {
     "build": "tsc -b && vite build",

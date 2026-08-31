@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 import re
+import sqlite3
 from typing import Any
 
 from rby1_analyzer.storage.database import Database

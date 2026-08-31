@@ -98,7 +98,7 @@ def main() -> None:
             }
             if not required.issubset(paths):
                 raise SystemExit("self-test failed: API routes missing")
-        print("PASS: RB-Y1 CS Analyzer V4 launcher self-test")
+        print("PASS: RB-Y1 CS Analyzer V5 launcher self-test")
         return
     sock = socket.socket()
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -112,10 +112,10 @@ def main() -> None:
     )
     runtime = RuntimeContext(port, authority, CaseStore(settings.data_root), JobManager())
     url = f"http://127.0.0.1:{port}/#bootstrap={authority.bootstrap_token}"
-    print(f"\n=======================================================", flush=True)
-    print(f"  RB-Y1 CS Analyzer V4 Server running at:", flush=True)
+    print("\n=======================================================", flush=True)
+    print("  RB-Y1 CS Analyzer V5 Server running at:", flush=True)
     print(f"  {url}", flush=True)
-    print(f"=======================================================\n", flush=True)
+    print("=======================================================\n", flush=True)
     if not args.no_open_browser:
         open_standalone_ui(url)
     config = _server_config(create_app(runtime), settings.host, port)

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { ApiClient, exchangeBootstrap, ProgressRecord } from "./api";
 import { CsvAnalysis } from "./CsvAnalysis";
+import { DynamicsAnalysis } from "./DynamicsAnalysis";
 import { collectDroppedFiles, filterSupportedFiles } from "./dropFiles";
 import { confirmedLogMessage } from "./logText";
 import "./styles.css";
@@ -121,7 +122,7 @@ type WarningItem = { id: number; code: string; message: string; member_name?: st
 type JobProgress = { processed: number; total: number; percent: number };
 const UPLOAD_PROGRESS_SHARE = 10;
 type DisplayTime = { date: string; clock: string };
-type AnalysisTab = "incidents" | "csv";
+type AnalysisTab = "incidents" | "csv" | "dynamics";
 
 const SEVERITY_LABELS: Record<string, string> = {
   critical: "고심각도 오류",
@@ -739,7 +740,7 @@ export default function App() {
 
   const importDisabled = Boolean(busy || activeJob);
   if (!client) return <main className="sessionScreen">
-    <h1>RB-Y1 CS 로그 분석기 V4</h1>
+    <h1>RB-Y1 CS 로그 분석기 V5</h1>
     <p role="status">{error || (sessionChecked
       ? "보안 세션 정보가 없습니다. 설치된 분석기 실행 파일로 다시 시작하십시오."
       : "보안 로컬 세션을 연결하고 있습니다.")}</p>
@@ -755,7 +756,7 @@ export default function App() {
     {dragActive && <div className="dropOverlay" aria-hidden="true"><strong>여기에 파일 또는 폴더를 놓아 분석</strong><span>LOG · CSV · ZIP · TAR · TAR.GZ</span></div>}
     <header className="topbar">
       <div className="brandBlock">
-        <span className="versionMark">V4</span>
+        <span className="versionMark">V5</span>
         <div><p>LOCAL INCIDENT CONSOLE</p><h1>RB-Y1 CS 로그 분석기</h1></div>
       </div>
       <div className="topActions">
@@ -869,6 +870,7 @@ export default function App() {
       <nav className="analysisTabs" aria-label="분석 화면">
         <button className={activeTab === "incidents" ? "active" : ""} onClick={() => { setActiveTab("incidents"); setTimeout(() => window.dispatchEvent(new Event("resize")), 10); }}>사건 분석 (로그)</button>
         <button className={activeTab === "csv" ? "active" : ""} onClick={() => { setActiveTab("csv"); setTimeout(() => window.dispatchEvent(new Event("resize")), 10); }}>Fault CSV 분석 & 3D 시각화</button>
+        <button className={activeTab === "dynamics" ? "active" : ""} onClick={() => { setActiveTab("dynamics"); setTimeout(() => window.dispatchEvent(new Event("resize")), 10); }}>다이나믹스 분석</button>
       </nav>
       <div className="timelineExportActions">
         <a
@@ -1190,6 +1192,15 @@ export default function App() {
       </div>
       <div className={`tabContainer ${activeTab === "csv" ? "tabActive" : "tabHidden"}`}>
         <CsvAnalysis client={client} caseId={caseId} incidents={incidents} selectedArtifactId={selectedArtifactId} onSelectArtifactId={setSelectedArtifactId} />
+      </div>
+      <div className={`tabContainer ${activeTab === "dynamics" ? "tabActive" : "tabHidden"}`}>
+        <DynamicsAnalysis
+          api={client}
+          caseId={caseId}
+          activeArtifactId={selectedArtifactId ?? undefined}
+          availableCsvs={[]}
+          onSelectCsvArtifact={(id) => setSelectedArtifactId(id)}
+        />
       </div>
     </>}
   </main>;

@@ -16,6 +16,7 @@ def default_data_root(
     user_home = Path.home() if home is None else home
     configured = (
         environment.get("RBY1_CS_ANALYZER_DATA_ROOT")
+        or environment.get("RBY1_CS_ANALYZER_V5_DATA_ROOT")
         or environment.get("RBY1_CS_ANALYZER_V4_DATA_ROOT")
         or environment.get("RBY1_CS_ANALYZER_V3_DATA_ROOT")
         or environment.get("RBY1_CS_ANALYZER_V2_DATA_ROOT")
@@ -30,12 +31,12 @@ def default_data_root(
     if (Path.cwd() / "backend").is_dir() or (Path.cwd() / "data").is_dir():
         return Path.cwd() / "data"
 
-    # 2. 독립 배포 바이너리 환경에서는 V4 표준 전용 디렉터리 사용 (구버전 v2/v3 자동 참조 제거)
+    # 2. 독립 배포 바이너리 환경에서는 V5 표준 전용 디렉터리 사용
     if (os.name if platform_name is None else platform_name) == "nt":
         local_app_data = environment.get("LOCALAPPDATA")
         base = Path(local_app_data) if local_app_data else user_home / "AppData" / "Local"
-        return base / "RB-Y1 CS Analyzer V4"
-    return user_home / ".local" / "share" / "rby1-cs-analyzer-v4"
+        return base / "RB-Y1 CS Analyzer V5"
+    return user_home / ".local" / "share" / "rby1-cs-analyzer-v5"
 
 
 @dataclass(frozen=True, slots=True)

@@ -20,7 +20,7 @@ runtime_dir=$(mktemp -d)
 trap 'rm -rf "$runtime_dir"' EXIT
 chmod 700 "$runtime_dir"
 export XDG_RUNTIME_DIR="$runtime_dir"
-export RBY1_CS_ANALYZER_V4_DATA_ROOT="$runtime_dir/data"
+export RBY1_CS_ANALYZER_DATA_ROOT="$runtime_dir/data"
 
 log="$runtime_dir/launcher.log"
 "$launcher" --no-open-browser --port 0 >"$log" 2>&1 &
