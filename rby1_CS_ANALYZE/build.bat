@@ -7,7 +7,16 @@ echo ===================================================
 
 cd /d "%~dp0"
 
-:: 1. 가상환경 확인 및 생성
+:: 1. Python 버전 확인 (3.10 ~ 3.13 권장)
+python -c "import sys; sys.exit(0 if sys.version_info < (3, 14) else 1)" 2>nul
+if errorlevel 1 (
+    echo [WARNING] Python 3.14+ detected!
+    echo [WARNING] rby1-sdk prebuilt binary wheels support Python 3.10, 3.11, 3.12, 3.13.
+    echo [WARNING] If rby1-sdk build fails, please use Python 3.11 or 3.12.
+    echo.
+)
+
+:: 2. 가상환경 확인 및 생성
 if exist ".venv\Scripts\activate.bat" goto :activate_env
 
 echo [1/5] Creating virtual environment .venv...
@@ -22,27 +31,35 @@ if errorlevel 1 (
 echo [1/5] Activating virtual environment...
 call .venv\Scripts\activate.bat
 
-:: 2. 백엔드 의존성 및 rby1-sdk 설치
+:: 3. 백엔드 의존성 및 rby1-sdk 설치
 echo [2/5] Installing dependencies and rby1-sdk...
 python -m pip install --upgrade pip
 pip install -e ".[package]"
 if errorlevel 1 (
-    echo [WARNING] Package install had warnings, continuing...
+    echo [WARNING] Package install had warnings or rby1-sdk source build skipped.
+    echo [INFO] Continuing build...
 )
 
-:: 3. 프론트엔드 UI 빌드
-echo [3/5] Building Frontend UI...
-cd frontend
-call npm run build
-if errorlevel 1 (
-    echo [ERROR] Frontend build failed!
+:: 4. 프론트엔드 UI 빌드 (npm 존재 시 빌드, 부재 시 기존 dist 활용)
+echo [3/5] Checking Frontend UI build...
+where npm >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    echo [*] npm found. Building fresh Frontend UI...
+    cd frontend
+    call npm run build
     cd ..
-    pause
-    exit /b 1
+) else (
+    if exist "frontend\dist\index.html" (
+        echo [*] npm not found, but prebuilt frontend\dist exists. Using existing UI build.
+    ) else (
+        echo [ERROR] Neither npm nor frontend\dist was found!
+        echo [ERROR] Please install Node.js from https://nodejs.org/ to build the frontend.
+        pause
+        exit /b 1
+    )
 )
-cd ..
 
-:: 4. PyInstaller 단일 실행 파일(.exe) 빌드
+:: 5. PyInstaller 단일 실행 파일(.exe) 빌드
 echo [4/5] Building Windows Standalone Executable (.exe)...
 pyinstaller --clean --noconfirm --distpath dist --workpath build packaging\rby1-cs-analyzer-v5.spec
 if errorlevel 1 (
@@ -51,7 +68,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 5. 루트 디렉토리로 실행 파일 복사
+:: 6. 루트 디렉토리로 실행 파일 복사
 if exist "dist\rby1-cs-analyzer-v5.exe" (
     copy /y "dist\rby1-cs-analyzer-v5.exe" ".\rby1-cs-analyzer-v5.exe" >nul
 )
