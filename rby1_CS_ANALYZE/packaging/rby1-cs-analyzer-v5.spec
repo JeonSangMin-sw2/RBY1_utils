@@ -19,6 +19,8 @@ a = Analysis(
         "uvicorn.logging",
         "uvicorn.loops.auto",
         "uvicorn.protocols.http.auto",
+        "rby1_sdk",
+        "rby1_sdk.dynamics",
     ],
     hookspath=[],
     runtime_hooks=[],

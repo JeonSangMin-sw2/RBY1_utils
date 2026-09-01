@@ -269,6 +269,11 @@ class DynamicsEngine:
     ) -> dict[str, Any]:
         loaded = self.get_model(model_key)
         if not loaded:
+            if rd is None:
+                raise RuntimeError(
+                    "rby1_sdk.dynamics 라이브러리가 설치되어 있지 않아 다이나믹스 연산을 수행할 수 없습니다. "
+                    "윈도우 환경에 rby1_sdk wheel(.whl) 패키지 설치가 필요합니다."
+                )
             raise ValueError(f"Robot model not found: {model_key}")
 
         robot = loaded.robot
@@ -384,6 +389,11 @@ class DynamicsEngine:
         """Calculates trajectory-level inverse dynamics and compares actual vs theoretical values."""
         loaded = self.get_model(model_key or "")
         if not loaded:
+            if rd is None:
+                raise RuntimeError(
+                    "rby1_sdk.dynamics 라이브러리가 설치되어 있지 않아 다이나믹스 연산(이론 토크 및 중력 토크 계산)을 수행할 수 없습니다. "
+                    "윈도우 환경에 rby1_sdk wheel(.whl) 패키지를 설치해 주십시오."
+                )
             raise ValueError(f"Robot model not found: {model_key}")
 
         robot = loaded.robot

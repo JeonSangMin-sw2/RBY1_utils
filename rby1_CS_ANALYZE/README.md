@@ -42,48 +42,87 @@ rby1_CS_ANALYZE/
 
 - **Python**: `3.10` 이상
 - **Node.js**: `20.x` 이상 (LTS 권장)
+- **rby1-sdk**: 다이나믹스 분석(이론/중력 토크, 순기구학 연산)에 사용되며, PyPI(`rby1-sdk`)에서 Linux/Windows 바이너리 wheel이 자동 설치됩니다.
 
 ### 2. 가상환경 및 의존성 설치
 
+#### Linux / macOS
 ```bash
 # Python 가상환경 생성 및 활성화
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 백엔드/테스트/패키징 의존성 설치
+# 백엔드 및 의존성(rby1-sdk 포함), 프론트엔드 빌드
 pip install -e '.[test,package]'
-
-# 프론트엔드 의존성 설치 및 UI 빌드
 npm --prefix frontend ci
 npm --prefix frontend run build
+```
+
+#### Windows (PowerShell / CMD)
+```powershell
+# PowerShell 스크립트 실행 권한 허용 (필요 시 1회 실행)
+Set-ExecutionPolicy RemoteSigned -Scope Process
+
+# 가상환경 생성 및 활성화
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+
+# 백엔드 의존성(rby1-sdk 포함) 및 프론트엔드 빌드
+pip install -e ".[package]"
+cd frontend
+npm ci
+npm run build
+cd ..
 ```
 
 ### 3. 로컬 실행
 
 ```bash
-# 루트 실행 파일로 실행 (권장: Chrome/Chromium 앱 모드로 자동 실행)
+# 루트 실행 파일로 실행 (Chrome/Chromium 앱 모드로 자동 실행)
 python main.py
 
 # 브라우저 자동 실행 없이 URL만 출력할 경우
 python main.py --no-open-browser
 
-# 또는 모듈 직접 실행 시 (backend 경로 지정)
-PYTHONPATH=backend python -m rby1_analyzer.launcher
+# 또는 모듈 직접 실행 시
+python -m rby1_analyzer.launcher
 ```
 
 ---
 
-## 배포 패키지 빌드 (One-file 전용)
+## 배포 패키지 빌드 (One-file 단일 실행 바이너리)
 
-PyInstaller를 사용하여 별도의 Python/Node.js 환경이 없는 대상 PC에서도 바로 실행 가능한 **단일 독립 실행 파일 (One-file 바이너리)** 을 빌드합니다.
+PyInstaller를 사용하여 별도의 Python/Node.js 환경이 없는 대상 PC/로봇 제어기에서도 바로 실행 가능한 **단일 독립 실행 파일 (One-file 바이너리)** 을 빌드합니다. `rby1_sdk` C++ 동역학 엔진이 실행 파일 내부에 포함되어 빌드되므로, 타 PC에서 별도 설치 없이 바로 실행됩니다.
 
-### 🚀 원클릭 빌드 & 배포 패키징 (가장 간편한 방법)
-아래 스크립트를 실행하면 **UI 빌드 + Onefile 바이너리 빌드(`dist/rby1-cs-analyzer-v5`) + 실행 권한(0755) 부여 + tar.gz 압축**까지 한 번에 완료됩니다:
+### 🐧 1. Linux x86_64 (일반 PC / 노트북 / 서버)
 ```bash
 ./build.sh
 ```
-- **배포 산출물**: `dist/rby1-cs-analyzer-v5-linux-x86_64.tar.gz` 및 `dist/rby1-cs-analyzer-v5`
-- **배포 방법**: 생성된 단일 실행 파일 `rby1-cs-analyzer-v5` 또는 `.tar.gz` 파일 1개만 다른 PC로 전달하여 실행합니다.
+- **배포 산출물**: `dist/rby1-cs-analyzer-v5` 및 `dist/rby1-cs-analyzer-v5-linux-x86_64.tar.gz`
+- **실행**: `./rby1-cs-analyzer-v5`
+- **배포 방법**: 생성된 `.tar.gz` 또는 바이너리 1개만 대상 Linux PC로 복사하여 실행
+
+### 🤖 2. NVIDIA Jetson (ARM64 / aarch64 - Orin / Xavier 등 로봇 제어기)
+Jetson 환경(Ubuntu aarch64) 터미널에서 동일하게 빌드 스크립트를 실행합니다:
+```bash
+./build.sh
+```
+- **배포 산출물**: `dist/rby1-cs-analyzer-v5` 및 `dist/rby1-cs-analyzer-v5-linux-aarch64.tar.gz`
+- **특징**: `build.sh`가 시스템 아키텍처(`uname -m` = `aarch64`)를 자동 감지하여 Jetson 전용 ARM64 바이너리로 패키징합니다. (PyPI의 `rby1-sdk` aarch64 바이너리가 자동 번들링됨)
+- **실행**: `./rby1-cs-analyzer-v5`
+
+### 🪟 3. Windows (x64 PC / 노트북)
+윈도우 탐색기에서 **`build.bat`** 파일을 더블 클릭하거나, PowerShell에서 **`build.ps1`**을 실행합니다:
+```powershell
+# PowerShell에서 실행 시
+.\build.ps1
+
+# 또는 CMD에서 실행 시
+build.bat
+```
+- **배포 산출물**: `dist\rby1-cs-analyzer-v5.exe`
+- **특징**: PyPI에서 윈도우용 `rby1-sdk` 바이너리를 자동 다운로드/번들링하여 단일 `.exe`를 생성합니다.
+- **실행**: `rby1-cs-analyzer-v5.exe` 더블 클릭 (타 윈도우 PC로 `.exe` 파일만 복사하여 바로 실행 가능)
 
 ---
 
