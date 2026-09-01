@@ -16,7 +16,6 @@ rby1-cs-analyzer-v5
 *.tar.gz
 
 frontend/node_modules/
-frontend/dist/
 *.tsbuildinfo
 
 build/
