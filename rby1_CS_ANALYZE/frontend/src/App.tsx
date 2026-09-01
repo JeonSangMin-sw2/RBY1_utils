@@ -1187,354 +1187,393 @@ export default function App() {
           </section>
 
           <section className="incidentDetailPanel" aria-label="통합 플로우차트 및 사건 상세">
-            <div className="incidentDetailScrollWrapper">
-              {/* 1. Unified Flowchart Sits at the VERY TOP */}
-              <IncidentFlowchart
-                timeline={activeDayTimeline}
-                primaryEventId={selected?.primary_event_id}
-                incidentTitle={selected?.title ?? "통합 플로우차트"}
-                activeIncidentId={activeSelectedId}
-                focusTarget={flowchartFocusTarget}
-                currentDateLabel={selected ? formatCleanDate(incidentFullDate(selected)) : "해당 날짜"}
-                dayIncidents={selected ? (groupedByDate.find((g) => g.date === incidentFullDate(selected))?.items ?? []) : []}
-                onActiveIncidentChange={(id: string) => setSelectedId(id)}
-                selectedNodeId={selectedFlowNode?.id}
-                onSelectNode={(node) => setSelectedFlowNode(node)}
-              />
+            <div className="incidentDetailSplitLayout">
+              {/* Left Column: Vertical Flowchart */}
+              <div className="flowchartColumn">
+                <IncidentFlowchart
+                  timeline={activeDayTimeline}
+                  primaryEventId={selected?.primary_event_id}
+                  incidentTitle={selected?.title ?? "통합 플로우차트"}
+                  activeIncidentId={activeSelectedId}
+                  focusTarget={flowchartFocusTarget}
+                  currentDateLabel={selected ? formatCleanDate(incidentFullDate(selected)) : "해당 날짜"}
+                  dayIncidents={selected ? (groupedByDate.find((g) => g.date === incidentFullDate(selected))?.items ?? []) : []}
+                  onActiveIncidentChange={(id: string) => setSelectedId(id)}
+                  selectedNodeId={selectedFlowNode?.id}
+                  onSelectNode={(node) => setSelectedFlowNode(node)}
+                />
+              </div>
 
-              {/* 2. Below Flowchart: Dynamic Unified Action Plan / Command Inspector */}
-              {(() => {
-                const isCommandStep =
-                  selectedFlowNode &&
-                  selectedFlowNode.flow_role !== "root" &&
-                  selectedFlowNode.flow_role !== "fault" &&
-                  selectedFlowNode.flow_role !== "error" &&
-                  selectedFlowNode.severity !== "critical" &&
-                  selectedFlowNode.severity !== "error";
+              {/* Right Column: Status Descriptions, Command Meanings, Root Cause & Action Guide */}
+              <div className="detailDescriptionColumn">
+                {(() => {
+                  const isCommandStep =
+                    selectedFlowNode &&
+                    selectedFlowNode.flow_role !== "root" &&
+                    selectedFlowNode.flow_role !== "fault" &&
+                    selectedFlowNode.flow_role !== "error" &&
+                    selectedFlowNode.severity !== "critical" &&
+                    selectedFlowNode.severity !== "error";
 
-                // A: Normal Command Node Selected -> Show Command Execution & Response Details
-                if (isCommandStep && selectedFlowNode) {
-                  const nodeTime = selectedFlowNode.time_raw || wholeSecond(String(selectedFlowNode.time_value || ""));
-                  return (
-                    <div className="activeIncidentSection">
-                      <div className="selectedHeader">
-                        <div className={`severityPillar ${selectedFlowNode.flow_role === "upc" ? "badgeUpc" : "badgeRpc"}`}>
-                          <span>{selectedFlowNode.flow_role === "upc" ? "📡 UPC 제어 명령" : "⚡ RPC 처리"}</span>
-                        </div>
-                        <div>
-                          <p>
-                            시각: {nodeTime} · 컴포넌트: {selectedFlowNode.component || "-"}
-                            {selectedFlowNode.joint ? ` · 관절: ${selectedFlowNode.joint}` : ""}
-                            {selectedFlowNode.compact_rpc ? " · ✅ RPC 정상 처리 완료" : ""}
-                          </p>
-                          <h2>{selectedFlowNode.command_info?.name_ko || selectedFlowNode.component || "제어 명령"}</h2>
-                          <span>{selectedFlowNode.command_info?.category || selectedFlowNode.category || "Robot Control Command"}</span>
-                        </div>
-                        <div className="headerActions">
-                          <button
-                            type="button"
-                            className="textButton"
-                            onClick={() => void navigator.clipboard.writeText(selectedFlowNode.debug_excerpt || selectedFlowNode.info_excerpt || selectedFlowNode.excerpt)}
-                            title="로그 전문 복사"
-                          >
-                            📋 로그 복사
-                          </button>
-                        </div>
-                      </div>
+                  // A: Normal Command / Step Node Selected -> Show Command Execution & Response Details
+                  if (isCommandStep && selectedFlowNode) {
+                    const nodeTime = selectedFlowNode.time_raw || wholeSecond(String(selectedFlowNode.time_value || ""));
+                    const roleBadgeLabel =
+                      selectedFlowNode.flow_role === "upc"
+                        ? "📡 UPC 제어 명령"
+                        : selectedFlowNode.flow_role === "rpc"
+                        ? "⚡ RPC 처리 응답"
+                        : selectedFlowNode.flow_role === "reaction"
+                        ? "🛡️ 보호 반응 (Reaction)"
+                        : selectedFlowNode.flow_role === "csv_dump"
+                        ? "💾 Fault CSV 저장"
+                        : selectedFlowNode.flow_role === "warning"
+                        ? "⏱️ 경고 / 루프 지연"
+                        : "ℹ️ 일반 상태 로그";
 
-                      <div className="incidentActionPlanGrid">
-                        {/* Left Card: Command Meaning & Normal Condition */}
-                        <div className="actionPlanCard commandInfoCard">
-                          <div className="actionPlanCardHeader">
-                            <span className="cardIcon">⚙️</span>
-                            <div>
-                              <h3>동작 및 커맨드 의미</h3>
-                              <span>명령의 기능 및 정상 동작 조건</span>
-                            </div>
+                    const roleClass =
+                      selectedFlowNode.flow_role === "upc"
+                        ? "badgeUpc"
+                        : selectedFlowNode.flow_role === "rpc"
+                        ? "badgeRpc"
+                        : selectedFlowNode.flow_role === "reaction"
+                        ? "badgeReaction"
+                        : selectedFlowNode.flow_role === "csv_dump"
+                        ? "badgeCsv"
+                        : selectedFlowNode.flow_role === "warning"
+                        ? "badgeWarning"
+                        : "badgeContext";
+
+                    const defaultDescription =
+                      selectedFlowNode.flow_role === "csv_dump"
+                        ? "로봇 시스템에서 비정상 상태 감지 후 정밀 진단용 Fault CSV 파일 저장을 완료하였습니다."
+                        : selectedFlowNode.flow_role === "reaction"
+                        ? "로봇 컨트롤러에서 시스템 보호를 위해 즉각적인 보호 반응(Reaction)을 실행하였습니다."
+                        : selectedFlowNode.flow_role === "warning"
+                        ? "제어 주기 지연 또는 시스템 경고 이벤트가 발생하였습니다."
+                        : "상위 제어기(UPC)에서 로봇 서비스로 제어 명령을 송신하였습니다.";
+
+                    return (
+                      <div className="activeIncidentSection">
+                        <div className="selectedHeader">
+                          <div className={`severityPillar ${roleClass}`}>
+                            <span>{roleBadgeLabel}</span>
                           </div>
-                          <div className="actionPlanCardBody">
-                            <div className="commandHighlightBox">
-                              <strong>📌 동작 설명:</strong>
-                              <p>{selectedFlowNode.command_info?.description || "상위 PC에서 로봇 제어 명령을 송신하였습니다."}</p>
-                            </div>
-                            {selectedFlowNode.command_info?.normal_condition && (
-                              <div className="confidenceReasonBox" style={{ borderColor: "rgba(34, 197, 94, 0.3)", background: "rgba(34, 197, 94, 0.06)" }}>
-                                <strong style={{ color: "#4ade80" }}>✅ 정상 동작 조건:</strong>
-                                <p style={{ marginTop: 4 }}>{selectedFlowNode.command_info.normal_condition}</p>
+                          <div>
+                            <p>
+                              시각: {nodeTime} · 컴포넌트: {selectedFlowNode.component || "-"}
+                              {selectedFlowNode.joint ? ` · 관절: ${selectedFlowNode.joint}` : ""}
+                              {selectedFlowNode.compact_rpc ? " · ✅ RPC 정상 처리 완료" : ""}
+                            </p>
+                            <h2>{selectedFlowNode.command_info?.name_ko || selectedFlowNode.component || "제어 명령 / 상태 로그"}</h2>
+                            <span>{selectedFlowNode.command_info?.category || selectedFlowNode.category || "Robot Control Event"}</span>
+                          </div>
+                          <div className="headerActions">
+                            <button
+                              type="button"
+                              className="textButton"
+                              onClick={() => void navigator.clipboard.writeText(selectedFlowNode.debug_excerpt || selectedFlowNode.info_excerpt || selectedFlowNode.excerpt)}
+                              title="로그 전문 복사"
+                            >
+                              📋 로그 복사
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="incidentActionPlanGrid">
+                          {/* Left Card: Command Meaning & Normal Condition */}
+                          <div className="actionPlanCard commandInfoCard">
+                            <div className="actionPlanCardHeader">
+                              <span className="cardIcon">⚙️</span>
+                              <div>
+                                <h3>동작 및 커맨드 상태 설명</h3>
+                                <span>명령의 기능 및 정상 동작 조건</span>
                               </div>
-                            )}
-                            {selectedFlowNode.command_info?.action_hint && (
-                              <div className="confidenceReasonBox">
-                                <small>💡 <strong>점검 팁:</strong> {selectedFlowNode.command_info.action_hint}</small>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Right Card: Abnormal Condition & Raw Logs */}
-                        <div className="actionPlanCard stepByStepCard">
-                          <div className="actionPlanCardHeader">
-                            <span className="cardIcon">🔍</span>
-                            <div>
-                              <h3>이상 발생 기준 및 실행 로그</h3>
-                              <span>문제 발생 조건 및 원본 통신 패킷</span>
                             </div>
-                          </div>
-                          <div className="actionPlanCardBody">
-                            {selectedFlowNode.command_info?.abnormal_condition && (
-                              <div className="actionStepBlock" style={{ borderColor: "rgba(239, 68, 68, 0.3)", background: "rgba(239, 68, 68, 0.05)" }}>
-                                <div className="stepBlockHeader">
-                                  <span className="stepNumber" style={{ background: "#ef4444" }}>주의</span>
-                                  <strong style={{ color: "#f87171" }}>문제 발생 / 이상 감지 기준</strong>
+                            <div className="actionPlanCardBody">
+                              <div className="commandHighlightBox">
+                                <strong>📌 동작 설명:</strong>
+                                <p>{selectedFlowNode.command_info?.description || defaultDescription}</p>
+                              </div>
+                              {selectedFlowNode.command_info?.normal_condition && (
+                                <div className="confidenceReasonBox" style={{ borderColor: "rgba(34, 197, 94, 0.3)", background: "rgba(34, 197, 94, 0.06)" }}>
+                                  <strong style={{ color: "#4ade80" }}>✅ 정상 동작 조건:</strong>
+                                  <p style={{ marginTop: 4 }}>{selectedFlowNode.command_info.normal_condition}</p>
                                 </div>
-                                <p style={{ margin: "6px 0 0 0", fontSize: "12.5px" }}>{selectedFlowNode.command_info.abnormal_condition}</p>
-                              </div>
-                            )}
+                              )}
+                              {selectedFlowNode.command_info?.action_hint && (
+                                <div className="confidenceReasonBox">
+                                  <small>💡 <strong>점검 팁:</strong> {selectedFlowNode.command_info.action_hint}</small>
+                                </div>
+                              )}
+                            </div>
+                          </div>
 
-                            {selectedFlowNode.debug_excerpt && selectedFlowNode.info_excerpt ? (
-                              <>
-                                <div className="actionStepBlock" style={{ marginTop: 8 }}>
+                          {/* Right Card: Abnormal Condition & Raw Logs */}
+                          <div className="actionPlanCard stepByStepCard">
+                            <div className="actionPlanCardHeader">
+                              <span className="cardIcon">🔍</span>
+                              <div>
+                                <h3>이상 감지 기준 및 실행 로그</h3>
+                                <span>문제 발생 조건 및 원본 통신 패킷</span>
+                              </div>
+                            </div>
+                            <div className="actionPlanCardBody">
+                              {selectedFlowNode.command_info?.abnormal_condition && (
+                                <div className="actionStepBlock" style={{ borderColor: "rgba(239, 68, 68, 0.3)", background: "rgba(239, 68, 68, 0.05)" }}>
                                   <div className="stepBlockHeader">
-                                    <span className="stepNumber" style={{ background: "#3b82f6" }}>DEBUG</span>
-                                    <strong>📡 제어 요청 패킷 (gRPC Payload)</strong>
+                                    <span className="stepNumber" style={{ background: "#ef4444" }}>주의</span>
+                                    <strong style={{ color: "#f87171" }}>문제 발생 / 이상 감지 기준</strong>
                                   </div>
-                                  <pre className="rawLogBox" style={{ maxHeight: 120, margin: "6px 0 0 0" }}>
-                                    <code>{selectedFlowNode.debug_excerpt}</code>
-                                  </pre>
+                                  <p style={{ margin: "6px 0 0 0", fontSize: "12.5px" }}>{selectedFlowNode.command_info.abnormal_condition}</p>
                                 </div>
-                                <div className="actionStepBlock" style={{ marginTop: 8 }}>
-                                  <div className="stepBlockHeader">
-                                    <span className="stepNumber" style={{ background: "#10b981" }}>INFO</span>
-                                    <strong>⚡ 서비스 처리 완료 (Service Response)</strong>
-                                  </div>
-                                  <pre className="rawLogBox" style={{ maxHeight: 120, margin: "6px 0 0 0" }}>
-                                    <code>{selectedFlowNode.info_excerpt}</code>
-                                  </pre>
-                                </div>
-                              </>
-                            ) : (
-                              <div className="actionStepBlock" style={{ marginTop: 8 }}>
-                                <div className="stepBlockHeader">
-                                  <span className="stepNumber">LOG</span>
-                                  <strong>원본 로그 전문</strong>
-                                </div>
-                                <pre className="rawLogBox" style={{ maxHeight: 160, margin: "6px 0 0 0" }}>
-                                  <code>{selectedFlowNode.excerpt}</code>
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
+                              )}
 
-                // B: Error / Fault Incident Selected -> Show Full Root Cause & Action Plan
-                if (selected) {
-                  const primary = detail?.evidence.find((item) => item.id === detail.incident.primary_event_id) ?? detail?.evidence[0];
-                  const primaryExcerpt = selectedFlowNode?.excerpt || primary?.excerpt || selected.start_raw || selected.summary;
-                  const primarySource = selectedFlowNode?.source_name && selectedFlowNode?.line
-                    ? `${selectedFlowNode.source_name}${selectedFlowNode.member_name ? `!/${selectedFlowNode.member_name}` : ""}:${selectedFlowNode.line}`
-                    : (primary
-                      ? `${primary.source_name}${primary.member_name ? `!/${primary.member_name}` : ""}:${primary.line}`
-                      : undefined);
-
-                  return (
-                    <div className="activeIncidentSection">
-                      {/* Selected Error Header / Classification Bar */}
-                      <div className="selectedHeader">
-                        <div className={`severityPillar ${incidentVisualClass(selected)}`}>
-                          <span>{incidentBadge(selected)}</span>
-                        </div>
-                        <div>
-                          <p>{rangeText(selected)} · 핵심 근거 {selected.event_count}건{detail ? ` · 타임라인 로그 ${incidentTimeline.length}건` : ""}</p>
-                          <h2>{selected.title}</h2>
-                          <span>{assets(selected)}</span>
-                        </div>
-                        <div className="headerActions">
-                          <button type="button" className="textButton" onClick={() => void copyPrimaryCitation()}>
-                            📋 근거 복사
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Action Plan & Root Cause Section */}
-                      <div className="incidentActionPlanGrid">
-                        {/* Left: Root Cause Analysis Card */}
-                        <div className="actionPlanCard rootCauseCard">
-                          <div className="actionPlanCardHeader">
-                            <span className="cardIcon">🔍</span>
-                            <div>
-                              <h3>에러 발생 원인 분석</h3>
-                              <span>원인 추정 및 진단 신뢰도: {CONFIDENCE_LABELS[selected.confidence] ?? selected.confidence}</span>
-                            </div>
-                          </div>
-
-                          <div className="actionPlanCardBody">
-                            <div className="causeHighlightBox">
-                              <strong>📌 발생 장애 개요:</strong>
-                              <p>{selected.meaning || selected.primary_cause || "장애 로그가 감지되었습니다."}</p>
-                            </div>
-
-                            {primaryExcerpt && (
-                              <div className="rawLogHighlightBox">
-                                <div className="rawLogHeader">
-                                  <span className="rawLogTitle">📄 감지된 에러 원본 로그</span>
-                                  {primarySource && <span className="rawLogSource">{primarySource}</span>}
-                                </div>
-                                <pre className="rawLogExcerpt">
-                                  <code>{primaryExcerpt}</code>
-                                </pre>
-                              </div>
-                            )}
-
-                            {detail?.hypotheses && detail.hypotheses.length > 0 ? (
-                              <div className="hypothesisSection">
-                                <span className="sectionSubtitle">가능한 원인 후보 (우선순위 순):</span>
-                                <ul className="hypothesisList">
-                                  {detail.hypotheses.map((item) => (
-                                    <li key={`${item.rank}-${item.text}`}>
-                                      <span className="rankBadge">순위 {item.rank}</span>
-                                      <div>
-                                        <strong>{item.text}</strong>
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : (
-                              <p className="muted">현재 근거로 제시할 원인 후보가 없습니다.</p>
-                            )}
-
-                            {selected.confidence_reason && (
-                              <div className="confidenceReasonBox">
-                                <small>💡 <strong>진단 근거:</strong> {selected.confidence_reason}</small>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Right: Step-by-Step Action Plan & Remedies Card */}
-                        <div className="actionPlanCard stepByStepCard">
-                          <div className="actionPlanCardHeader">
-                            <span className="cardIcon">🛠️</span>
-                            <div>
-                              <h3>단계별 해결 및 점검 가이드 (Action Plan)</h3>
-                              <span>현장 엔지니어를 위한 점검 순서 및 복구 방안</span>
-                            </div>
-                          </div>
-
-                          <div className="actionPlanCardBody">
-                            {/* Step 1: Checks */}
-                            {detail?.checks && detail.checks.length > 0 && (
-                              <div className="actionStepBlock">
-                                <div className="stepBlockHeader">
-                                  <span className="stepNumber">STEP 1</span>
-                                  <strong>현장 점검 항목 (Checklist)</strong>
-                                </div>
-                                <ol className="actionStepList">
-                                  {detail.checks.map((item) => (
-                                    <li key={`${item.priority}-${item.text}`}>
-                                      <span className="actionItemPriority">점검 {item.priority}</span>
-                                      <p>{item.text}</p>
-                                    </li>
-                                  ))}
-                                </ol>
-                              </div>
-                            )}
-
-                            {/* Step 2: Remedies */}
-                            {detail?.remedies && detail.remedies.length > 0 && (
-                              <div className="actionStepBlock remedyBlock">
-                                <div className="stepBlockHeader">
-                                  <span className="stepNumber remedyStepNumber">STEP 2</span>
-                                  <strong>문제 해결 및 복구 조치 (Remedies)</strong>
-                                </div>
-                                <ol className="actionStepList">
-                                  {detail.remedies.map((item) => (
-                                    <li key={`${item.priority}-${item.text}`}>
-                                      <span className="actionItemPriority remedyPriority">조치 {item.priority}</span>
-                                      <p>{item.text}</p>
-                                    </li>
-                                  ))}
-                                </ol>
-                              </div>
-                            )}
-
-                            {/* Step 3: Evidence Gaps */}
-                            {detail?.evidence_gaps && detail.evidence_gaps.length > 0 && (
-                              <div className="actionStepBlock gapBlock">
-                                <div className="stepBlockHeader">
-                                  <span className="stepNumber gapStepNumber">참고</span>
-                                  <strong>추가 점검이 필요한 항목</strong>
-                                </div>
-                                <ul className="gapList">
-                                  {detail.evidence_gaps.map((item) => (
-                                    <li key={item.text}>{item.text}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {/* Step 4: Linked Fault CSV */}
-                            {detail?.csv_links && detail.csv_links.length > 0 && (
-                              <div className="actionStepBlock csvBlock">
-                                <div className="stepBlockHeader">
-                                  <span className="stepNumber csvStepNumber">CSV</span>
-                                  <strong>연계된 Fault CSV 데이터 정밀 분석</strong>
-                                </div>
-                                <div className="linkedCsvList">
-                                  {detail.csv_links.map((link) => (
-                                    <div key={link.artifact_id} className="linkedCsvItem">
-                                      <div className="csvInfo">
-                                        <strong>📄 {link.original_name}</strong>
-                                        <span>
-                                          ({link.delta_seconds >= 0 ? `+${link.delta_seconds.toFixed(2)}s` : `${link.delta_seconds.toFixed(2)}s`}, {link.reason})
-                                        </span>
-                                      </div>
-                                      <div className="csvButtonActions">
-                                        <button
-                                          type="button"
-                                          className="textButton primary smallBtn"
-                                          onClick={() => {
-                                            setSelectedArtifactId(link.artifact_id);
-                                            setActiveTab("csv");
-                                          }}
-                                          title="이 CSV 파일의 시계열 플롯 그래프 탭으로 이동합니다"
-                                        >
-                                          📈 Plot & 시각화 열기
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="textButton smallBtn"
-                                          onClick={() => {
-                                            setSelectedArtifactId(link.artifact_id);
-                                            setActiveTab("dynamics");
-                                          }}
-                                          title="이 CSV 파일의 동역학 분석 탭으로 이동합니다"
-                                        >
-                                          🦾 다이나믹스 분석 열기
-                                        </button>
-                                      </div>
+                              {selectedFlowNode.debug_excerpt && selectedFlowNode.info_excerpt ? (
+                                <>
+                                  <div className="actionStepBlock" style={{ marginTop: 8 }}>
+                                    <div className="stepBlockHeader">
+                                      <span className="stepNumber" style={{ background: "#3b82f6" }}>DEBUG</span>
+                                      <strong>📡 제어 요청 패킷 (gRPC Payload)</strong>
                                     </div>
-                                  ))}
+                                    <pre className="rawLogBox" style={{ maxHeight: 120, margin: "6px 0 0 0" }}>
+                                      <code>{selectedFlowNode.debug_excerpt}</code>
+                                    </pre>
+                                  </div>
+                                  <div className="actionStepBlock" style={{ marginTop: 8 }}>
+                                    <div className="stepBlockHeader">
+                                      <span className="stepNumber" style={{ background: "#10b981" }}>INFO</span>
+                                      <strong>⚡ 서비스 처리 완료 (Service Response)</strong>
+                                    </div>
+                                    <pre className="rawLogBox" style={{ maxHeight: 120, margin: "6px 0 0 0" }}>
+                                      <code>{selectedFlowNode.info_excerpt}</code>
+                                    </pre>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="actionStepBlock" style={{ marginTop: 8 }}>
+                                  <div className="stepBlockHeader">
+                                    <span className="stepNumber">LOG</span>
+                                    <strong>원본 로그 전문</strong>
+                                  </div>
+                                  <pre className="rawLogBox" style={{ maxHeight: 160, margin: "6px 0 0 0" }}>
+                                    <code>{selectedFlowNode.excerpt}</code>
+                                  </pre>
                                 </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                }
+                    );
+                  }
 
-                return (
-                  <div className="panelEmpty">플로우차트 또는 왼쪽 목록에서 장애 사건을 선택하면 분류 및 조치 가이드가 표시됩니다.</div>
-                );
-              })()}
-          </div>
-        </section>
+                  // B: Error / Fault Incident Selected -> Show Full Root Cause & Action Plan
+                  if (selected) {
+                    const primary = detail?.evidence.find((item) => item.id === detail.incident.primary_event_id) ?? detail?.evidence[0];
+                    const primaryExcerpt = selectedFlowNode?.excerpt || primary?.excerpt || selected.start_raw || selected.summary;
+                    const primarySource = selectedFlowNode?.source_name && selectedFlowNode?.line
+                      ? `${selectedFlowNode.source_name}${selectedFlowNode.member_name ? `!/${selectedFlowNode.member_name}` : ""}:${selectedFlowNode.line}`
+                      : (primary
+                        ? `${primary.source_name}${primary.member_name ? `!/${primary.member_name}` : ""}:${primary.line}`
+                        : undefined);
+
+                    return (
+                      <div className="activeIncidentSection">
+                        {/* Selected Error Header / Classification Bar */}
+                        <div className="selectedHeader">
+                          <div className={`severityPillar ${incidentVisualClass(selected)}`}>
+                            <span>{incidentBadge(selected)}</span>
+                          </div>
+                          <div>
+                            <p>{rangeText(selected)} · 핵심 근거 {selected.event_count}건{detail ? ` · 타임라인 로그 ${incidentTimeline.length}건` : ""}</p>
+                            <h2>{selected.title}</h2>
+                            <span>{assets(selected)}</span>
+                          </div>
+                          <div className="headerActions">
+                            <button type="button" className="textButton" onClick={() => void copyPrimaryCitation()}>
+                              📋 근거 복사
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Action Plan & Root Cause Section */}
+                        <div className="incidentActionPlanGrid">
+                          {/* Left: Root Cause Analysis Card */}
+                          <div className="actionPlanCard rootCauseCard">
+                            <div className="actionPlanCardHeader">
+                              <span className="cardIcon">🔍</span>
+                              <div>
+                                <h3>에러 발생 원인 분석</h3>
+                                <span>원인 추정 및 진단 신뢰도: {CONFIDENCE_LABELS[selected.confidence] ?? selected.confidence}</span>
+                              </div>
+                            </div>
+
+                            <div className="actionPlanCardBody">
+                              <div className="causeHighlightBox">
+                                <strong>📌 발생 장애 개요:</strong>
+                                <p>{selected.meaning || selected.primary_cause || "장애 로그가 감지되었습니다."}</p>
+                              </div>
+
+                              {primaryExcerpt && (
+                                <div className="rawLogHighlightBox">
+                                  <div className="rawLogHeader">
+                                    <span className="rawLogTitle">📄 감지된 에러 원본 로그</span>
+                                    {primarySource && <span className="rawLogSource">{primarySource}</span>}
+                                  </div>
+                                  <pre className="rawLogExcerpt">
+                                    <code>{primaryExcerpt}</code>
+                                  </pre>
+                                </div>
+                              )}
+
+                              {detail?.hypotheses && detail.hypotheses.length > 0 ? (
+                                <div className="hypothesisSection">
+                                  <span className="sectionSubtitle">가능한 원인 후보 (우선순위 순):</span>
+                                  <ul className="hypothesisList">
+                                    {detail.hypotheses.map((item) => (
+                                      <li key={`${item.rank}-${item.text}`}>
+                                        <span className="rankBadge">순위 {item.rank}</span>
+                                        <div>
+                                          <strong>{item.text}</strong>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : (
+                                <p className="muted">현재 근거로 제시할 원인 후보가 없습니다.</p>
+                              )}
+
+                              {selected.confidence_reason && (
+                                <div className="confidenceReasonBox">
+                                  <small>💡 <strong>진단 근거:</strong> {selected.confidence_reason}</small>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Right: Step-by-Step Action Plan & Remedies Card */}
+                          <div className="actionPlanCard stepByStepCard">
+                            <div className="actionPlanCardHeader">
+                              <span className="cardIcon">🛠️</span>
+                              <div>
+                                <h3>단계별 해결 및 점검 가이드 (Action Plan)</h3>
+                                <span>현장 엔지니어를 위한 점검 순서 및 복구 방안</span>
+                              </div>
+                            </div>
+
+                            <div className="actionPlanCardBody">
+                              {/* Step 1: Checks */}
+                              {detail?.checks && detail.checks.length > 0 && (
+                                <div className="actionStepBlock">
+                                  <div className="stepBlockHeader">
+                                    <span className="stepNumber">STEP 1</span>
+                                    <strong>현장 점검 항목 (Checklist)</strong>
+                                  </div>
+                                  <ol className="actionStepList">
+                                    {detail.checks.map((item) => (
+                                      <li key={`${item.priority}-${item.text}`}>
+                                        <span className="actionItemPriority">점검 {item.priority}</span>
+                                        <p>{item.text}</p>
+                                      </li>
+                                    ))}
+                                  </ol>
+                                </div>
+                              )}
+
+                              {/* Step 2: Remedies */}
+                              {detail?.remedies && detail.remedies.length > 0 && (
+                                <div className="actionStepBlock remedyBlock">
+                                  <div className="stepBlockHeader">
+                                    <span className="stepNumber remedyStepNumber">STEP 2</span>
+                                    <strong>문제 해결 및 복구 조치 (Remedies)</strong>
+                                  </div>
+                                  <ol className="actionStepList">
+                                    {detail.remedies.map((item) => (
+                                      <li key={`${item.priority}-${item.text}`}>
+                                        <span className="actionItemPriority remedyPriority">조치 {item.priority}</span>
+                                        <p>{item.text}</p>
+                                      </li>
+                                    ))}
+                                  </ol>
+                                </div>
+                              )}
+
+                              {/* Step 3: Evidence Gaps */}
+                              {detail?.evidence_gaps && detail.evidence_gaps.length > 0 && (
+                                <div className="actionStepBlock gapBlock">
+                                  <div className="stepBlockHeader">
+                                    <span className="stepNumber gapStepNumber">참고</span>
+                                    <strong>추가 점검이 필요한 항목</strong>
+                                  </div>
+                                  <ul className="gapList">
+                                    {detail.evidence_gaps.map((item) => (
+                                      <li key={item.text}>{item.text}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Step 4: Linked Fault CSV */}
+                              {detail?.csv_links && detail.csv_links.length > 0 && (
+                                <div className="actionStepBlock csvBlock">
+                                  <div className="stepBlockHeader">
+                                    <span className="stepNumber csvStepNumber">CSV</span>
+                                    <strong>연계된 Fault CSV 데이터 정밀 분석</strong>
+                                  </div>
+                                  <div className="linkedCsvList">
+                                    {detail.csv_links.map((link) => (
+                                      <div key={link.artifact_id} className="linkedCsvItem">
+                                        <div className="csvInfo">
+                                          <strong>📄 {link.original_name}</strong>
+                                          <span>
+                                            ({link.delta_seconds >= 0 ? `+${link.delta_seconds.toFixed(2)}s` : `${link.delta_seconds.toFixed(2)}s`}, {link.reason})
+                                          </span>
+                                        </div>
+                                        <div className="csvButtonActions">
+                                          <button
+                                            type="button"
+                                            className="textButton primary smallBtn"
+                                            onClick={() => {
+                                              setSelectedArtifactId(link.artifact_id);
+                                              setActiveTab("csv");
+                                            }}
+                                            title="이 CSV 파일의 시계열 플롯 그래프 탭으로 이동합니다"
+                                          >
+                                            📈 Plot & 시각화 열기
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="textButton smallBtn"
+                                            onClick={() => {
+                                              setSelectedArtifactId(link.artifact_id);
+                                              setActiveTab("dynamics");
+                                            }}
+                                            title="이 CSV 파일의 동역학 분석 탭으로 이동합니다"
+                                          >
+                                            🦾 다이나믹스 분석 열기
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="panelEmpty">플로우차트 또는 왼쪽 목록에서 장애 사건을 선택하면 분류 및 조치 가이드가 표시됩니다.</div>
+                  );
+                })()}
+              </div>
+            </div>
+          </section>
         </div>
       </div>
       <div className={`tabContainer ${activeTab === "csv" ? "tabActive" : "tabHidden"}`}>

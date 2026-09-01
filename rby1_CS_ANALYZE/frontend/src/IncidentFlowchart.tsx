@@ -203,10 +203,10 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
 
   const activeNodeId = selectedNodeId ?? internalSelectedNodeId;
 
-  // Drag-to-scroll state
+  // Drag-to-scroll state (Vertical)
   const isPointerDownRef = useRef(false);
-  const dragStartXRef = useRef(0);
-  const scrollStartLeftRef = useRef(0);
+  const dragStartYRef = useRef(0);
+  const scrollStartTopRef = useRef(0);
   const hasDraggedRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -250,7 +250,7 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
     }
   }, [focusTarget, primaryEventId, filteredTimeline]);
 
-  // ONLY center/scroll when explicit focusTarget changes (i.e. user clicks left list or focus button)
+  // ONLY center/scroll vertically when explicit focusTarget changes (i.e. user clicks left list or focus button)
   useEffect(() => {
     if (!focusTarget?.incidentId) return;
     const targetId = focusTarget.incidentId;
@@ -258,19 +258,19 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
                document.getElementById(`flow-node-inc-${targetId}`);
     if (el && scrollContainerRef.current) {
       isProgrammaticScrollRef.current = true;
-      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
       window.setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, 500);
     }
   }, [focusTarget]);
 
-  // Synchronize active incident strictly when dragging finishes / mouse is released
+  // Synchronize active incident strictly when dragging finishes / mouse is released vertically
   const syncActiveIncident = useCallback(() => {
     if (isProgrammaticScrollRef.current || !scrollContainerRef.current) return;
     const container = scrollContainerRef.current;
     const containerRect = container.getBoundingClientRect();
-    const centerX = containerRect.left + containerRect.width / 2;
+    const centerY = containerRect.top + containerRect.height / 2;
 
     const nodeElements = container.querySelectorAll<HTMLElement>("[data-incident-id]");
     let closestIncidentId: string | null = null;
@@ -278,8 +278,8 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
 
     nodeElements.forEach((el) => {
       const rect = el.getBoundingClientRect();
-      const nodeCenterX = rect.left + rect.width / 2;
-      const dist = Math.abs(nodeCenterX - centerX);
+      const nodeCenterY = rect.top + rect.height / 2;
+      const dist = Math.abs(nodeCenterY - centerY);
       if (dist < minDistance) {
         minDistance = dist;
         closestIncidentId = el.getAttribute("data-incident-id");
@@ -322,8 +322,8 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
     if (!scrollContainerRef.current) return;
     isPointerDownRef.current = true;
     hasDraggedRef.current = false;
-    dragStartXRef.current = e.clientX;
-    scrollStartLeftRef.current = scrollContainerRef.current.scrollLeft;
+    dragStartYRef.current = e.clientY;
+    scrollStartTopRef.current = scrollContainerRef.current.scrollTop;
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -332,8 +332,8 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
       handlePointerUp();
       return;
     }
-    const dx = e.clientX - dragStartXRef.current;
-    if (Math.abs(dx) > 5) {
+    const dy = e.clientY - dragStartYRef.current;
+    if (Math.abs(dy) > 5) {
       if (!hasDraggedRef.current) {
         hasDraggedRef.current = true;
         try {
@@ -343,7 +343,7 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
         }
       }
       if (!isDragging) setIsDragging(true);
-      scrollContainerRef.current.scrollLeft = scrollStartLeftRef.current - dx;
+      scrollContainerRef.current.scrollTop = scrollStartTopRef.current - dy;
     }
   };
 
@@ -361,7 +361,7 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
                document.getElementById(`flow-node-inc-${activeIncidentId}`);
     if (el && scrollContainerRef.current) {
       isProgrammaticScrollRef.current = true;
-      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
       window.setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, 500);
@@ -383,11 +383,11 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
       <div className="flowchartToolbar">
         <div className="flowchartToolbarLeft">
           <span className="flowchartTitle">
-            🔄 <strong>{currentDateLabel ? `${currentDateLabel} 통합 플로우차트` : "통합 장애 발생 순서 흐름도"}</strong>
+            🔄 <strong>{currentDateLabel ? `${currentDateLabel} 플로우차트` : "장애 발생 순서 흐름도"}</strong>
           </span>
           {dayIncidents.length > 0 && (
             <span className="dayIncidentTotalBadge">
-              총 {dayIncidents.length}건 사건 연결
+              총 {dayIncidents.length}건
             </span>
           )}
         </div>
@@ -399,7 +399,7 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
             onClick={scrollToActiveRootCause}
             title="현재 선택된 사건의 에러 발생 위치로 즉시 이동합니다"
           >
-            🎯 선택 사건 에러 발생 위치로 이동
+            🎯 에러 위치
           </button>
 
           <div className="flowchartFilterToggle" role="group" aria-label="플로우차트 표시 모드">
@@ -409,7 +409,7 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
               onClick={() => setFilterMode("summary")}
               title="UPC/RPC 명령, 오류, 상태전환 단계만 요약하여 표시"
             >
-              주요 인과 흐름 ({filteredTimeline.length})
+              주요 인과 ({filteredTimeline.length})
             </button>
             <button
               type="button"
@@ -417,15 +417,15 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
               onClick={() => setFilterMode("all")}
               title="해당 날짜 전체 시계열 로그 표시"
             >
-              전체 로그 ({timeline.length})
+              전체 ({timeline.length})
             </button>
           </div>
         </div>
       </div>
 
-      {/* Horizontal Flow Track with Drag-to-Scroll */}
+      {/* Vertical Flow Track with Drag-to-Scroll & Mouse Wheel */}
       <div
-        className={`flowchartScrollWrapper ${isDragging ? "isDraggingFlowchart" : ""}`}
+        className={`flowchartScrollWrapper flowchartVerticalWrapper ${isDragging ? "isDraggingFlowchart" : ""}`}
         ref={scrollContainerRef}
         onScroll={handleScroll}
         onPointerDown={handlePointerDown}
@@ -433,7 +433,7 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        <div className="flowchartTrack">
+        <div className="flowchartTrack flowchartVerticalTrack">
           {filteredTimeline.length === 0 ? (
             <div className="flowchartEmptyState">
               <span>표시할 타임라인 로그가 없습니다.</span>
@@ -474,33 +474,32 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
               return (
                 <React.Fragment key={node.id}>
                   {index > 0 && (
-                    <div className={`flowConnector ${isLongGap ? "longGapConnector" : ""}`}>
+                    <div className={`flowConnector flowConnectorVertical ${isLongGap ? "longGapConnector" : ""}`}>
                       <div className="connectorLine" />
                       {timeDeltaText && (
-                        <span className={`connectorDelta ${isLongGap ? "longGapDelta" : ""}`} title="이전 노드와의 경과 시간">
+                        <span className={`connectorDelta ${isLongGap ? "longGapDelta" : ""}`} title="이전 단계와의 경과 시간">
                           {isLongGap ? `⏱️ ${timeDeltaText} 경과` : timeDeltaText}
                         </span>
                       )}
-                      <span className="connectorArrow">➔</span>
+                      <span className="connectorArrow">↓</span>
                     </div>
                   )}
 
                   <div
                     id={isPrimary ? `flow-primary-${nodeIncId}` : `flow-node-inc-${nodeIncId}`}
                     data-incident-id={nodeIncId}
-                    className={`flowNode ${badgeMeta.className}${isSelected ? " isSelected" : ""}${isPrimary ? " isPrimaryNode" : ""}${isActiveIncident ? " activeIncidentNode" : " dimInactiveNode"}`}
+                    className={`flowNode flowNodeVertical ${badgeMeta.className}${isSelected ? " isSelected" : ""}${isPrimary ? " isPrimaryNode" : ""}${isActiveIncident ? " activeIncidentNode" : " dimInactiveNode"}`}
                     onClick={() => handleNodeClick(node)}
                     role="button"
                     tabIndex={0}
                   >
                     <div className="flowNodeHeader">
                       <span className="flowNodeStep">STEP {index + 1}</span>
+                      <div className="flowNodeBadge">
+                        <span>{badgeMeta.icon}</span>
+                        <strong>{badgeMeta.label}</strong>
+                      </div>
                       <span className="flowNodeTime">{formatNodeTime(node.time_raw, node.time_value)}</span>
-                    </div>
-
-                    <div className="flowNodeBadge">
-                      <span>{badgeMeta.icon}</span>
-                      <strong>{badgeMeta.label}</strong>
                     </div>
 
                     <div className="flowNodeBody">
@@ -531,7 +530,7 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
 
                     {isPrimary && (
                       <div className="primaryGlowMarker" title="사건의 최초 에러 발생 로그">
-                        ⚠️ 에러 발생
+                        ⚠️ 에러 발생 지점
                       </div>
                     )}
                   </div>

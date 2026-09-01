@@ -3782,28 +3782,77 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   border-bottom: none;
 }
 
-/* 2. Incident Detail Scroll Wrapper */
-.incidentDetailScrollWrapper {
+/* 2. Incident Detail Split Layout (Left: Vertical Flowchart, Right: Status Descriptions) */
+.incidentDetailSplitLayout {
+  display: grid;
+  grid-template-columns: 390px minmax(0, 1fr);
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 1300px) {
+  .incidentDetailSplitLayout {
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (max-width: 960px) {
+  .incidentDetailSplitLayout {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+  .flowchartColumn {
+    height: 450px;
+    max-height: 450px;
+    flex-shrink: 0;
+  }
+  .detailDescriptionColumn {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+.flowchartColumn {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.detailDescriptionColumn {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  height: 100%;
-  padding-right: 6px;
 }
 
-.incidentDetailScrollWrapper::-webkit-scrollbar {
+.detailDescriptionColumn::-webkit-scrollbar {
   width: 6px;
 }
 
-.incidentDetailScrollWrapper::-webkit-scrollbar-track {
+.detailDescriptionColumn::-webkit-scrollbar-track {
   background: #111417;
 }
 
-.incidentDetailScrollWrapper::-webkit-scrollbar-thumb {
+.detailDescriptionColumn::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 3px;
+}
+
+.detailDescriptionColumn::-webkit-scrollbar-thumb:hover {
+  background: #00adb5;
 }
 
 .headerActions {
@@ -3813,7 +3862,7 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   gap: 8px;
 }
 
-/* 3. Horizontal Sequential Flowchart */
+/* 3. Vertical Sequential Flowchart */
 .incidentFlowchartContainer {
   background: #0f1317;
   border: 1px solid #252b31;
@@ -3822,6 +3871,10 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   display: flex;
   flex-direction: column;
   gap: 10px;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .flowchartToolbar {
@@ -3830,17 +3883,25 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   justify-content: space-between;
   border-bottom: 1px solid #1f272f;
   padding-bottom: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .flowchartToolbarLeft {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .flowchartTitle {
-  font-size: 13.5px;
+  font-size: 13px;
   color: #f1f5f9;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .flowchartCount {
@@ -3851,7 +3912,8 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .flowchartToolbarRight {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .flowchartActionBtn {
@@ -3860,45 +3922,17 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   color: #38bdf8;
   font-size: 11px;
   font-weight: 700;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .flowchartActionBtn:hover {
   background: #0284c7;
   color: #ffffff;
   border-color: #0284c7;
-}
-
-.flowchartScopeToggle {
-  display: flex;
-  background: #151a20;
-  border: 1px solid #27313a;
-  border-radius: 5px;
-  padding: 2px;
-  margin-left: 8px;
-}
-
-.scopeToggleBtn {
-  background: transparent;
-  border: none;
-  color: #8fa0ac;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 9px;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.scopeToggleBtn.active {
-  background: #0284c7;
-  color: #ffffff;
-  font-weight: 700;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .flowchartFilterToggle {
@@ -3913,12 +3947,13 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   background: transparent;
   border: none;
   color: #8fa0ac;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 4px 9px;
+  padding: 3px 8px;
   border-radius: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .filterToggleBtn.active {
@@ -3928,67 +3963,80 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-/* Horizontal Flow Track & Nodes */
-.flowchartScrollWrapper {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 10px 4px;
-  scrollbar-gutter: stable;
+/* Vertical Flow Track & Nodes */
+.flowchartScrollWrapper.flowchartVerticalWrapper {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 4px 16px;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
   cursor: grab;
   user-select: none;
+  scrollbar-gutter: stable;
 }
 
-.flowchartScrollWrapper.isDraggingFlowchart {
+.flowchartScrollWrapper.flowchartVerticalWrapper.isDraggingFlowchart {
   cursor: grabbing !important;
 }
 
-.flowchartScrollWrapper::-webkit-scrollbar {
-  height: 8px;
+.flowchartScrollWrapper.flowchartVerticalWrapper::-webkit-scrollbar {
+  width: 6px;
 }
 
-.flowchartScrollWrapper::-webkit-scrollbar-track {
+.flowchartScrollWrapper.flowchartVerticalWrapper::-webkit-scrollbar-track {
   background: #13171b;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
-.flowchartScrollWrapper::-webkit-scrollbar-thumb {
+.flowchartScrollWrapper.flowchartVerticalWrapper::-webkit-scrollbar-thumb {
   background: #3b4856;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
-.flowchartScrollWrapper::-webkit-scrollbar-thumb:hover {
+.flowchartScrollWrapper.flowchartVerticalWrapper::-webkit-scrollbar-thumb:hover {
   background: #00adb5;
 }
 
-.flowchartTrack {
-  display: inline-flex;
+.flowchartTrack.flowchartVerticalTrack {
+  display: flex;
+  flex-direction: column;
   align-items: stretch;
-  gap: 8px;
-  min-width: 100%;
+  gap: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.flowNode {
-  flex: 0 0 230px;
-  width: 230px;
+.flowchartEmptyState {
+  padding: 30px 10px;
+  text-align: center;
+  color: #64748b;
+  font-size: 12.5px;
+}
+
+.flowNode.flowNodeVertical {
+  width: 100%;
+  flex: none;
+  box-sizing: border-box;
   background: #161b20;
   border: 1px solid #2a333d;
   border-radius: 7px;
-  padding: 10px 12px;
+  padding: 9px 11px;
   cursor: pointer;
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.flowNode:hover {
-  transform: translateY(-2px);
+.flowNode.flowNodeVertical:hover {
+  transform: translateY(-1px);
   border-color: #485666;
   background: #1c232a;
 }
 
-.flowNode.isSelected {
+.flowNode.flowNodeVertical.isSelected {
   border-color: #00adb5 !important;
   box-shadow: 0 0 0 2px rgba(0, 173, 181, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
   background: #1c262d;
@@ -3998,6 +4046,7 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
 }
 
 .flowNodeStep {
@@ -4011,12 +4060,13 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   font-family: ui-monospace, monospace;
   font-size: 10.5px;
   color: #94a3b8;
+  margin-left: auto;
 }
 
 .flowNodeBadge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 10.5px;
   padding: 2px 7px;
   border-radius: 4px;
@@ -4132,7 +4182,7 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 }
 
 .primaryGlowMarker {
-  margin-top: auto;
+  margin-top: 2px;
   font-size: 10px;
   font-weight: 800;
   color: #f87171;
@@ -4143,7 +4193,7 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   text-align: center;
 }
 
-/* Thin horizontal green strip for compacted normal RPC responses */
+/* Thin green strip for compacted normal RPC responses */
 .flowNodeSuccessStrip {
   display: flex;
   align-items: center;
@@ -4152,7 +4202,7 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   border: 1px solid rgba(34, 197, 94, 0.45);
   border-radius: 4px;
   padding: 3px 7px;
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 10.5px;
   color: #4ade80;
 }
@@ -4175,7 +4225,7 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 .flowNodeBody {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .flowNodeTitle {
@@ -4196,90 +4246,15 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   white-space: nowrap;
 }
 
-/* Day Mode Specific Styles */
-.dayIncidentNode {
-  flex: 0 0 250px;
-  width: 250px;
-}
-
-.dayIncidentMeta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: auto;
-  padding-top: 4px;
-  border-top: 1px solid #1f2730;
-}
-
-.occurrencePill {
-  font-size: 10px;
-  color: #94a3b8;
-}
-
-.currentActiveMark {
-  font-size: 10px;
-  font-weight: 700;
-  color: #38bdf8;
-}
-
 .dayIncidentTotalBadge {
   background: #1e293b;
   border: 1px solid #334155;
   color: #38bdf8;
   font-size: 11px;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 2px 6px;
   border-radius: 4px;
-}
-
-/* Cluster Banner Separator between Incidents */
-.clusterBanner {
-  flex: 0 0 160px;
-  width: 160px;
-  background: #182028;
-  border: 1px dashed #334155;
-  border-radius: 6px;
-  padding: 8px 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.clusterBanner:hover {
-  background: #202b37;
-  border-color: #00adb5;
-}
-
-.clusterBanner.activeClusterBanner {
-  background: rgba(0, 173, 181, 0.15);
-  border: 1px solid #00adb5;
-  box-shadow: 0 0 8px rgba(0, 173, 181, 0.3);
-}
-
-.clusterIcon {
-  font-size: 16px;
-}
-
-.clusterInfo {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.clusterInfo strong {
-  font-size: 11.5px;
-  color: #f1f5f9;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.clusterInfo small {
-  font-size: 9.5px;
-  color: #00adb5;
-  font-weight: 700;
 }
 
 /* Active vs Dim Inactive Flow Nodes in Continuous Flow */
@@ -4295,74 +4270,61 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   opacity: 1;
 }
 
-/* Long Gap Connectors between Incidents occurring hours/minutes apart */
-.flowConnector.longGapConnector {
-  flex: 0 0 80px;
-  width: 80px;
-}
-
-.connectorDelta.longGapDelta {
-  background: #1a222d;
-  border-color: #3b4d61;
-  color: #fbbf24;
-  font-weight: 700;
-  font-size: 10px;
-  padding: 2px 6px;
-}
-
-.dayConnector {
-  flex: 0 0 65px;
-  width: 65px;
-}
-
-.dayDelta {
-  background: #17202a;
-  border-color: #293847;
-  color: #facc15;
-  font-weight: 700;
-}
-
-/* Flow Connectors */
-.flowConnector {
+/* Vertical Flow Connectors */
+.flowConnector.flowConnectorVertical {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   position: relative;
-  flex: 0 0 38px;
-  width: 38px;
+  width: 100%;
+  min-height: 28px;
+  padding: 3px 0;
+  box-sizing: border-box;
 }
 
-.connectorLine {
+.flowConnector.flowConnectorVertical.longGapConnector {
+  min-height: 36px;
+}
+
+.flowConnector.flowConnectorVertical .connectorLine {
   position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #334155;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  height: 100%;
+  background: #283340;
+  transform: translateX(-50%);
   z-index: 1;
 }
 
-.connectorDelta {
-  position: absolute;
-  top: 14px;
+.flowConnector.flowConnectorVertical .connectorDelta {
+  position: relative;
   font-family: ui-monospace, monospace;
-  font-size: 9.5px;
+  font-size: 9px;
   color: #38bdf8;
-  background: #0f172a;
-  padding: 1px 4px;
+  background: #0d1217;
+  padding: 1px 6px;
   border-radius: 3px;
   border: 1px solid #1e293b;
   white-space: nowrap;
   z-index: 2;
 }
 
-.connectorArrow {
-  position: absolute;
-  right: -3px;
-  top: calc(50% - 7px);
-  font-size: 12px;
+.flowConnector.flowConnectorVertical .connectorDelta.longGapDelta {
+  background: #1a222d;
+  border-color: #3b4d61;
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.flowConnector.flowConnectorVertical .connectorArrow {
+  position: relative;
+  font-size: 11px;
   color: #64748b;
+  line-height: 1;
+  margin-top: 1px;
   z-index: 2;
 }
 
@@ -4494,10 +4456,10 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   word-break: break-all;
 }
 
-/* 4. Action Plan Grid (Below Flowchart) */
+/* 4. Action Plan Grid (Right Description Panel) */
 .incidentActionPlanGrid {
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) minmax(420px, 1.2fr);
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 14px;
 }
 

@@ -74,31 +74,18 @@ jobs:
           path: frontend/test-results/*.png
           if-no-files-found: warn
 
-      - name: Build native package
-        run: pyinstaller --clean --noconfirm packaging/rby1-cs-analyzer-v4.spec
-
       - name: Build standalone executable
-        run: pyinstaller --clean --noconfirm --distpath dist-onefile --workpath build-onefile packaging/rby1-cs-analyzer-v4-onefile.spec
-
-      - name: Smoke test Ubuntu package
-        if: runner.os == 'Linux'
-        shell: bash
-        run: packaging/smoke/ubuntu2204_smoke.sh dist/rby1-cs-analyzer-v4 tests/fixtures/representative
-
-      - name: Smoke test Windows package
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: packaging/smoke/windows_smoke.ps1 -PackageDir dist/rby1-cs-analyzer-v4 -Fixtures tests/fixtures/representative
+        run: pyinstaller --clean --noconfirm --distpath dist --workpath build packaging/rby1-cs-analyzer-v5.spec
 
       - name: Smoke test Ubuntu standalone executable
         if: runner.os == 'Linux'
         shell: bash
-        run: packaging/smoke/ubuntu2204_onefile_smoke.sh dist-onefile/rby1-cs-analyzer-v4
+        run: packaging/smoke/ubuntu2204_onefile_smoke.sh dist/rby1-cs-analyzer-v5
 
       - name: Smoke test Windows standalone executable
         if: runner.os == 'Windows'
         shell: pwsh
-        run: packaging/smoke/windows_onefile_smoke.ps1 -Launcher dist-onefile/rby1-cs-analyzer-v4.exe
+        run: packaging/smoke/windows_onefile_smoke.ps1 -Launcher dist/rby1-cs-analyzer-v5.exe
 
       - name: Archive Ubuntu package
         if: runner.os == 'Linux'
@@ -106,15 +93,10 @@ jobs:
         run: |
           version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           mkdir -p release
-          archive="rby1-cs-analyzer-v4_${version}_${{ matrix.suffix }}.tar.gz"
-          tar -C dist -czf "release/$archive" rby1-cs-analyzer-v4
+          archive="rby1-cs-analyzer-v5_${version}_${{ matrix.suffix }}.tar.gz"
+          tar -C dist -czf "release/$archive" rby1-cs-analyzer-v5
           cd release
           sha256sum "$archive" > "$archive.sha256"
-          cd ..
-          onefile_archive="rby1-cs-analyzer-v4_${version}_${{ matrix.suffix }}-onefile.tar.gz"
-          tar -C dist-onefile -czf "release/$onefile_archive" rby1-cs-analyzer-v4
-          cd release
-          sha256sum "$onefile_archive" > "$onefile_archive.sha256"
 
       - name: Archive Windows package
         if: runner.os == 'Windows'
@@ -122,18 +104,14 @@ jobs:
         run: |
           $version = (python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])").Trim()
           New-Item -ItemType Directory -Force release | Out-Null
-          $archive = "rby1-cs-analyzer-v4_${version}_${{ matrix.suffix }}.zip"
-          Compress-Archive -Path dist/rby1-cs-analyzer-v4 -DestinationPath "release/$archive"
+          $archive = "rby1-cs-analyzer-v5_${version}_${{ matrix.suffix }}.zip"
+          Compress-Archive -Path dist/rby1-cs-analyzer-v5.exe -DestinationPath "release/$archive"
           $hash = (Get-FileHash "release/$archive" -Algorithm SHA256).Hash.ToLower()
           "$hash  $archive" | Set-Content -NoNewline "release/$archive.sha256"
-          $onefileArchive = "rby1-cs-analyzer-v4_${version}_${{ matrix.suffix }}-onefile.zip"
-          Compress-Archive -Path dist-onefile/rby1-cs-analyzer-v4.exe -DestinationPath "release/$onefileArchive"
-          $onefileHash = (Get-FileHash "release/$onefileArchive" -Algorithm SHA256).Hash.ToLower()
-          "$onefileHash  $onefileArchive" | Set-Content -NoNewline "release/$onefileArchive.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rby1-cs-analyzer-v4-${{ matrix.suffix }}
+          name: rby1-cs-analyzer-v5-${{ matrix.suffix }}
           path: release/*
           if-no-files-found: error
 
