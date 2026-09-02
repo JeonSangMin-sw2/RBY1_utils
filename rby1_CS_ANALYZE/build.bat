@@ -7,6 +7,12 @@ echo ===================================================
 
 cd /d "%~dp0"
 
+:: 0. 이전 실행 중인 프로세스 자동 종료 및 기존 파일 잠금 해제
+echo [*] Closing any running analyzer instances...
+taskkill /F /IM rby1-cs-analyzer-v5.exe 2>nul
+del /f /q "dist\rby1-cs-analyzer-v5.exe" 2>nul
+del /f /q "rby1-cs-analyzer-v5.exe" 2>nul
+
 :: 1. Python 버전 확인 (3.10 ~ 3.13 권장)
 python -c "import sys; sys.exit(0 if sys.version_info < (3, 14) else 1)" 2>nul
 if errorlevel 1 (

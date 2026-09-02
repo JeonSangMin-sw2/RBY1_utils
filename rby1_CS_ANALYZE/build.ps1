@@ -7,6 +7,14 @@ Write-Host "===================================================" -ForegroundColo
 
 Set-Location $PSScriptRoot
 
+# 0. 이전 실행 중인 프로세스 자동 종료 및 기존 파일 잠금 해제
+Write-Host "[*] Closing any running analyzer instances..." -ForegroundColor Gray
+try {
+    Get-Process -Name "rby1-cs-analyzer-v5" -ErrorAction SilentlyContinue | Stop-Process -Force
+} catch {}
+Remove-Item -Path "dist\rby1-cs-analyzer-v5.exe" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path ".\rby1-cs-analyzer-v5.exe" -Force -ErrorAction SilentlyContinue
+
 # 1. Python 버전 확인 (3.10 ~ 3.13 권장)
 $pyVer = python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
 Write-Host "[INFO] Detected Python Version: $pyVer" -ForegroundColor Gray
