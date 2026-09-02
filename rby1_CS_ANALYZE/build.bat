@@ -46,6 +46,11 @@ if errorlevel 1 (
     echo [INFO] Continuing build...
 )
 
+:: Node.js 로컬 경로 확인 및 PATH 등록
+if exist "%USERPROFILE%\.local\node\node.exe" (
+    set "PATH=%USERPROFILE%\.local\node;%PATH%"
+)
+
 :: 4. 프론트엔드 UI 빌드 (npm 존재 시 빌드, 부재 시 기존 dist 활용)
 echo [3/5] Checking Frontend UI build...
 where npm >nul 2>nul
@@ -53,10 +58,23 @@ if %ERRORLEVEL% equ 0 (
     echo [*] npm found. Building fresh Frontend UI...
     cd frontend
     call npm run build
+    if errorlevel 1 (
+        echo [ERROR] Frontend build failed!
+        cd ..
+        pause
+        exit /b 1
+    )
     cd ..
 ) else (
     if exist "frontend\dist\index.html" (
-        echo [*] npm not found, but prebuilt frontend\dist exists. Using existing UI build.
+        if exist "frontend\dist\assets\*.js" (
+            echo [*] npm not found, but valid prebuilt frontend\dist exists. Using existing UI build.
+        ) else (
+            echo [ERROR] frontend\dist\index.html exists but frontend\dist\assets\ is missing or empty!
+            echo [ERROR] Please install Node.js or ensure prebuilt assets are synced.
+            pause
+            exit /b 1
+        )
     ) else (
         echo [ERROR] Neither npm nor frontend\dist was found!
         echo [ERROR] Please install Node.js from https://nodejs.org/ to build the frontend.

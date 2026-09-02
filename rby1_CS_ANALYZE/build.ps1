@@ -43,6 +43,12 @@ try {
     Write-Host "[WARNING] Package install had warnings, continuing..." -ForegroundColor Yellow
 }
 
+# Node.js 로컬 경로 확인 및 PATH 등록
+$localNodePath = Join-Path $env:USERPROFILE ".local\node"
+if (Test-Path (Join-Path $localNodePath "node.exe")) {
+    $env:PATH = "$localNodePath;$env:PATH"
+}
+
 # 4. 프론트엔드 UI 빌드 (npm 존재 시 빌드, 부재 시 기존 dist 활용)
 Write-Host "[3/5] Checking Frontend UI build..." -ForegroundColor Yellow
 $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
@@ -52,8 +58,14 @@ if ($npmCmd) {
     npm run build
     Set-Location ..
 } else {
-    if (Test-Path "frontend\dist\index.html") {
-        Write-Host "[*] npm not found, but prebuilt frontend\dist exists. Using existing UI build." -ForegroundColor Green
+    $hasHtml = Test-Path "frontend\dist\index.html"
+    $hasAssets = (Test-Path "frontend\dist\assets") -and ((Get-ChildItem "frontend\dist\assets" -Filter "*.js" -ErrorAction SilentlyContinue).Count -gt 0)
+    if ($hasHtml -and $hasAssets) {
+        Write-Host "[*] npm not found, but valid prebuilt frontend\dist exists. Using existing UI build." -ForegroundColor Green
+    } elseif ($hasHtml -and -not $hasAssets) {
+        Write-Host "[ERROR] frontend\dist\index.html exists but frontend\dist\assets\ is missing or empty!" -ForegroundColor Red
+        Write-Host "[ERROR] Please install Node.js or ensure prebuilt assets are synced." -ForegroundColor Red
+        exit 1
     } else {
         Write-Host "[ERROR] Neither npm nor frontend\dist was found!" -ForegroundColor Red
         Write-Host "[ERROR] Please install Node.js from https://nodejs.org/ to build the frontend." -ForegroundColor Red

@@ -18,10 +18,12 @@ rby1-cs-analyzer-v5
 frontend/node_modules/
 *.tsbuildinfo
 
-build/
-dist/
-build-onefile/
-dist-onefile/
+/build/
+/dist/
+/build-onefile/
+/dist-onefile/
+!frontend/dist/
+!frontend/dist/**
 release/
 test-results/
 frontend/test-results/

@@ -4,9 +4,10 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+/build/
 develop-eggs/
-dist/
+/dist/
+!rby1_CS_ANALYZE/frontend/dist/**
 downloads/
 eggs/
 .eggs/
