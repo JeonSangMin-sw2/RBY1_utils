@@ -231,7 +231,7 @@ def _parse_log(
             ),
             observations,
         ))
-        if len(rows) >= 1000:
+        if len(rows) >= 3000:
             count += _insert_events(db, rows)
             rows.clear()
     count += _insert_events(db, rows)

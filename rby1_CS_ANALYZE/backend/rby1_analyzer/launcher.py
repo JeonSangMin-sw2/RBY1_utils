@@ -30,7 +30,16 @@ def _server_config(app: object, host: str, port: int) -> uvicorn.Config:
 
 
 def open_standalone_ui(url: str) -> bool:
-    for browser_name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
+    import sys
+    # Windows native execution
+    if sys.platform == "win32":
+        try:
+            webbrowser.open(url)
+            return True
+        except Exception:
+            pass
+
+    for browser_name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "msedge"):
         executable = shutil.which(browser_name)
         if executable is None:
             continue
@@ -53,11 +62,10 @@ def open_standalone_ui(url: str) -> bool:
         except OSError:
             pass
 
-    if shutil.which("cmd.exe"):
+    if shutil.which("cmd.exe") and sys.platform != "win32":
         try:
-            # Escape & for cmd.exe
             cmd_url = url.replace("^", "^^").replace("&", "^&")
-            subprocess.Popen(["cmd.exe", "/c", "start", cmd_url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            subprocess.Popen(["cmd.exe", "/c", "start", "", cmd_url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             return True
         except OSError:
             pass
@@ -116,8 +124,9 @@ def main() -> None:
     print("  RB-Y1 CS Analyzer V5 Server running at:", flush=True)
     print(f"  {url}", flush=True)
     print("=======================================================\n", flush=True)
+    import threading
     if not args.no_open_browser:
-        open_standalone_ui(url)
+        threading.Timer(0.4, open_standalone_ui, args=[url]).start()
     config = _server_config(create_app(runtime), settings.host, port)
     try:
         uvicorn.Server(config).run(sockets=[sock])

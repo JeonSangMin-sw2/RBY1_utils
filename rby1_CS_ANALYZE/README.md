@@ -112,15 +112,29 @@ Jetson 환경(Ubuntu aarch64) 터미널에서 동일하게 빌드 스크립트�
 - **실행**: `./rby1-cs-analyzer-v5`
 
 ### 🪟 3. Windows (x64 PC / 노트북)
-윈도우 탐색기에서 **`build.bat`** 파일을 더블 클릭하거나, PowerShell에서 **`build.ps1`**을 실행합니다:
-```powershell
-# PowerShell에서 실행 시
-.\build.ps1
 
-# 또는 CMD에서 실행 시
+가장 쉬운 방법은 윈도우 탐색기에서 **`build.bat`** 파일을 **더블 클릭**하는 것입니다.
+
+#### 📁 방법 A. 윈도우 탐색기 (가장 간편 ⭐)
+- `rby1_CS_ANALYZE` 폴더 안의 **`build.bat`** 파일을 더블 클릭합니다.
+- 자동으로 가상환경 생성, 의존성 설치, 프론트엔드 빌드, `.exe` 패키징까지 원클릭으로 완료됩니다.
+
+#### 💻 방법 B. PowerShell 터미널에서 실행
+PowerShell 환경에서는 현재 폴더 경로(`.\`) 및 실행 정책(ExecutionPolicy)을 명시해야 합니다:
+```powershell
+# [추천] build.bat 실행 시 (반드시 앞에 .\ 를 붙여야 함)
+.\build.bat
+
+# 또는 build.ps1 스크립트 실행 시 (PowerShell 보안 정책 우회 옵션 포함)
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+```
+
+#### 🖥️ 방법 C. CMD (명령 프롬프트)에서 실행
+```cmd
 build.bat
 ```
-- **배포 산출물**: `dist\rby1-cs-analyzer-v5.exe`
+
+- **배포 산출물**: `dist\rby1-cs-analyzer-v5.exe` 및 루트의 `.\rby1-cs-analyzer-v5.exe`
 - **특징**: PyPI에서 윈도우용 `rby1-sdk` 바이너리를 자동 다운로드/번들링하여 단일 `.exe`를 생성합니다.
 - **실행**: `rby1-cs-analyzer-v5.exe` 더블 클릭 (타 윈도우 PC로 `.exe` 파일만 복사하여 바로 실행 가능)
 
