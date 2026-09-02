@@ -88,18 +88,20 @@ def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
     if frontend_dist is not None:
         index_file = frontend_dist / "index.html"
         assets_dir = frontend_dist / "assets"
+        models_dir = frontend_dist / "models"
 
         if assets_dir.is_dir():
-            @app.get("/assets/{file_path:path}", include_in_schema=False)
-            async def serve_asset(file_path: str):
-                target = assets_dir / file_path
-                if not target.is_file():
-                    return Response(status_code=404)
-                if file_path.lower().endswith(".js"):
-                    return FileResponse(target, media_type="application/javascript")
-                if file_path.lower().endswith(".css"):
-                    return FileResponse(target, media_type="text/css")
-                return FileResponse(target)
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+        if models_dir.is_dir():
+            app.mount("/models", StaticFiles(directory=models_dir), name="models")
+
+        @app.get("/favicon.ico", include_in_schema=False)
+        def serve_favicon() -> Response:
+            fav = frontend_dist / "favicon.ico"
+            if fav.is_file():
+                return FileResponse(fav)
+            return Response(status_code=204)
 
         @app.get("/", include_in_schema=False)
         def serve_index() -> FileResponse:
