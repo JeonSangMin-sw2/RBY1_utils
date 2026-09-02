@@ -39,6 +39,37 @@ class RuntimeContext:
     jobs: JobManager
 
 
+def _resolve_frontend_dist() -> Path | None:
+    candidates: list[Path] = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.extend([
+            Path(meipass) / "frontend" / "dist",
+            Path(meipass) / "dist",
+            Path(meipass),
+        ])
+    if getattr(sys, "executable", None):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.extend([
+            exe_dir / "frontend" / "dist",
+            exe_dir / "dist",
+        ])
+    file_dir = Path(__file__).resolve().parent
+    candidates.extend([
+        file_dir.parents[1] / "frontend" / "dist",  # repo_root/frontend/dist
+        file_dir.parents[0] / "frontend" / "dist",
+        Path.cwd() / "frontend" / "dist",
+        Path.cwd() / "dist",
+    ])
+    for cand in candidates:
+        if cand and cand.is_dir() and (cand / "index.html").is_file():
+            return cand
+    for cand in candidates:
+        if cand and cand.is_dir():
+            return cand
+    return None
+
+
 def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
     if runtime is None:
         settings = Settings.default()
@@ -72,103 +103,85 @@ def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
     app.include_router(csv_analysis_router)
     app.include_router(dynamics_router)
 
-    # Multi-path frontend dist directory resolution
-    meipass = getattr(sys, "_MEIPASS", None)
-    candidates = [
-        Path(meipass) / "frontend" / "dist" if meipass else None,
-        Path(meipass) / "dist" if meipass else None,
-        Path(meipass) if (meipass and (Path(meipass) / "index.html").is_file()) else None,
-        Path(__file__).resolve().parents[2] / "frontend" / "dist",
-        Path(__file__).resolve().parents[1] / "frontend" / "dist",
-        Path.cwd() / "frontend" / "dist",
-        Path.cwd() / "dist",
-    ]
-    frontend_dist = next((p for p in candidates if p and p.is_dir() and (p / "index.html").is_file()), None)
+    frontend_dist = _resolve_frontend_dist()
+    if frontend_dist:
+        print(f"[*] Serving Frontend UI from: {frontend_dist}", flush=True)
+    else:
+        print("[WARNING] Frontend UI directory not found!", flush=True)
 
-    if frontend_dist is not None:
-        index_file = frontend_dist / "index.html"
-        assets_dir = frontend_dist / "assets"
-        models_dir = frontend_dist / "models"
-
-        def _find_asset(file_path: str) -> Path | None:
-            # 1. Exact match in assets_dir
-            target = assets_dir / file_path
-            if target.is_file():
-                return target
-            # 2. Exact match in frontend_dist root
-            target = frontend_dist / file_path
-            if target.is_file():
-                return target
-            # 3. Case-insensitive match in assets_dir
-            req_name = Path(file_path).name.lower()
-            if assets_dir.is_dir():
-                for entry in assets_dir.iterdir():
-                    if entry.is_file() and entry.name.lower() == req_name:
-                        return entry
-            # 4. Hash mismatch fallback (serve the index bundle of same extension)
-            ext = Path(file_path).suffix.lower()
-            if ext in (".js", ".css") and assets_dir.is_dir():
-                for entry in assets_dir.iterdir():
-                    if entry.is_file() and entry.suffix.lower() == ext and "index" in entry.name.lower():
-                        return entry
-            # 5. Recursive search in frontend_dist
-            for root_path, _, files in os.walk(frontend_dist):
-                for f in files:
-                    if f.lower() == req_name:
-                        cand = Path(root_path) / f
-                        if cand.is_file():
-                            return cand
+    def _find_asset_file(file_path: str) -> Path | None:
+        if not frontend_dist:
             return None
+        # Sanitize filename to prevent directory traversal
+        clean_name = Path(file_path).name
+        # 1. Exact match in assets/
+        cand = frontend_dist / "assets" / clean_name
+        if cand.is_file():
+            return cand
+        # 2. Exact match in dist root
+        cand = frontend_dist / clean_name
+        if cand.is_file():
+            return cand
+        # 3. Case-insensitive match in assets/
+        assets_dir = frontend_dist / "assets"
+        if assets_dir.is_dir():
+            target_lower = clean_name.lower()
+            for entry in assets_dir.iterdir():
+                if entry.is_file() and entry.name.lower() == target_lower:
+                    return entry
+        return None
 
-        @app.get("/assets/{file_path:path}", include_in_schema=False)
-        async def serve_asset(file_path: str) -> Response:
-            target = _find_asset(file_path)
-            if not target:
-                return Response(status_code=404, content=f"Asset not found: {file_path}", media_type="text/plain")
+    @app.get("/assets/{file_path:path}", include_in_schema=False)
+    async def serve_asset(file_path: str) -> Response:
+        target = _find_asset_file(file_path)
+        if not target:
+            return Response(status_code=404, content=f"Asset not found: {file_path}", media_type="text/plain")
 
-            media_type = "application/javascript" if target.name.lower().endswith(".js") else (
-                "text/css" if target.name.lower().endswith(".css") else (
-                    "image/svg+xml" if target.name.lower().endswith(".svg") else (
-                        "image/png" if target.name.lower().endswith(".png") else None
-                    )
+        media_type = "application/javascript" if target.name.lower().endswith(".js") else (
+            "text/css" if target.name.lower().endswith(".css") else (
+                "image/svg+xml" if target.name.lower().endswith(".svg") else (
+                    "image/png" if target.name.lower().endswith(".png") else None
                 )
             )
-            return FileResponse(target, media_type=media_type)
+        )
+        return FileResponse(target, media_type=media_type)
 
-        @app.get("/models/{file_path:path}", include_in_schema=False)
-        async def serve_model(file_path: str) -> Response:
-            target = models_dir / file_path
+    @app.get("/models/{file_path:path}", include_in_schema=False)
+    async def serve_model(file_path: str) -> Response:
+        if frontend_dist:
+            target = frontend_dist / "models" / file_path
             if target.is_file():
                 return FileResponse(target)
-            return Response(status_code=404, media_type="text/plain")
+        return Response(status_code=404, media_type="text/plain")
 
-        @app.get("/favicon.ico", include_in_schema=False)
-        def serve_favicon() -> Response:
+    @app.get("/favicon.ico", include_in_schema=False)
+    def serve_favicon() -> Response:
+        if frontend_dist:
             fav = frontend_dist / "favicon.ico"
             if fav.is_file():
                 return FileResponse(fav)
-            return Response(status_code=204)
+        return Response(status_code=204)
 
-        @app.get("/", include_in_schema=False)
-        def serve_index() -> FileResponse:
-            return FileResponse(index_file, media_type="text/html")
+    @app.get("/", include_in_schema=False)
+    def serve_index() -> Response:
+        if frontend_dist and (frontend_dist / "index.html").is_file():
+            return FileResponse(frontend_dist / "index.html", media_type="text/html")
+        return HTMLResponse("<h1>RB-Y1 CS Analyzer V5</h1><p>Frontend build not found.</p>")
 
-        @app.get("/{file_path:path}", include_in_schema=False)
-        async def serve_root_fallback(file_path: str) -> Response:
-            if not file_path or file_path == "/":
-                return FileResponse(index_file, media_type="text/html")
-            target = _find_asset(file_path)
-            if target:
-                media_type = "application/javascript" if target.name.lower().endswith(".js") else (
-                    "text/css" if target.name.lower().endswith(".css") else None
-                )
-                return FileResponse(target, media_type=media_type)
-            return FileResponse(index_file, media_type="text/html")
-    else:
-        @app.get("/", include_in_schema=False, response_class=HTMLResponse)
-        def development_index() -> str:
-            return (
-                "<h1>RB-Y1 CS Analyzer V5</h1>"
-                "<p>Frontend build not found. Run npm --prefix frontend run build.</p>"
+    @app.get("/{file_path:path}", include_in_schema=False)
+    async def serve_root_fallback(file_path: str) -> Response:
+        if not file_path or file_path == "/":
+            if frontend_dist and (frontend_dist / "index.html").is_file():
+                return FileResponse(frontend_dist / "index.html", media_type="text/html")
+            return HTMLResponse("<h1>RB-Y1 CS Analyzer V5</h1><p>Frontend build not found.</p>")
+        target = _find_asset_file(file_path)
+        if target:
+            media_type = "application/javascript" if target.name.lower().endswith(".js") else (
+                "text/css" if target.name.lower().endswith(".css") else None
             )
+            return FileResponse(target, media_type=media_type)
+        if frontend_dist and (frontend_dist / "index.html").is_file():
+            return FileResponse(frontend_dist / "index.html", media_type="text/html")
+        return Response(status_code=404, content=f"Not found: {file_path}", media_type="text/plain")
+
     return app
