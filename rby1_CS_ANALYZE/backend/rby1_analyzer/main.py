@@ -90,11 +90,38 @@ def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
         assets_dir = frontend_dist / "assets"
         models_dir = frontend_dist / "models"
 
-        if assets_dir.is_dir():
-            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+        @app.get("/assets/{file_path:path}", include_in_schema=False)
+        async def serve_asset(file_path: str) -> Response:
+            # 1. Search in assets_dir
+            target = assets_dir / file_path
+            if not target.is_file():
+                # 2. Search in frontend_dist root
+                target = frontend_dist / file_path
+            if not target.is_file() and assets_dir.is_dir():
+                # 3. Fallback: match by filename
+                req_name = Path(file_path).name.lower()
+                for entry in assets_dir.iterdir():
+                    if entry.name.lower() == req_name:
+                        target = entry
+                        break
+            if not target.is_file():
+                return Response(status_code=404, content=f"Asset not found: {file_path}", media_type="text/plain")
 
-        if models_dir.is_dir():
-            app.mount("/models", StaticFiles(directory=models_dir), name="models")
+            media_type = "application/javascript" if target.name.lower().endswith(".js") else (
+                "text/css" if target.name.lower().endswith(".css") else (
+                    "image/svg+xml" if target.name.lower().endswith(".svg") else (
+                        "image/png" if target.name.lower().endswith(".png") else None
+                    )
+                )
+            )
+            return FileResponse(target, media_type=media_type)
+
+        @app.get("/models/{file_path:path}", include_in_schema=False)
+        async def serve_model(file_path: str) -> Response:
+            target = models_dir / file_path
+            if target.is_file():
+                return FileResponse(target)
+            return Response(status_code=404, media_type="text/plain")
 
         @app.get("/favicon.ico", include_in_schema=False)
         def serve_favicon() -> Response:
@@ -106,8 +133,6 @@ def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
         @app.get("/", include_in_schema=False)
         def serve_index() -> FileResponse:
             return FileResponse(index_file, media_type="text/html")
-
-        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
     else:
         @app.get("/", include_in_schema=False, response_class=HTMLResponse)
         def development_index() -> str:
