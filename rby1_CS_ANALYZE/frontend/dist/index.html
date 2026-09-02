@@ -6,18 +6,56 @@
   <title>RB-Y1 CS 로그 분석기</title>
   <style>
     body { margin: 0; background: #0b0e11; color: #cbd5e1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    .initialLoader { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; }
+    .initialLoader { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; padding: 20px; box-sizing: border-box; text-align: center; }
     .spinner { width: 36px; height: 36px; border: 3px solid rgba(0, 173, 181, 0.2); border-top-color: #00adb5; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .errorBox { display: none; background: #1f1415; border: 1px solid #e06c75; border-radius: 8px; padding: 16px 20px; max-width: 650px; text-align: left; color: #f87171; font-size: 13px; line-height: 1.5; margin-top: 12px; }
   </style>
-  <script type="module" crossorigin src="/assets/index-QWD41kQd.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CrAeweFc.css">
+  <script>
+    window.addEventListener('error', function(e) {
+      var box = document.getElementById('initErrorBox');
+      var spinner = document.getElementById('initSpinner');
+      var status = document.getElementById('initStatus');
+      if (box) {
+        box.style.display = 'block';
+        box.innerHTML = '<strong>스크립트 오류 발생:</strong><br>' + (e.message || e.error || '알 수 없는 스크립트 오류') + '<br><small>' + (e.filename || '') + ':' + (e.lineno || '') + '</small>';
+      }
+      if (status) status.innerText = '초기화 중 오류가 발생했습니다.';
+      if (spinner) spinner.style.borderTopColor = '#e06c75';
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      var box = document.getElementById('initErrorBox');
+      var spinner = document.getElementById('initSpinner');
+      var status = document.getElementById('initStatus');
+      if (box) {
+        box.style.display = 'block';
+        box.innerHTML = '<strong>비동기 처리 오류:</strong><br>' + (e.reason ? (e.reason.message || e.reason) : 'Promise Rejection');
+      }
+      if (status) status.innerText = '초기화 중 오류가 발생했습니다.';
+      if (spinner) spinner.style.borderTopColor = '#e06c75';
+    });
+    setTimeout(function() {
+      var status = document.getElementById('initStatus');
+      var box = document.getElementById('initErrorBox');
+      if (document.getElementById('root') && document.getElementById('root').querySelector('.initialLoader')) {
+        if (box && box.style.display !== 'block') {
+          box.style.display = 'block';
+          box.style.borderColor = '#e5c07b';
+          box.style.color = '#e5c07b';
+          box.innerHTML = '⚠️ 로딩이 지연되고 있습니다.<br>F12를 눌러 브라우저 콘솔(Console)에 오류가 있는지 확인하거나, 브라우저를 새로고침(F5)해 주십시오.';
+        }
+      }
+    }, 4000);
+  </script>
+  <script type="module" crossorigin src="/assets/index-CzgdllwG.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-Br8OclAn.css">
 </head>
 <body>
   <div id="root">
     <div class="initialLoader">
-      <div class="spinner"></div>
-      <div style="font-size: 14px; color: #94a3b8;">RB-Y1 CS 분석기를 불러오는 중입니다...</div>
+      <div id="initSpinner" class="spinner"></div>
+      <div id="initStatus" style="font-size: 14px; color: #94a3b8;">RB-Y1 CS 분석기를 불러오는 중입니다...</div>
+      <div id="initErrorBox" class="errorBox"></div>
     </div>
   </div>
 </body>
