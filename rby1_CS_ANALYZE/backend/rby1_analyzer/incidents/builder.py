@@ -10,7 +10,14 @@ from typing import Any
 from rby1_analyzer.storage.database import Database
 from rby1_analyzer.timeline.time import parse_fault_time
 
-from .rules import IncidentRuleMatch, classify_event, extract_entities
+from .rules import (
+    IncidentRuleMatch,
+    classify_event,
+    extract_entities,
+    extract_flags_from_text,
+    get_compiled_flags,
+    match_combinations,
+)
 
 
 class IncidentRebuildBusy(RuntimeError):
@@ -287,15 +294,162 @@ def _summary(cluster: IncidentCluster, components: list[str], joints: list[str])
     return f"{cluster.primary.match.title}{asset_text} · 근거 {len(cluster.evidence)}건"
 
 
-def _incident_actions(cluster: IncidentCluster) -> tuple[list[str], list[str], list[str]]:
-    checks = list(dict.fromkeys(cluster.primary.match.checks))
-    remedies = list(dict.fromkeys(cluster.primary.match.remedies))
-    gaps = list(dict.fromkeys(cluster.primary.match.evidence_gaps))
-    families = {item.match.family for item in cluster.direct}
-    if "realtime_scheduling_delay" in families and cluster.primary.match.family != "realtime_scheduling_delay":
-        checks.append("같은 시각 RPC 온도와 CPU 부하를 확인하십시오.")
-        gaps.append("RPC 호스트 성능 자료가 있으면 통신 문제와 처리 지연을 구분할 수 있습니다.")
-    return checks, remedies, gaps
+def _extract_cluster_flags(cluster: IncidentCluster) -> list[str]:
+    flags: list[str] = []
+    for event, _role, _relation in cluster.evidence.values():
+        event_flags = extract_flags_from_text(
+            str(event.get("excerpt") or ""),
+            str(event.get("category") or ""),
+            str(event.get("severity") or ""),
+        )
+        flags.extend(event_flags)
+    return list(dict.fromkeys(flags))
+
+
+def _infer_incident_diagnostics(
+    cluster: IncidentCluster, active_flags: list[str]
+) -> tuple[
+    list[tuple[int, str, str, str, str]],  # (rank, text, confidence, rationale, source_rule_id)
+    list[tuple[str, int, str, str]],  # (kind, priority, text, source_rule_id)
+]:
+    hypotheses: list[tuple[int, str, str, str, str]] = []
+    actions: list[tuple[str, int, str, str]] = []
+
+    combos = match_combinations(active_flags)
+    primary = cluster.primary.match
+    compiled_flags_map = {f.flag_id: f for f in get_compiled_flags()}
+
+    current_hypo_rank = 1
+    current_check_pri = 1
+    current_remedy_pri = 1
+    current_gap_pri = 1
+
+    seen_causes: set[str] = set()
+    seen_checks: set[str] = set()
+    seen_remedies: set[str] = set()
+
+    # 1. Rank 1: 복합 플래그 조건 (2개 이상의 플래그가 동시 감지되었을 때 최우선 순위로 제시)
+    for combo in combos:
+        flag_labels = [compiled_flags_map[fid].label for fid in combo.flags if fid in compiled_flags_map]
+        rationale_text = f"복합 감지 근거: {', '.join(flag_labels)} 조건이 동시 발생하였습니다."
+
+        for cause in combo.causes:
+            if cause not in seen_causes:
+                seen_causes.add(cause)
+                hypotheses.append(
+                    (
+                        current_hypo_rank,
+                        f"[{combo.title}] {cause}",
+                        "high",
+                        rationale_text,
+                        combo.id,
+                    )
+                )
+                current_hypo_rank += 1
+
+        for check in combo.checks:
+            if check not in seen_checks:
+                seen_checks.add(check)
+                actions.append(
+                    ("check", current_check_pri, f"[{combo.title}] {check}", combo.id)
+                )
+                current_check_pri += 1
+
+        for remedy in combo.remedies:
+            if remedy not in seen_remedies:
+                seen_remedies.add(remedy)
+                actions.append(
+                    ("remedy", current_remedy_pri, f"[{combo.title}] {remedy}", combo.id)
+                )
+                current_remedy_pri += 1
+
+    # 2. Rank 2: 도메인 특화 특정 룰 (특정 부품 매칭 원인 및 조치)
+    if primary.rule_id != "unknown_error":
+        for cause in primary.causes:
+            if cause not in seen_causes:
+                seen_causes.add(cause)
+                hypotheses.append(
+                    (
+                        current_hypo_rank,
+                        cause,
+                        primary.confidence,
+                        primary.confidence_reason,
+                        primary.rule_id,
+                    )
+                )
+                current_hypo_rank += 1
+
+        for check in primary.checks:
+            if check not in seen_checks:
+                seen_checks.add(check)
+                actions.append(("check", current_check_pri, check, primary.rule_id))
+                current_check_pri += 1
+
+        for remedy in primary.remedies:
+            if remedy not in seen_remedies:
+                seen_remedies.add(remedy)
+                actions.append(("remedy", current_remedy_pri, remedy, primary.rule_id))
+                current_remedy_pri += 1
+
+        for gap in primary.evidence_gaps:
+            actions.append(("collect", current_gap_pri, gap, primary.rule_id))
+            current_gap_pri += 1
+
+    # 3. Rank 3: 활성화된 개별 플래그별 세부 점검 및 대응방안 (단일 플래그)
+    for fid in active_flags:
+        flag_obj = compiled_flags_map.get(fid)
+        if not flag_obj:
+            continue
+        if flag_obj.cause and flag_obj.cause not in seen_causes:
+            seen_causes.add(flag_obj.cause)
+            hypotheses.append(
+                (
+                    current_hypo_rank,
+                    f"[{flag_obj.label}] {flag_obj.cause}",
+                    "medium",
+                    f"{flag_obj.label} 플래그가 활성화되었습니다.",
+                    flag_obj.flag_id,
+                )
+            )
+            current_hypo_rank += 1
+
+        if flag_obj.check and flag_obj.check not in seen_checks:
+            seen_checks.add(flag_obj.check)
+            actions.append(
+                (
+                    "check",
+                    current_check_pri,
+                    f"[{flag_obj.label}] {flag_obj.check}",
+                    flag_obj.flag_id,
+                )
+            )
+            current_check_pri += 1
+
+        if flag_obj.remedy and flag_obj.remedy not in seen_remedies:
+            seen_remedies.add(flag_obj.remedy)
+            actions.append(
+                (
+                    "remedy",
+                    current_remedy_pri,
+                    f"[{flag_obj.label}] {flag_obj.remedy}",
+                    flag_obj.flag_id,
+                )
+            )
+            current_remedy_pri += 1
+
+    # Fallback if no hypotheses found
+    if not hypotheses:
+        hypotheses.append(
+            (
+                1,
+                primary.meaning or "알려지지 않은 이상 상황이 감지되었습니다.",
+                primary.confidence,
+                primary.confidence_reason,
+                primary.rule_id,
+            )
+        )
+
+    return hypotheses, actions
 
 
 def _link_fault_csvs(
@@ -434,7 +588,9 @@ def rebuild_incidents(db: Database, case_id: str, *, job_id: str | None = None) 
             for cluster in clusters:
                 start, end, basis, start_raw, end_raw = _event_range(cluster)
                 components, joints, rails = _entities(cluster)
-                checks, remedies, gaps = _incident_actions(cluster)
+                active_flags = _extract_cluster_flags(cluster)
+                hypotheses, actions = _infer_incident_diagnostics(cluster, active_flags)
+
                 direct_occurrences = sum(
                     item.match.role not in {"status", "reaction"} for item in cluster.direct
                 ) or 1
@@ -443,7 +599,7 @@ def rebuild_incidents(db: Database, case_id: str, *, job_id: str | None = None) 
                     "INSERT INTO incidents(run_id,case_id,family,title,severity,primary_event_id,"
                     "start_time,end_time,time_basis,start_raw,end_raw,meaning,summary,confidence,"
                     "confidence_reason,occurrence_count,event_count,affected_components,affected_joints,"
-                    "affected_power_rails,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "affected_power_rails,detected_flags,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         run_id,
                         case_id,
@@ -465,6 +621,7 @@ def rebuild_incidents(db: Database, case_id: str, *, job_id: str | None = None) 
                         json.dumps(components, ensure_ascii=False),
                         json.dumps(joints, ensure_ascii=False),
                         json.dumps(rails, ensure_ascii=False),
+                        json.dumps(active_flags, ensure_ascii=False),
                         started_at,
                     ),
                 )
@@ -488,30 +645,27 @@ def rebuild_incidents(db: Database, case_id: str, *, job_id: str | None = None) 
                         (
                             incident_id,
                             rank,
-                            cause,
-                            primary.confidence,
-                            primary.confidence_reason,
-                            primary.rule_id,
+                            text,
+                            conf,
+                            rat,
+                            s_rule,
                         )
-                        for rank, cause in enumerate(primary.causes, 1)
+                        for rank, text, conf, rat, s_rule in hypotheses
                     ),
-                )
-                action_rows = [
-                    (incident_id, "check", rank, text, primary.rule_id)
-                    for rank, text in enumerate(checks, 1)
-                ]
-                action_rows.extend(
-                    (incident_id, "remedy", rank, text, primary.rule_id)
-                    for rank, text in enumerate(remedies, 1)
-                )
-                action_rows.extend(
-                    (incident_id, "collect", rank, text, primary.rule_id)
-                    for rank, text in enumerate(gaps, 1)
                 )
                 connection.executemany(
                     "INSERT INTO incident_actions(incident_id,kind,priority,text,source_rule_id) "
                     "VALUES (?,?,?,?,?)",
-                    action_rows,
+                    (
+                        (
+                            incident_id,
+                            kind,
+                            pri,
+                            text,
+                            s_rule,
+                        )
+                        for kind, pri, text, s_rule in actions
+                    ),
                 )
             _link_fault_csvs(connection, persisted)
             connection.execute(

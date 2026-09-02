@@ -2196,9 +2196,28 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   font-weight: 600;
 }
 
-.speedSelectLabel select {
-  min-height: 28px;
-  padding: 2px 6px;
+.simSliderRow {
+  padding: 4px 12px 6px;
+  background: #14181c;
+  border-bottom: 1px solid #232a31;
+  display: flex;
+  align-items: center;
+}
+
+.simSliderRow .timelineSlider {
+  width: 100%;
+  height: 5px;
+  background: #252e37;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  accent-color: #00adb5;
+  margin: 0;
+}
+
+.playbackControls .textButton.stepBtn {
+  min-width: 28px;
+  padding: 4px 6px;
   font-size: 11px;
 }
 
@@ -2626,32 +2645,47 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   overflow-y: auto;
 }
 
-.coordGrid {
+.coordGrid,
+.coordGridCompact {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 14px;
   background: #0d1013;
   border: 1px solid #232b35;
   border-radius: 6px;
-  padding: 8px;
+  padding: 10px 12px;
 }
 
 .coordItem {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+  min-width: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
+.coordItem span,
 .coordLabel {
-  font-size: 10px;
-  color: #6a7c8a;
+  font-size: 11px;
+  color: #8fa0ac;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
+.coordItem strong,
 .coordVal {
   font-family: 'Consolas', monospace;
-  font-size: 11.5px;
+  font-size: 12px;
   color: #00adb5;
+  font-weight: 700;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .matrixView {
@@ -4094,30 +4128,44 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 
 /* Badges for roles */
 .badgeRoot {
-  background: rgba(239, 68, 68, 0.18);
+  background: rgba(239, 68, 68, 0.22);
   color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.45);
+  border: 1px solid rgba(239, 68, 68, 0.5);
 }
 .flowNode.badgeRoot {
   border-left: 4px solid #ef4444;
+  background: #1c1114;
+}
+
+.badgeMajorFault {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  font-weight: 700;
+}
+.flowNode.badgeMajorFault {
+  border-left: 4px solid #ef4444;
+  background: #1f1114;
+}
+
+.badgeMinorFault {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+}
+.flowNode.badgeMinorFault {
+  border-left: 4px solid #f87171;
+  background: #1c1214;
 }
 
 .badgeFault {
-  background: rgba(249, 115, 22, 0.18);
-  color: #fb923c;
-  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: rgba(239, 68, 68, 0.22);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.5);
 }
 .flowNode.badgeFault {
-  border-left: 4px solid #f97316;
-}
-
-.badgeReaction {
-  background: rgba(234, 179, 8, 0.18);
-  color: #facc15;
-  border: 1px solid rgba(234, 179, 8, 0.4);
-}
-.flowNode.badgeReaction {
-  border-left: 4px solid #eab308;
+  border-left: 4px solid #ef4444;
+  background: #1c1114;
 }
 
 .badgeCommand {
@@ -4147,6 +4195,24 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   border-left: 4px solid #facc15;
 }
 
+.badgeCmdCanceled {
+  background: rgba(99, 102, 241, 0.18);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.45);
+}
+.flowNode.badgeCmdCanceled {
+  border-left: 4px solid #6366f1;
+}
+
+.badgeCmdFailed {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}
+.flowNode.badgeCmdFailed {
+  border-left: 4px solid #f59e0b;
+}
+
 .badgeError {
   background: rgba(244, 63, 94, 0.15);
   color: #fb7185;
@@ -4165,11 +4231,48 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   border-left: 4px solid #64748b;
 }
 
+.primaryGlowMarker.cmdCanceledMarker {
+  background: rgba(99, 102, 241, 0.25);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+}
+
+.primaryGlowMarker.cmdFailedMarker {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
 /* Primary Root Glow Pulse */
 .flowNode.isPrimaryNode {
   border-color: #ef4444 !important;
   background: #221417;
   animation: primaryPulse 2.5s infinite;
+}
+
+.flowNode.isPrimaryNode.badgeCmdCanceled {
+  border-color: #6366f1 !important;
+  border-left: 4px solid #6366f1 !important;
+  background: #18192c;
+  animation: primaryIndigoPulse 2.5s infinite;
+}
+
+.flowNode.isPrimaryNode.badgeCmdFailed {
+  border-color: #f59e0b !important;
+  border-left: 4px solid #f59e0b !important;
+  background: #221910;
+  animation: primaryAmberPulse 2.5s infinite;
+}
+
+@keyframes primaryIndigoPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.15);
+  }
 }
 
 @keyframes primaryPulse {
@@ -4178,6 +4281,15 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   }
   50% {
     box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.15);
+  }
+}
+
+@keyframes primaryAmberPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.15);
   }
 }
 
@@ -4536,6 +4648,18 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   line-height: 1.45;
 }
 
+.rawLogHeroSection {
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.rawLogDualGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
 .rawLogHighlightBox {
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -4543,7 +4667,15 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+.rawLogHighlightBox.heroLog {
+  background: #0b0f14;
+  border: 1px solid #243041;
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .rawLogHeader {
@@ -4554,20 +4686,20 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
 }
 
 .rawLogTitle {
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 700;
   color: #38bdf8;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .rawLogSource {
-  font-size: 10.5px;
+  font-size: 11px;
   color: #94a3b8;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   background: rgba(30, 41, 59, 0.8);
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid rgba(51, 65, 85, 0.6);
 }
@@ -4576,15 +4708,26 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   margin: 0;
   background: #090d12;
   border: 1px solid rgba(239, 68, 68, 0.3);
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: #fca5a5;
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  line-height: 1.45;
+  line-height: 1.5;
+}
+
+.rawLogExcerpt.heroExcerpt {
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 12px 14px;
+  max-height: 240px;
+  color: #e2e8f0;
+  background: #06090c;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
 }
 
 .commandHighlightBox {
@@ -4614,6 +4757,57 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   gap: 6px;
 }
 
+/* Diagnostic Flags Badge Bar */
+.incidentFlagsBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0f1318;
+  border: 1px solid #242d38;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.flagsBarLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.flagsBadgeList {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.flagBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  color: #e2e8f0;
+}
+
+.flagBadge.flagTimeout { background: rgba(234, 179, 8, 0.12); border-color: rgba(234, 179, 8, 0.4); color: #fde047; }
+.flagBadge.flagMajor { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.5); color: #fca5a5; }
+.flagBadge.flagMinor { background: rgba(249, 115, 22, 0.15); border-color: rgba(249, 115, 22, 0.4); color: #fdba74; }
+.flagBadge.flagCanceled { background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #93c5fd; }
+.flagBadge.flagEmo { background: rgba(220, 38, 38, 0.22); border-color: rgba(220, 38, 38, 0.6); color: #f87171; }
+.flagBadge.flagPower { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #d8b4fe; }
+.flagBadge.flagTemp { background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.4); color: #fda4af; }
+.flagBadge.flagTracking { background: rgba(20, 184, 166, 0.15); border-color: rgba(20, 184, 166, 0.4); color: #5eead4; }
+.flagBadge.flagComm { background: rgba(14, 165, 233, 0.15); border-color: rgba(14, 165, 233, 0.4); color: #7dd3fc; }
+.flagBadge.flagZeroPos { background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.4); color: #c4b5fd; }
+
 .sectionSubtitle {
   font-size: 11px;
   font-weight: 700;
@@ -4640,6 +4834,12 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   border-radius: 5px;
 }
 
+.hypothesisList li.hypothesisComboItem {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.08);
+}
+
 .rankBadge {
   background: #27313a;
   color: #facc15;
@@ -4648,6 +4848,38 @@ select:focus, input:focus, button:focus-visible, .importButton:focus-within, .in
   padding: 2px 6px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+.rankBadge.comboRankBadge {
+  background: #d97706;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  box-shadow: 0 0 8px rgba(217, 119, 6, 0.4);
+}
+
+.comboRationaleText {
+  margin: 4px 0 0 0;
+  font-size: 11.5px;
+  color: #fbbf24;
+  line-height: 1.4;
+}
+
+.actionStepList li.actionComboItem {
+  background: rgba(245, 158, 11, 0.05);
+  border-left: 3px solid #f59e0b;
+}
+
+.actionItemPriority.comboPriority {
+  background: #b45309;
+  color: #ffffff;
+}
+
+.actionItemPriority.remedyPriority.comboRemedyPriority {
+  background: #d97706;
+  color: #ffffff;
+  font-weight: 800;
 }
 
 .hypothesisList strong {

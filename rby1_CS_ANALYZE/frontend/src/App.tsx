@@ -62,6 +62,7 @@ export type Incident = {
   affected_components: string[];
   affected_joints: string[];
   affected_power_rails: string[];
+  detected_flags?: string[];
   primary_cause?: string;
   primary_check?: string;
   csv_linked: boolean;
@@ -74,6 +75,19 @@ type Hypothesis = {
   source_rule_id: string;
 };
 type ActionItem = { kind: string; priority: number; text: string; source_rule_id: string };
+
+const DIAGNOSTIC_FLAG_META: Record<string, { label: string; icon: string; className: string }> = {
+  is_timeout: { label: "타임아웃 발생", icon: "⏱️", className: "flagTimeout" },
+  is_major_fault: { label: "Major Fault", icon: "🛑", className: "flagMajor" },
+  is_minor_fault: { label: "Minor Fault", icon: "⚠️", className: "flagMinor" },
+  is_command_canceled: { label: "명령 취소/거절", icon: "⚡", className: "flagCanceled" },
+  is_emo_triggered: { label: "EMO 비상정지", icon: "🚨", className: "flagEmo" },
+  is_power_loss: { label: "전원 이상/차단", icon: "🔌", className: "flagPower" },
+  is_motor_temp_high: { label: "모터 과열/온도", icon: "🌡️", className: "flagTemp" },
+  is_tracking_error: { label: "관절 추종 오차", icon: "📈", className: "flagTracking" },
+  is_comm_lost: { label: "모터 통신 두절", icon: "📡", className: "flagComm" },
+  is_zero_pos_lost: { label: "원점 유실", icon: "🎯", className: "flagZeroPos" },
+};
 type Provenance = { original_name: string; member_name?: string };
 type Evidence = {
   id: string;
@@ -1210,12 +1224,12 @@ export default function App() {
                   const isCommandStep =
                     selectedFlowNode &&
                     selectedFlowNode.flow_role !== "root" &&
+                    selectedFlowNode.flow_role !== "major_fault" &&
+                    selectedFlowNode.flow_role !== "minor_fault" &&
                     selectedFlowNode.flow_role !== "fault" &&
-                    selectedFlowNode.flow_role !== "error" &&
-                    selectedFlowNode.severity !== "critical" &&
-                    selectedFlowNode.severity !== "error";
+                    selectedFlowNode.flow_role !== "error";
 
-                  // A: Normal Command / Step Node Selected -> Show Command Execution & Response Details
+                  // A: Normal Command / Step / Failure / Cancel Node Selected -> Show Command Execution & Response Details
                   if (isCommandStep && selectedFlowNode) {
                     const nodeTime = selectedFlowNode.time_raw || wholeSecond(String(selectedFlowNode.time_value || ""));
                     const roleBadgeLabel =
@@ -1223,8 +1237,10 @@ export default function App() {
                         ? "📡 UPC 제어 명령"
                         : selectedFlowNode.flow_role === "rpc"
                         ? "⚡ RPC 처리 응답"
-                        : selectedFlowNode.flow_role === "reaction"
-                        ? "🛡️ 보호 반응 (Reaction)"
+                        : selectedFlowNode.flow_role === "cmd_canceled"
+                        ? "⚡ 제어 취소 (Control Canceled)"
+                        : selectedFlowNode.flow_role === "cmd_failed"
+                        ? "⚠️ 제어 명령 실패 (Result: Failed)"
                         : selectedFlowNode.flow_role === "csv_dump"
                         ? "💾 Fault CSV 저장"
                         : selectedFlowNode.flow_role === "warning"
@@ -1236,8 +1252,10 @@ export default function App() {
                         ? "badgeUpc"
                         : selectedFlowNode.flow_role === "rpc"
                         ? "badgeRpc"
-                        : selectedFlowNode.flow_role === "reaction"
-                        ? "badgeReaction"
+                        : selectedFlowNode.flow_role === "cmd_canceled"
+                        ? "badgeCmdCanceled"
+                        : selectedFlowNode.flow_role === "cmd_failed"
+                        ? "badgeCmdFailed"
                         : selectedFlowNode.flow_role === "csv_dump"
                         ? "badgeCsv"
                         : selectedFlowNode.flow_role === "warning"
@@ -1245,10 +1263,12 @@ export default function App() {
                         : "badgeContext";
 
                     const defaultDescription =
-                      selectedFlowNode.flow_role === "csv_dump"
+                      selectedFlowNode.flow_role === "cmd_canceled"
+                        ? "상위 제어기(UPC)의 제어 취소 요청([ControlManager::CancelControl]) 또는 새 명령 선점으로 인해 실행 중이던 기존 제어가 정상적으로 취소(Canceled)되었습니다."
+                        : selectedFlowNode.flow_role === "cmd_failed"
+                        ? "상위 제어기(UPC)에서 전송한 제어 명령이 서비스에서 거절/실패(Result: Failed / Rejected) 처리되었습니다. 하드웨어 전원 및 선행 조건을 확인하십시오."
+                        : selectedFlowNode.flow_role === "csv_dump"
                         ? "로봇 시스템에서 비정상 상태 감지 후 정밀 진단용 Fault CSV 파일 저장을 완료하였습니다."
-                        : selectedFlowNode.flow_role === "reaction"
-                        ? "로봇 컨트롤러에서 시스템 보호를 위해 즉각적인 보호 반응(Reaction)을 실행하였습니다."
                         : selectedFlowNode.flow_role === "warning"
                         ? "제어 주기 지연 또는 시스템 경고 이벤트가 발생하였습니다."
                         : "상위 제어기(UPC)에서 로봇 서비스로 제어 명령을 송신하였습니다.";
@@ -1280,6 +1300,60 @@ export default function App() {
                           </div>
                         </div>
 
+                        {/* Top Prominent Raw Log Section (원본 로그 최상단 전폭 배치 & 확대) */}
+                        <div className="rawLogHeroSection">
+                          {selectedFlowNode.debug_excerpt && selectedFlowNode.info_excerpt ? (
+                            <div className="rawLogDualGrid">
+                              <div className="rawLogHighlightBox heroLog">
+                                <div className="rawLogHeader">
+                                  <span className="rawLogTitle">
+                                    <span className="stepNumber" style={{ background: "#3b82f6" }}>DEBUG</span>
+                                    📡 제어 요청 패킷 (gRPC Payload)
+                                  </span>
+                                  {selectedFlowNode.source_name && (
+                                    <span className="rawLogSource">
+                                      {selectedFlowNode.source_name}:{selectedFlowNode.line}
+                                    </span>
+                                  )}
+                                </div>
+                                <pre className="rawLogExcerpt heroExcerpt">
+                                  <code>{selectedFlowNode.debug_excerpt}</code>
+                                </pre>
+                              </div>
+                              <div className="rawLogHighlightBox heroLog">
+                                <div className="rawLogHeader">
+                                  <span className="rawLogTitle">
+                                    <span className="stepNumber" style={{ background: "#10b981" }}>INFO</span>
+                                    ⚡ 서비스 처리 완료 (Service Response)
+                                  </span>
+                                  {selectedFlowNode.compact_rpc?.source_name && (
+                                    <span className="rawLogSource">
+                                      {selectedFlowNode.compact_rpc.source_name}:{selectedFlowNode.compact_rpc.line}
+                                    </span>
+                                  )}
+                                </div>
+                                <pre className="rawLogExcerpt heroExcerpt">
+                                  <code>{selectedFlowNode.info_excerpt}</code>
+                                </pre>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rawLogHighlightBox heroLog">
+                              <div className="rawLogHeader">
+                                <span className="rawLogTitle">📄 실행 및 원본 로그 전문</span>
+                                {selectedFlowNode.source_name && (
+                                  <span className="rawLogSource">
+                                    {selectedFlowNode.source_name}:{selectedFlowNode.line}
+                                  </span>
+                                )}
+                              </div>
+                              <pre className="rawLogExcerpt heroExcerpt">
+                                <code>{selectedFlowNode.excerpt}</code>
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="incidentActionPlanGrid">
                           {/* Left Card: Command Meaning & Normal Condition */}
                           <div className="actionPlanCard commandInfoCard">
@@ -1309,17 +1383,17 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Right Card: Abnormal Condition & Raw Logs */}
+                          {/* Right Card: Abnormal Condition Guide */}
                           <div className="actionPlanCard stepByStepCard">
                             <div className="actionPlanCardHeader">
                               <span className="cardIcon">🔍</span>
                               <div>
-                                <h3>이상 감지 기준 및 실행 로그</h3>
-                                <span>문제 발생 조건 및 원본 통신 패킷</span>
+                                <h3>이상 감지 기준 및 점검 가이드</h3>
+                                <span>문제 발생 조건 및 모니터링 포인트</span>
                               </div>
                             </div>
                             <div className="actionPlanCardBody">
-                              {selectedFlowNode.command_info?.abnormal_condition && (
+                              {selectedFlowNode.command_info?.abnormal_condition ? (
                                 <div className="actionStepBlock" style={{ borderColor: "rgba(239, 68, 68, 0.3)", background: "rgba(239, 68, 68, 0.05)" }}>
                                   <div className="stepBlockHeader">
                                     <span className="stepNumber" style={{ background: "#ef4444" }}>주의</span>
@@ -1327,38 +1401,13 @@ export default function App() {
                                   </div>
                                   <p style={{ margin: "6px 0 0 0", fontSize: "12.5px" }}>{selectedFlowNode.command_info.abnormal_condition}</p>
                                 </div>
-                              )}
-
-                              {selectedFlowNode.debug_excerpt && selectedFlowNode.info_excerpt ? (
-                                <>
-                                  <div className="actionStepBlock" style={{ marginTop: 8 }}>
-                                    <div className="stepBlockHeader">
-                                      <span className="stepNumber" style={{ background: "#3b82f6" }}>DEBUG</span>
-                                      <strong>📡 제어 요청 패킷 (gRPC Payload)</strong>
-                                    </div>
-                                    <pre className="rawLogBox" style={{ maxHeight: 120, margin: "6px 0 0 0" }}>
-                                      <code>{selectedFlowNode.debug_excerpt}</code>
-                                    </pre>
-                                  </div>
-                                  <div className="actionStepBlock" style={{ marginTop: 8 }}>
-                                    <div className="stepBlockHeader">
-                                      <span className="stepNumber" style={{ background: "#10b981" }}>INFO</span>
-                                      <strong>⚡ 서비스 처리 완료 (Service Response)</strong>
-                                    </div>
-                                    <pre className="rawLogBox" style={{ maxHeight: 120, margin: "6px 0 0 0" }}>
-                                      <code>{selectedFlowNode.info_excerpt}</code>
-                                    </pre>
-                                  </div>
-                                </>
                               ) : (
-                                <div className="actionStepBlock" style={{ marginTop: 8 }}>
+                                <div className="actionStepBlock">
                                   <div className="stepBlockHeader">
-                                    <span className="stepNumber">LOG</span>
-                                    <strong>원본 로그 전문</strong>
+                                    <span className="stepNumber" style={{ background: "#00adb5" }}>정상</span>
+                                    <strong>로그 상태 해석</strong>
                                   </div>
-                                  <pre className="rawLogBox" style={{ maxHeight: 160, margin: "6px 0 0 0" }}>
-                                    <code>{selectedFlowNode.excerpt}</code>
-                                  </pre>
+                                  <p style={{ margin: "6px 0 0 0", fontSize: "12.5px" }}>해당 시점에 정상 명령 또는 상태 이벤트가 기록되었습니다.</p>
                                 </div>
                               )}
                             </div>
@@ -1370,9 +1419,12 @@ export default function App() {
 
                   // B: Error / Fault Incident Selected -> Show Full Root Cause & Action Plan
                   if (selected) {
-                    const primary = detail?.evidence.find((item) => item.id === detail.incident.primary_event_id) ?? detail?.evidence[0];
-                    const primaryExcerpt = selectedFlowNode?.excerpt || primary?.excerpt || selected.start_raw || selected.summary;
-                    const primarySource = selectedFlowNode?.source_name && selectedFlowNode?.line
+                    const isCurrentDetail = detail?.incident.id === selected.id;
+                    const primary = isCurrentDetail
+                      ? (detail?.evidence.find((item) => item.id === detail.incident.primary_event_id) ?? detail?.evidence[0])
+                      : undefined;
+                    const primaryExcerpt = (selectedFlowNode && selectedFlowNode.incident_id === selected.id ? selectedFlowNode.excerpt : undefined) || primary?.excerpt || selected.start_raw || selected.summary;
+                    const primarySource = selectedFlowNode?.source_name && selectedFlowNode?.line && selectedFlowNode.incident_id === selected.id
                       ? `${selectedFlowNode.source_name}${selectedFlowNode.member_name ? `!/${selectedFlowNode.member_name}` : ""}:${selectedFlowNode.line}`
                       : (primary
                         ? `${primary.source_name}${primary.member_name ? `!/${primary.member_name}` : ""}:${primary.line}`
@@ -1397,6 +1449,43 @@ export default function App() {
                           </div>
                         </div>
 
+                        {/* Diagnostic Flags Badge Bar (감지된 상태 플래그 뱃지 바) */}
+                        {selected.detected_flags && selected.detected_flags.length > 0 && (
+                          <div className="incidentFlagsBar" aria-label="감지된 진단 플래그 목록">
+                            <span className="flagsBarLabel">🚩 감지된 시스템 플래그:</span>
+                            <div className="flagsBadgeList">
+                              {selected.detected_flags.map((flagKey) => {
+                                const meta = DIAGNOSTIC_FLAG_META[flagKey] ?? {
+                                  label: flagKey,
+                                  icon: "⚠️",
+                                  className: "flagDefault",
+                                };
+                                return (
+                                  <span key={flagKey} className={`flagBadge ${meta.className}`}>
+                                    <span>{meta.icon}</span>
+                                    <strong>{meta.label}</strong>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Top Prominent Raw Log Section (에러 원본 로그 최상단 전폭 배치 & 확대) */}
+                        {primaryExcerpt && (
+                          <div className="rawLogHeroSection">
+                            <div className="rawLogHighlightBox heroLog">
+                              <div className="rawLogHeader">
+                                <span className="rawLogTitle">📄 감지된 에러 원본 로그</span>
+                                {primarySource && <span className="rawLogSource">{primarySource}</span>}
+                              </div>
+                              <pre className="rawLogExcerpt heroExcerpt">
+                                <code>{primaryExcerpt}</code>
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Action Plan & Root Cause Section */}
                         <div className="incidentActionPlanGrid">
                           {/* Left: Root Cause Analysis Card */}
@@ -1415,30 +1504,28 @@ export default function App() {
                                 <p>{selected.meaning || selected.primary_cause || "장애 로그가 감지되었습니다."}</p>
                               </div>
 
-                              {primaryExcerpt && (
-                                <div className="rawLogHighlightBox">
-                                  <div className="rawLogHeader">
-                                    <span className="rawLogTitle">📄 감지된 에러 원본 로그</span>
-                                    {primarySource && <span className="rawLogSource">{primarySource}</span>}
-                                  </div>
-                                  <pre className="rawLogExcerpt">
-                                    <code>{primaryExcerpt}</code>
-                                  </pre>
-                                </div>
-                              )}
-
                               {detail?.hypotheses && detail.hypotheses.length > 0 ? (
                                 <div className="hypothesisSection">
-                                  <span className="sectionSubtitle">가능한 원인 후보 (우선순위 순):</span>
+                                  <span className="sectionSubtitle">우선순위별 원인 진단 및 가설:</span>
                                   <ul className="hypothesisList">
-                                    {detail.hypotheses.map((item) => (
-                                      <li key={`${item.rank}-${item.text}`}>
-                                        <span className="rankBadge">순위 {item.rank}</span>
-                                        <div>
-                                          <strong>{item.text}</strong>
-                                        </div>
-                                      </li>
-                                    ))}
+                                    {detail.hypotheses.map((item) => {
+                                      const isCombo =
+                                        item.source_rule_id?.startsWith("combo_") ||
+                                        (item.rank === 1 && item.text.startsWith("["));
+                                      return (
+                                        <li key={`${item.rank}-${item.text}`} className={isCombo ? "hypothesisComboItem" : undefined}>
+                                          <span className={`rankBadge ${isCombo ? "comboRankBadge" : ""}`}>
+                                            {isCombo ? `🥇 1순위 복합 진단` : `순위 ${item.rank}`}
+                                          </span>
+                                          <div>
+                                            <strong>{item.text}</strong>
+                                            {item.rationale && isCombo && (
+                                              <p className="comboRationaleText">💡 {item.rationale}</p>
+                                            )}
+                                          </div>
+                                        </li>
+                                      );
+                                    })}
                                   </ul>
                                 </div>
                               ) : (
@@ -1472,12 +1559,17 @@ export default function App() {
                                     <strong>현장 점검 항목 (Checklist)</strong>
                                   </div>
                                   <ol className="actionStepList">
-                                    {detail.checks.map((item) => (
-                                      <li key={`${item.priority}-${item.text}`}>
-                                        <span className="actionItemPriority">점검 {item.priority}</span>
-                                        <p>{item.text}</p>
-                                      </li>
-                                    ))}
+                                    {detail.checks.map((item) => {
+                                      const isCombo = item.source_rule_id?.startsWith("combo_");
+                                      return (
+                                        <li key={`${item.priority}-${item.text}`} className={isCombo ? "actionComboItem" : undefined}>
+                                          <span className={`actionItemPriority ${isCombo ? "comboPriority" : ""}`}>
+                                            {isCombo ? `종합 점검` : `점검 ${item.priority}`}
+                                          </span>
+                                          <p>{item.text}</p>
+                                        </li>
+                                      );
+                                    })}
                                   </ol>
                                 </div>
                               )}
@@ -1490,12 +1582,17 @@ export default function App() {
                                     <strong>문제 해결 및 복구 조치 (Remedies)</strong>
                                   </div>
                                   <ol className="actionStepList">
-                                    {detail.remedies.map((item) => (
-                                      <li key={`${item.priority}-${item.text}`}>
-                                        <span className="actionItemPriority remedyPriority">조치 {item.priority}</span>
-                                        <p>{item.text}</p>
-                                      </li>
-                                    ))}
+                                    {detail.remedies.map((item) => {
+                                      const isCombo = item.source_rule_id?.startsWith("combo_");
+                                      return (
+                                        <li key={`${item.priority}-${item.text}`} className={isCombo ? "actionComboItem" : undefined}>
+                                          <span className={`actionItemPriority remedyPriority ${isCombo ? "comboRemedyPriority" : ""}`}>
+                                            {isCombo ? `최우선 조치` : `조치 ${item.priority}`}
+                                          </span>
+                                          <p>{item.text}</p>
+                                        </li>
+                                      );
+                                    })}
                                   </ol>
                                 </div>
                               )}

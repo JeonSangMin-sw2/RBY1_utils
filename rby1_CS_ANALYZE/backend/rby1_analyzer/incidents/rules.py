@@ -57,6 +57,28 @@ class CompiledRule:
     specificity: int
 
 
+@dataclass(frozen=True, slots=True)
+class CompiledFlag:
+    flag_id: str
+    label: str
+    icon: str
+    compiled_pattern: re.Pattern
+    cause: str
+    check: str
+    remedy: str
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledCombination:
+    id: str
+    flags: tuple[str, ...]
+    title: str
+    priority: int
+    causes: tuple[str, ...]
+    checks: tuple[str, ...]
+    remedies: tuple[str, ...]
+
+
 def extract_entities(excerpt: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     joints = tuple(dict.fromkeys(match.group(0).lower() for match in JOINT_NAME.finditer(excerpt)))
     rails = tuple(dict.fromkeys(match.group(1).lower() for match in POWER_RAIL.finditer(excerpt)))
@@ -125,14 +147,22 @@ def _load_yaml_config() -> dict[str, Any]:
     return {}
 
 
-def load_compiled_rules() -> tuple[list[dict[str, Any]], list[CompiledRule]]:
+def load_compiled_rules() -> tuple[
+    list[dict[str, Any]],
+    list[CompiledRule],
+    list[CompiledFlag],
+    list[CompiledCombination],
+]:
     payload = _load_yaml_config()
     categories = payload.get("categories", [])
     raw_rules = payload.get("rules", [])
-    compiled: list[CompiledRule] = []
+    raw_flags = payload.get("flags", [])
+    raw_combinations = payload.get("combinations", [])
+
+    compiled_rules: list[CompiledRule] = []
     for item in raw_rules:
         pattern_str = str(item.get("pattern", ".*"))
-        compiled.append(
+        compiled_rules.append(
             CompiledRule(
                 rule_id=str(item.get("id", "unknown_error")),
                 major_category=str(item.get("major_category", "service_api")),
@@ -155,7 +185,37 @@ def load_compiled_rules() -> tuple[list[dict[str, Any]], list[CompiledRule]]:
                 specificity=int(item.get("specificity", 50)),
             )
         )
-    return categories, compiled
+
+    compiled_flags: list[CompiledFlag] = []
+    for f in raw_flags:
+        pat_str = str(f.get("pattern", ".*"))
+        compiled_flags.append(
+            CompiledFlag(
+                flag_id=str(f.get("id", "")),
+                label=str(f.get("label", "")),
+                icon=str(f.get("icon", "⚠️")),
+                compiled_pattern=re.compile(pat_str, re.IGNORECASE),
+                cause=str(f.get("cause", "")),
+                check=str(f.get("check", "")),
+                remedy=str(f.get("remedy", "")),
+            )
+        )
+
+    compiled_combinations: list[CompiledCombination] = []
+    for c in raw_combinations:
+        compiled_combinations.append(
+            CompiledCombination(
+                id=str(c.get("id", "")),
+                flags=tuple(str(x) for x in c.get("flags", [])),
+                title=str(c.get("title", "복합 장애 상황")),
+                priority=int(c.get("priority", 80)),
+                causes=tuple(str(x) for x in c.get("causes", [])),
+                checks=tuple(str(x) for x in c.get("checks", [])),
+                remedies=tuple(str(x) for x in c.get("remedies", [])),
+            )
+        )
+
+    return categories, compiled_rules, compiled_flags, compiled_combinations
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,12 +270,53 @@ def load_command_dictionary() -> list[CompiledCommand]:
     return []
 
 
-CATEGORIES, COMPILED_RULES = load_compiled_rules()
+CATEGORIES, COMPILED_RULES, COMPILED_FLAGS, COMPILED_COMBINATIONS = load_compiled_rules()
 COMPILED_COMMANDS = load_command_dictionary()
 
 
 def get_error_guide_categories() -> list[dict[str, Any]]:
     return CATEGORIES
+
+
+def get_compiled_flags() -> list[CompiledFlag]:
+    return COMPILED_FLAGS
+
+
+def extract_flags_from_text(text: str, category: str = "", severity: str = "") -> list[str]:
+    lowered = text.lower()
+    cat_lowered = category.lower()
+    sev_lowered = severity.lower()
+    matched_flags: list[str] = []
+
+    for flag in COMPILED_FLAGS:
+        if flag.compiled_pattern.search(lowered):
+            matched_flags.append(flag.flag_id)
+        elif flag.flag_id == "is_major_fault" and (cat_lowered == "majorfault" or sev_lowered == "critical"):
+            if flag.flag_id not in matched_flags:
+                matched_flags.append(flag.flag_id)
+        elif flag.flag_id == "is_minor_fault" and cat_lowered == "minorfault":
+            if flag.flag_id not in matched_flags:
+                matched_flags.append(flag.flag_id)
+        elif flag.flag_id == "is_timeout" and (cat_lowered == "timeout" or "timeout" in lowered):
+            if flag.flag_id not in matched_flags:
+                matched_flags.append(flag.flag_id)
+
+    return list(dict.fromkeys(matched_flags))
+
+
+def match_combinations(active_flags: set[str] | list[str]) -> list[CompiledCombination]:
+    flag_set = set(active_flags)
+    matched: list[tuple[int, int, CompiledCombination]] = []
+
+    for combo in COMPILED_COMBINATIONS:
+        combo_flags = set(combo.flags)
+        # Check if ALL flags in this combination are present in active_flags (must be at least 2)
+        if combo_flags.issubset(flag_set) and len(combo_flags) >= 2:
+            matched.append((len(combo_flags), combo.priority, combo))
+
+    # Sort by: 1. Number of matching flags (descending), 2. priority (descending)
+    matched.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [item[2] for item in matched]
 
 
 def match_command_info(excerpt: str) -> dict[str, str] | None:

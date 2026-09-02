@@ -110,6 +110,166 @@ categories:
         label: "미분류 오류"
 
 # -----------------------------------------------------------------------------
+# 다차원 상태 진단 플래그 정의 (Diagnostic Flags)
+# -----------------------------------------------------------------------------
+flags:
+  - id: is_timeout
+    label: "타임아웃 발생"
+    icon: "⏱️"
+    pattern: "(?:timeout|timed out|deadline exceeded|state update exceeded|time out)"
+    cause: "통신 인터페이스 응답 지연 또는 제어 루프 주기 시간 초과"
+    check: "관절 및 서비스의 통신 응답 시간과 CAN 버스 패킷 드롭 여부를 점검하십시오."
+    remedy: "통신 배선 접촉 상태를 점검하고 제어 루프 지연 요인을 제거하십시오."
+
+  - id: is_major_fault
+    label: "Major Fault 발생"
+    icon: "🛑"
+    pattern: "(?:major\\s*fault|majorfault|fsm state.*major_fault)"
+    cause: "시스템 안전 정지(Safe Stop) 및 FSM Major Fault 상태 전환"
+    check: "Major Fault 직전 발생한 선행 에러 로그와 비상 정지 상태를 점검하십시오."
+    remedy: "원인 해결 후 48V 구동 전원을 재인가하고 컨트롤러를 초기화하십시오."
+
+  - id: is_minor_fault
+    label: "Minor Fault 발생"
+    icon: "⚠️"
+    pattern: "(?:minor\\s*fault|minorfault|fsm state.*minor_fault)"
+    cause: "모터 드라이버 경고 또는 일시적 제어 거절 상태 전환"
+    check: "관절 가동 범위 초과 및 일시적 제어 명령 거절 여부를 확인하십시오."
+    remedy: "모터 서보 에러 상태를 클리어하고 제어 명령을 재전송하십시오."
+
+  - id: is_command_canceled
+    label: "제어 명령 취소/거절"
+    icon: "⚡"
+    pattern: "(?:canceled|preempted|command rejected|cancel control|request rejected)"
+    cause: "상위 제어기(UPC)의 제어권 강제 선점 또는 명령 거절"
+    check: "선행 제어 프로세스 완료 여부 및 상위 제어기의 중복 명령 시퀀스를 점검하십시오."
+    remedy: "상위 제어기(UPC) 명령 전송 순서와 우선순위 설정을 점검하십시오."
+
+  - id: is_emo_triggered
+    label: "EMO 비상정지 작동"
+    icon: "🚨"
+    pattern: "(?:emo error|check emo switch|emergency stop|e-stop|emo.*pressed)"
+    cause: "본체 비상정지 스위치 눌림 또는 무선 리모컨(FORT) 비상정지 신호 인가"
+    check: "본체 비상정지 버튼 물리적 해제 여부 및 무선 리모컨 전원/페어링을 확인하십시오."
+    remedy: "EMO 버튼을 돌려 해제하고 48V 전원 재인가 시퀀스를 실행하십시오."
+
+  - id: is_power_loss
+    label: "전원 이상/차단"
+    icon: "🔌"
+    pattern: "(?:power.*(?:off|drop|unmatched|loss)|fuse|pc shutdown)"
+    cause: "48V/24V 전원 레일 불일치, 전압 급강하 또는 PDU 퓨즈 단선"
+    check: "배터리 전압(54V 이상) 및 PDU 파트별 전원 퓨즈 도통 상태를 점검하십시오."
+    remedy: "단선된 퓨즈를 교체하거나 배터리를 충전/교체하십시오."
+
+  - id: is_motor_temp_high
+    label: "모터 과열/온도 오류"
+    icon: "🌡️"
+    pattern: "(?:\\btemp(?:erature)?\\s+error\\b|overheat|motor temperature)"
+    cause: "관절 기구적 한계 상태에서의 지속 전류 인가로 인한 코일 과열"
+    check: "해당 관절의 기구적 걸림 여부 및 모터 표면 온도를 점검하십시오."
+    remedy: "로봇을 정상 범위로 이동시켜 충분히 냉각하고 지속 시 모터를 교체하십시오."
+
+  - id: is_tracking_error
+    label: "관절 추종 오차"
+    icon: "📈"
+    pattern: "(?:tracking error|following error|pos.*error exceed)"
+    cause: "외력 충돌, 과도한 부하 또는 PID 게인 튜닝 불량으로 인한 궤적 추종 실패"
+    check: "적재 하중(Payload) 초과 여부 및 물리적 장애물 간섭을 점검하십시오."
+    remedy: "간섭물을 제거하고 로봇 모션을 완화하거나 PID 게인을 재조정하십시오."
+
+  - id: is_comm_lost
+    label: "모터 통신 두절"
+    icon: "📡"
+    pattern: "(?:no data (?:received|coming|comming)|comm lost|can.*timeout|communication lost)"
+    cause: "관절부 하네스 배선 단선/쇼트, BNO 15번 리셋 또는 CAN 버스 개방"
+    check: "멀티미터로 CAN 라인 종단 저항(120Ω) 및 신호선 도통을 측정하십시오."
+    remedy: "불량 케이블/조립체를 교체하거나 BNO 노드 번호를 재설정하십시오."
+
+  - id: is_zero_pos_lost
+    label: "원점(Zero Pos) 유실"
+    icon: "🎯"
+    pattern: "(?:zero position (?:lost|changed|random)|preset.*loss|encoder preset error)"
+    cause: "손목 보드 프리셋 핀 납땜 누락으로 전원 On/Off 시 원점 랜덤 변경"
+    check: "전원 재인가 전후 엔코더 절대값 변화 및 보드 납땜 상태를 점검하십시오."
+    remedy: "프리셋 신호핀을 납땜(쇼트) 처리하고 조인트 원점을 재보정하십시오."
+
+# -----------------------------------------------------------------------------
+# 다중 플래그 복합 조건 조합 및 최우선 대응 가이드 (Combination Rules)
+# (2개 이상의 플래그가 동시 감지되었을 때 Rank 1 최우선 순위로 제시)
+# -----------------------------------------------------------------------------
+combinations:
+  - id: combo_major_fault_timeout
+    flags: ["is_major_fault", "is_timeout"]
+    title: "통신 두절로 인한 시스템 Major Fault 발생"
+    priority: 100
+    causes:
+      - "실시간 통신 두절 또는 심각한 제어 주기 지연으로 인해 로봇 시스템이 안전 정지(Major Fault)로 강제 전환되었습니다."
+    checks:
+      - "통신 버스(CAN) 종단 저항(120Ω) 및 조인트 제어기 전원선 체결 상태를 최우선 점검하십시오."
+      - "제어 루프 주기 지연을 유발하는 상위 프로세스 CPU 부하를 확인하십시오."
+    remedies:
+      - "통신 배선을 재체결하고, 시스템 초기화 후 48V 전원을 재투입하십시오."
+
+  - id: combo_major_fault_emo
+    flags: ["is_major_fault", "is_emo_triggered"]
+    title: "비상정지(EMO) 신호 인가에 따른 Major Fault"
+    priority: 100
+    causes:
+      - "물리적 비상정지 버튼 눌림 또는 FORT 무선 리모컨 비상정지로 인해 48V 주전원이 차단되며 FSM Major Fault가 트리거되었습니다."
+    checks:
+      - "본체 비상정지 버튼 및 무선 리모컨 E-STOP 스위치 물리적 해제 여부를 확인하십시오."
+      - "FORT 무선 수신기 페어링 상태 및 리모컨 배터리 잔량을 점검하십시오."
+    remedies:
+      - "비상정지 버튼을 회전하여 해제한 뒤 SCB 리셋 및 48V 전원 인가 절차를 수행하십시오."
+
+  - id: combo_major_fault_power
+    flags: ["is_major_fault", "is_power_loss"]
+    title: "전원 레일 이상/퓨즈 단선에 따른 Major Fault"
+    priority: 95
+    causes:
+      - "모터 구동 중 48V 전원 전압 급강하 또는 PDU 퓨즈 단선으로 주전원 공급이 중단되어 안전 정지되었습니다."
+    checks:
+      - "PDU 내부 파트별 48V 퓨즈의 도통 상태를 멀티미터로 시험하십시오."
+      - "배터리 전압이 54V 이상인지 및 전원 분배기(PDB) 커넥터 접촉을 점검하십시오."
+    remedies:
+      - "단선된 퓨즈를 규격품으로 교체하고 배터리를 만충전하거나 전원 하네스를 수리하십시오."
+
+  - id: combo_timeout_comm_lost
+    flags: ["is_timeout", "is_comm_lost"]
+    title: "하드웨어 배선 단선에 따른 모터 통신 완전 두절"
+    priority: 90
+    causes:
+      - "조인트 내부 케이블 단선 또는 드라이버 보드 전원 상실로 인해 주기적 패킷 수신이 완전히 중단되었습니다."
+    checks:
+      - "해당 관절 조립체 내부 배선 꺾임 및 쇼트 여부를 육안 및 저항계로 점검하십시오."
+      - "모터 드라이버 BNO가 15번으로 초기화되었는지 점검하십시오."
+    remedies:
+      - "쇼트 또는 단선된 조인트 배선 조립체를 교체하고 필요 시 BNO를 재설정하십시오."
+
+  - id: combo_command_canceled_minor
+    flags: ["is_command_canceled", "is_minor_fault"]
+    title: "제어 경고 및 FSM 충돌로 인한 제어 명령 취소"
+    priority: 85
+    causes:
+      - "관절 가동 범위 초과 또는 Minor Fault 상태에서 제어 명령이 전송되어 상위 제어기에서 명령이 거절/취소되었습니다."
+    checks:
+      - "로봇 각 관절이 소프트웨어 가동 범위(Software Limit) 내에 위치하는지 확인하십시오."
+      - "Minor Fault를 유발한 원인 로그(추종 오차, 속도 제한 등)를 확인하십시오."
+    remedies:
+      - "로봇 관절을 안전 범위로 수동 이동하고 FSM 에러를 클리어한 후 명령을 재인가하십시오."
+
+  - id: combo_temp_tracking
+    flags: ["is_motor_temp_high", "is_tracking_error"]
+    title: "기구적 간섭/부하로 인한 과열 및 추종 오차"
+    priority: 85
+    causes:
+      - "외부 물체와의 지속 충돌 또는 기구적 걸림으로 인해 모터에 정격 이상의 토크가 인가되어 과열과 추종 오차가 동시 발생했습니다."
+    checks:
+      - "로봇 관절 구동부의 물리적 간섭 및 적재 하중(Payload) 초과 여부를 확인하십시오."
+    remedies:
+      - "간섭 물체를 제거하고 모터를 냉각한 후 원점 및 기구 상태를 점검하십시오."
+
+# -----------------------------------------------------------------------------
 # 진단 및 장애 매핑 규칙 목록
 # -----------------------------------------------------------------------------
 rules:
@@ -632,17 +792,16 @@ rules:
     severity: error
     role: root
     confidence: medium
-    confidence_reason: "상태 불일치는 확인되지만 EMO·SCB·FORT 중 어느 조건인지는 추가 확인이 필요합니다."
+    confidence_reason: "상태 불일치는 확인되지만 EMO·SCB중 어느 조건인지는 추가 확인이 필요합니다."
     causes:
-      - "EMO, SCB Reset 신호 부재 또는 FORT 리모컨 배터리 방전 가능성이 있습니다."
+      - "EMO, SCB Reset 신호 부재 가능성이 있습니다."
     checks:
       - "EMO가 눌려 있는지 확인하십시오."
-      - "FORT를 사용하는 경우 리모컨 배터리 상태를 확인하십시오."
       - "SCB Reset 신호를 전송해 보십시오."
     remedies:
       - "안전 입력과 Reset 조건을 정상화한 뒤 48V 전원 명령을 다시 수행하십시오."
     evidence_gaps:
-      - "EMO/SCB/FORT 입력 상태가 없으면 원인을 하나로 확정할 수 없습니다."
+      - "EMO/SCB 입력 상태가 없으면 원인을 하나로 확정할 수 없습니다."
     group_window: 10.0
     specificity: 120
 

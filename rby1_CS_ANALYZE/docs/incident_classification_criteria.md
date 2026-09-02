@@ -61,30 +61,45 @@
 
 ---
 
-## 4. 진단 규칙(`error_guide.yaml`) 수정 및 신규 추가 방법
+---
 
-새로운 에러 로그 패턴을 분석기에 추가하거나 기존 진단 설명을 수정하려면 [`config/error_guide.yaml`](file:///home/rainbow/utils_ws/rby1_CS_ANALYZE/config/error_guide.yaml) 파일의 `rules` 목록에 아래 형식으로 항목을 추가하면 즉시 반영됩니다:
+## 4. 다차원 상태 플래그(Diagnostic Flags) 및 복합 랭킹 추론 시스템
 
-```yaml
-- id: my_custom_error_id               # 고유 룰 ID
-  major_category: motor_joint          # 대분류 (motor_joint, control_manager, hardware_power, communication, safety_kinematics, service_api)
-  sub_category: tracking_error         # 소분류
-  family: tracking_error               # 패밀리 그룹
-  title: "관절 토크 과부하 감지"       # UI에 표시될 장애 제목
-  pattern: "torque overload detected"  # 로그에서 감지할 키워드 또는 정규식
-  meaning: "관절에 정격 이상의 토크가 지속 인가되었습니다." # 발생 장애 개요
-  severity: critical                   # 심각도 (critical / error / warning)
-  role: root                           # 역할 (root: 원인, reaction: 반응, warning: 주의)
-  confidence: high                     # 진단 신뢰도 (high / medium / low)
-  causes:                              # 가능한 원인 후보 목록
-    - "외력 충돌 또는 기구적 걸림"
-    - "과도한 가반하중 운반"
-  checks:                              # 현장 엔지니어 점검 항목 (STEP 1)
-    - "해당 관절 주변의 물리적 간섭 및 물체 충돌 여부를 육안 점검하십시오."
-    - "적재 하중이 로봇 사양(Payload) 이내인지 확인하십시오."
-  remedies:                            # 복구 조치 방안 (STEP 2)
-    - "간섭 물체를 제거하고 모터를 재부팅하십시오."
-  evidence_gaps:                       # 로그만으로 확정할 수 없는 한계점 명시
-    - "물리적 충돌 흔적 및 가반 하중 실측이 필요합니다."
-  specificity: 80                      # 우선순위 가중치 (높을수록 우선 매칭)
-```
+RB-Y1 CS 분석기는 단일 룰 매칭의 한계를 극복하기 위해 **10종 핵심 상태 플래그(Flags)**를 실시간 추출하고, **2개 이상의 플래그가 동시 발생한 복합 이상 조건(Combinations)**을 최우선 순위(Rank 1)로 판정합니다.
+
+### 4.1 핵심 상태 플래그 10종 정의
+
+| 플래그 ID | 뱃지 라벨 | 아이콘 | 주요 감지 키워드 | 시스템 상태 의미 |
+| :--- | :--- | :---: | :--- | :--- |
+| `is_timeout` | **타임아웃 발생** | ⏱️ | `timeout`, `timed out`, `deadline exceeded` | 통신 응답 지연 또는 제어 루프 주기 시간 초과 |
+| `is_major_fault` | **Major Fault 발생** | 🛑 | `major fault`, `majorfault`, `fsm state` | 시스템 안전 정지 및 FSM Major Fault 전환 |
+| `is_minor_fault` | **Minor Fault 발생** | ⚠️ | `minor fault`, `minorfault` | 모터 드라이버 경고 또는 일시적 제어 거절 |
+| `is_command_canceled` | **제어 명령 취소/거절** | ⚡ | `canceled`, `preempted`, `command rejected` | 상위 제어기(UPC)의 제어권 선점 또는 명령 취소 |
+| `is_emo_triggered` | **EMO 비상정지 작동** | 🚨 | `emo error`, `e-stop`, `emergency stop` | 비상정지 스위치 눌림 또는 무선 리모컨 E-STOP |
+| `is_power_loss` | **전원 이상/차단** | 🔌 | `power off`, `power drop`, `unmatched power`, `fuse` | 48V/24V 전원 레일 불일치, 전압 급강하, 퓨즈 단선 |
+| `is_motor_temp_high` | **모터 과열/온도 오류** | 🌡️ | `temp error`, `overheat` | 기구적 한계 상태에서의 지속 전류 인가로 코일 과열 |
+| `is_tracking_error` | **관절 추종 오차** | 📈 | `tracking error`, `following error` | 외력 충돌 또는 과부하로 인한 궤적 추종 실패 |
+| `is_comm_lost` | **모터 통신 두절** | 📡 | `no data received`, `comm lost`, `can timeout` | 관절 하네스 배선 단선/쇼트, BNO 15번 리셋 |
+| `is_zero_pos_lost` | **원점(Zero Pos) 유실** | 🎯 | `zero position lost`, `preset loss` | 손목 보드 프리셋 핀 누락으로 전원 리셋 시 원점 유실 |
+
+### 4.2 복합 플래그 조합 (Combinations) 및 랭킹 규칙
+
+사건(Incident) 발생 시 다음과 같은 우선순위로 원인 가설 및 대응 방안이 나열됩니다:
+
+1. **Rank 1 (최우선)**: **복합 플래그 조건 (2개 이상 동시 만족)**
+   - `is_major_fault` + `is_timeout`: 통신 두절에 따른 실시간 제어 루프 중단 및 Major Fault 전환 종합 조치
+   - `is_major_fault` + `is_emo_triggered`: EMO 비상정지 작동으로 인한 48V 주전원 차단 및 셧다운 복구
+   - `is_major_fault` + `is_power_loss`: 모터 구동 중 48V 급강하 / PDU 퓨즈 단선에 따른 안전 정지 조치
+   - `is_timeout` + `is_comm_lost`: 조인트 내부 하네스 배선 단선에 따른 CAN 통신 완전 두절 점검
+   - `is_command_canceled` + `is_minor_fault`: 관절 가동 범위 초과 및 FSM 충돌로 인한 제어 명령 취소
+   - `is_motor_temp_high` + `is_tracking_error`: 물리적 간섭/부하로 인한 모터 과열 및 추종 오차
+2. **Rank 2**: **도메인 특화 특정 룰 (특화 부품 매칭 원인 및 조치)**
+   - Arm 6축 손목 BNO 리셋, WY2 원점 유실, Torso UVW 단락 등
+3. **Rank 3**: **감지된 개별 플래그별 세부 점검 및 대응 방안**
+   - 활성화된 각 플래그의 기본 점검 항목 및 예방 조치 가이드 순차 제공
+
+---
+
+## 5. 진단 규칙(`error_guide.yaml`) 수정 및 신규 추가 방법
+
+새로운 에러 로그 패턴이나 플래그, 복합 조합을 추가하려면 [`config/error_guide.yaml`](file:///home/jsm/RBY1_utils/rby1_CS_ANALYZE/config/error_guide.yaml) 파일에 항목을 추가하면 즉시 반영됩니다.

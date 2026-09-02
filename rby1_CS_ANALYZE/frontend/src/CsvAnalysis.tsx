@@ -1473,7 +1473,7 @@ export function CsvAnalysis({
 
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
 
-  const [show3DView, setShow3DView] = useState(false);
+  const [show3DView, setShow3DView] = useState(true);
   const [cursorTime, setCursorTime] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(false);

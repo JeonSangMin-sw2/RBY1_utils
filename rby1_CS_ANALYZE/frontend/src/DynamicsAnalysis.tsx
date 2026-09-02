@@ -861,7 +861,7 @@ export function DynamicsAnalysis({
       {/* 2. SUBTAB 1: STATE ANALYSIS (상태 분석: 3D 시뮬 + 타임라인 + 4x4 변환행렬 + 컴포넌트별 고정 부하율 테이블) */}
       {subTab === "state" && (
         <div className="dynamicsStateLayout">
-          {/* Left Column: Big 3D Simulation & Timeline Controller */}
+          {/* Left Column: Big 3D Simulation & Top Controller */}
           <div className="stateLeftColumn">
             <div className="state3DViewerCard">
               <div className="sidebarHeader">
@@ -870,6 +870,111 @@ export function DynamicsAnalysis({
                   ⏱ t = {currentCursorSec}s / {totalDuration}s (프레임 {cursorIndex + 1} / {csvPayload?.times.length ?? 0})
                 </span>
               </div>
+
+              {/* Simulation Playback Control Bar placed at the TOP of 3D Viewer */}
+              <div className="simControlBar">
+                <div className="playbackControls" aria-label="자세 재생 제어">
+                  <button
+                    type="button"
+                    className="textButton"
+                    disabled={!csvPayload || csvPayload.times.length === 0}
+                    onClick={() => {
+                      setPlaying(false);
+                      setCursorIndex(0);
+                    }}
+                    title="처음 위치로 이동"
+                  >
+                    처음
+                  </button>
+                  <button
+                    type="button"
+                    className={`textButton playbackPrimary ${playing ? "playing" : ""}`}
+                    disabled={!csvPayload || csvPayload.times.length === 0}
+                    onClick={() => {
+                      if (!playing && cursorIndex >= (csvPayload?.times.length ?? 0) - 1) {
+                        setCursorIndex(0);
+                      }
+                      setPlaying(!playing);
+                    }}
+                  >
+                    {playing ? "일시정지" : "▶ 재생"}
+                  </button>
+                  <button
+                    type="button"
+                    className="textButton"
+                    disabled={!playing}
+                    onClick={() => setPlaying(false)}
+                  >
+                    정지
+                  </button>
+
+                  <button
+                    type="button"
+                    className="textButton stepBtn"
+                    disabled={!csvPayload || cursorIndex <= 0}
+                    onClick={() => {
+                      setPlaying(false);
+                      setCursorIndex((prev) => Math.max(0, prev - 1));
+                    }}
+                    title="이전 프레임"
+                  >
+                    ⏮
+                  </button>
+                  <button
+                    type="button"
+                    className="textButton stepBtn"
+                    disabled={!csvPayload || cursorIndex >= (csvPayload?.times.length ?? 1) - 1}
+                    onClick={() => {
+                      setPlaying(false);
+                      setCursorIndex((prev) => Math.min((csvPayload?.times.length ?? 1) - 1, prev + 1));
+                    }}
+                    title="다음 프레임"
+                  >
+                    ⏭
+                  </button>
+
+                  <label className="speedSelectLabel">
+                    <span>속도</span>
+                    <select
+                      aria-label="재생 속도"
+                      value={playSpeed}
+                      onChange={(e) => setPlaySpeed(Number(e.target.value))}
+                    >
+                      <option value={0.2}>0.2x</option>
+                      <option value={0.5}>0.5x</option>
+                      <option value={0.7}>0.7x</option>
+                      <option value={1.0}>1.0x</option>
+                      <option value={1.2}>1.2x</option>
+                      <option value={1.5}>1.5x</option>
+                      <option value={2.0}>2.0x</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="playbackTime">
+                  <span>재생 시간</span>
+                  <strong>
+                    {currentCursorSec}s / {totalDuration}s
+                  </strong>
+                </div>
+              </div>
+
+              {/* Integrated Timeline Scrubber Slider at Top */}
+              <div className="simSliderRow">
+                <input
+                  type="range"
+                  className="timelineSlider"
+                  min={0}
+                  max={Math.max(0, (csvPayload?.times.length ?? 1) - 1)}
+                  value={cursorIndex}
+                  onChange={(e) => {
+                    setPlaying(false);
+                    setCursorIndex(Number(e.target.value));
+                  }}
+                  title="타임라인 슬라이더"
+                />
+              </div>
+
               <div className="stateViewerFrame">
                 <RobotViewer
                   model={currentViewerModel}
@@ -877,69 +982,6 @@ export function DynamicsAnalysis({
                   cursorLabel={`t = ${currentCursorSec}s`}
                 />
               </div>
-            </div>
-
-            {/* Interactive Timeline Scrubber / Player */}
-            <div className="timelineScrubberCard">
-              <div className="scrubberControls">
-                <button
-                  type="button"
-                  className="playBtn"
-                  onClick={() => {
-                    if (!playing && cursorIndex >= (csvPayload?.times.length ?? 0) - 1) {
-                      setCursorIndex(0);
-                    }
-                    setPlaying(!playing);
-                  }}
-                >
-                  {playing ? "⏸ 일시정지" : "▶ 재생"}
-                </button>
-                <button
-                  type="button"
-                  className="stepBtn"
-                  onClick={() => setCursorIndex((prev) => Math.max(0, prev - 1))}
-                  title="이전 프레임"
-                >
-                  ⏮
-                </button>
-                <button
-                  type="button"
-                  className="stepBtn"
-                  onClick={() => setCursorIndex((prev) => Math.min((csvPayload?.times.length ?? 1) - 1, prev + 1))}
-                  title="다음 프레임"
-                >
-                  ⏭
-                </button>
-
-                <div className="timeReadout">
-                  <strong>{currentCursorSec}s</strong> / {totalDuration}s
-                </div>
-
-                <div className="speedButtons">
-                  {[0.5, 1.0, 2.0].map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className={`speedBtn ${playSpeed === s ? "active" : ""}`}
-                      onClick={() => setPlaySpeed(s)}
-                    >
-                      {s}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <input
-                type="range"
-                className="timelineSlider"
-                min={0}
-                max={Math.max(0, (csvPayload?.times.length ?? 1) - 1)}
-                value={cursorIndex}
-                onChange={(e) => {
-                  setPlaying(false);
-                  setCursorIndex(Number(e.target.value));
-                }}
-              />
             </div>
           </div>
 
@@ -1333,20 +1375,26 @@ export function DynamicsAnalysis({
                     ⏱ t = {currentCursorSec}s (프레임 {cursorIndex + 1} / {csvPayload?.times.length ?? 0})
                   </span>
                 </div>
-                <div className="sidebarViewer">
-                  <RobotViewer
-                    model={currentViewerModel}
-                    jointValues={viewerJointValues}
-                    cursorLabel={`t = ${currentCursorSec}s`}
-                  />
-                </div>
 
-                {/* Integrated Playback & Scrubber Controls in 3D Viewer */}
-                <div className="viewerPlaybackBar">
-                  <div className="scrubberControls">
+                {/* Simulation Playback Control Bar placed at the TOP of 3D Viewer */}
+                <div className="simControlBar">
+                  <div className="playbackControls" aria-label="자세 재생 제어">
                     <button
                       type="button"
-                      className="playBtn"
+                      className="textButton"
+                      disabled={!csvPayload || csvPayload.times.length === 0}
+                      onClick={() => {
+                        setPlaying(false);
+                        setCursorIndex(0);
+                      }}
+                      title="처음 위치로 이동"
+                    >
+                      처음
+                    </button>
+                    <button
+                      type="button"
+                      className={`textButton playbackPrimary ${playing ? "playing" : ""}`}
+                      disabled={!csvPayload || csvPayload.times.length === 0}
                       onClick={() => {
                         if (!playing && cursorIndex >= (csvPayload?.times.length ?? 0) - 1) {
                           setCursorIndex(0);
@@ -1354,42 +1402,70 @@ export function DynamicsAnalysis({
                         setPlaying(!playing);
                       }}
                     >
-                      {playing ? "⏸ 일시정지" : "▶ 재생"}
+                      {playing ? "일시정지" : "▶ 재생"}
                     </button>
                     <button
                       type="button"
-                      className="stepBtn"
-                      onClick={() => setCursorIndex((prev) => Math.max(0, prev - 1))}
+                      className="textButton"
+                      disabled={!playing}
+                      onClick={() => setPlaying(false)}
+                    >
+                      정지
+                    </button>
+
+                    <button
+                      type="button"
+                      className="textButton stepBtn"
+                      disabled={!csvPayload || cursorIndex <= 0}
+                      onClick={() => {
+                        setPlaying(false);
+                        setCursorIndex((prev) => Math.max(0, prev - 1));
+                      }}
                       title="이전 프레임"
                     >
                       ⏮
                     </button>
                     <button
                       type="button"
-                      className="stepBtn"
-                      onClick={() => setCursorIndex((prev) => Math.min((csvPayload?.times.length ?? 1) - 1, prev + 1))}
+                      className="textButton stepBtn"
+                      disabled={!csvPayload || cursorIndex >= (csvPayload?.times.length ?? 1) - 1}
+                      onClick={() => {
+                        setPlaying(false);
+                        setCursorIndex((prev) => Math.min((csvPayload?.times.length ?? 1) - 1, prev + 1));
+                      }}
                       title="다음 프레임"
                     >
                       ⏭
                     </button>
 
-                    <div className="timeReadout">
-                      ⏱ <strong>{currentCursorSec}s</strong> / {totalDuration}s
-                    </div>
-
-                    <div className="speedButtons">
-                      {[0.5, 1.0, 2.0].map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          className={`speedBtn ${playSpeed === s ? "active" : ""}`}
-                          onClick={() => setPlaySpeed(s)}
-                        >
-                          {s}x
-                        </button>
-                      ))}
-                    </div>
+                    <label className="speedSelectLabel">
+                      <span>속도</span>
+                      <select
+                        aria-label="재생 속도"
+                        value={playSpeed}
+                        onChange={(e) => setPlaySpeed(Number(e.target.value))}
+                      >
+                        <option value={0.2}>0.2x</option>
+                        <option value={0.5}>0.5x</option>
+                        <option value={0.7}>0.7x</option>
+                        <option value={1.0}>1.0x</option>
+                        <option value={1.2}>1.2x</option>
+                        <option value={1.5}>1.5x</option>
+                        <option value={2.0}>2.0x</option>
+                      </select>
+                    </label>
                   </div>
+
+                  <div className="playbackTime">
+                    <span>재생 시간</span>
+                    <strong>
+                      {currentCursorSec}s / {totalDuration}s
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Integrated Timeline Scrubber Slider at Top */}
+                <div className="simSliderRow">
                   <input
                     type="range"
                     className="timelineSlider"
@@ -1400,6 +1476,15 @@ export function DynamicsAnalysis({
                       setPlaying(false);
                       setCursorIndex(Number(e.target.value));
                     }}
+                    title="타임라인 슬라이더"
+                  />
+                </div>
+
+                <div className="sidebarViewer">
+                  <RobotViewer
+                    model={currentViewerModel}
+                    jointValues={viewerJointValues}
+                    cursorLabel={`t = ${currentCursorSec}s`}
                   />
                 </div>
               </div>

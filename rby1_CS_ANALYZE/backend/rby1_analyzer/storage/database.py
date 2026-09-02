@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS incidents (
   affected_components TEXT NOT NULL DEFAULT '[]',
   affected_joints TEXT NOT NULL DEFAULT '[]',
   affected_power_rails TEXT NOT NULL DEFAULT '[]',
+  detected_flags TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   FOREIGN KEY(run_id) REFERENCES analysis_runs(id) ON DELETE CASCADE,
   FOREIGN KEY(case_id) REFERENCES cases(id),
@@ -143,6 +144,10 @@ class Database:
             connection.executescript(SCHEMA)
             try:
                 connection.execute("ALTER TABLE cases ADD COLUMN title TEXT")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                connection.execute("ALTER TABLE incidents ADD COLUMN detected_flags TEXT NOT NULL DEFAULT '[]'")
             except sqlite3.OperationalError:
                 pass
 

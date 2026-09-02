@@ -19,7 +19,7 @@ export type Provenance = {
 export type FlowchartItem = {
   id: string;
   role: string;
-  flow_role?: "upc" | "rpc" | "command" | "root" | "fault" | "reaction" | "csv_dump" | "warning" | "error" | "context";
+  flow_role?: "upc" | "rpc" | "command" | "root" | "major_fault" | "minor_fault" | "fault" | "csv_dump" | "warning" | "error" | "cmd_failed" | "cmd_canceled" | "context";
   is_primary?: boolean;
   incident_id?: string;
   incident_title?: string;
@@ -62,12 +62,15 @@ const ROLE_BADGE_CONFIG: Record<string, { label: string; icon: string; className
   upc: { label: "UPC 명령 (송신)", icon: "📡", className: "badgeUpc" },
   rpc: { label: "RPC 처리 (응답)", icon: "⚡", className: "badgeRpc" },
   command: { label: "UPC 제어 명령", icon: "📡", className: "badgeUpc" },
-  root: { label: "에러 발생", icon: "⚠️", className: "badgeRoot" },
-  fault: { label: "Fault 상태 전환", icon: "🛑", className: "badgeFault" },
-  reaction: { label: "보호 반응 (Reaction)", icon: "🛡️", className: "badgeReaction" },
+  cmd_canceled: { label: "제어 취소 (Canceled)", icon: "⚡", className: "badgeCmdCanceled" },
+  cmd_failed: { label: "제어 명령 실패", icon: "⚠️", className: "badgeCmdFailed" },
+  major_fault: { label: "Major Fault 발생", icon: "🛑", className: "badgeMajorFault" },
+  minor_fault: { label: "Minor Fault 발생", icon: "⚠️", className: "badgeMinorFault" },
+  root: { label: "에러 발생", icon: "▲", className: "badgeRoot" },
+  fault: { label: "Fault 상태 전환", icon: "🛑", className: "badgeMajorFault" },
   csv_dump: { label: "Fault CSV 저장", icon: "💾", className: "badgeCsv" },
   warning: { label: "경고 / 루프 지연", icon: "⏱️", className: "badgeWarning" },
-  error: { label: "명령 거절/실패", icon: "❌", className: "badgeError" },
+  error: { label: "에러 로그", icon: "❌", className: "badgeError" },
   context: { label: "일반 상태", icon: "ℹ️", className: "badgeContext" },
 };
 
@@ -200,6 +203,8 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScrollRef = useRef(false);
   const scrollEndTimerRef = useRef<number | null>(null);
+  const lastHandledFocusTargetTimestampRef = useRef<number | null>(null);
+  const hasInitializedSelectionRef = useRef(false);
 
   const activeNodeId = selectedNodeId ?? internalSelectedNodeId;
 
@@ -217,38 +222,38 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
       ? timeline
       : timeline.filter((item) => {
           if (item.is_primary || item.id === primaryEventId) return true;
-          if (item.flow_role === "root" || item.flow_role === "fault" || item.flow_role === "csv_dump") return true;
-          if (item.flow_role === "upc" || item.flow_role === "rpc" || item.flow_role === "command" || item.flow_role === "reaction") return true;
+          if (item.flow_role === "root" || item.flow_role === "major_fault" || item.flow_role === "minor_fault" || item.flow_role === "fault" || item.flow_role === "csv_dump") return true;
+          if (item.flow_role === "upc" || item.flow_role === "rpc" || item.flow_role === "command" || item.flow_role === "cmd_failed" || item.flow_role === "cmd_canceled") return true;
           if (item.severity === "critical" || item.severity === "error") return true;
           return false;
         });
     return compactTimeline(base);
   }, [timeline, filterMode, primaryEventId]);
 
-  // Sync initial selected node without erasing explicit user clicks
+  // Sync selected node ONLY when explicit focusTarget changes (e.g. clicking left list)
   useEffect(() => {
-    if (focusTarget?.incidentId) {
+    if (focusTarget?.incidentId && focusTarget.timestamp !== lastHandledFocusTargetTimestampRef.current) {
+      lastHandledFocusTargetTimestampRef.current = focusTarget.timestamp;
       const incNode = filteredTimeline.find((n) => n.incident_id === focusTarget.incidentId && n.is_primary) ||
                       filteredTimeline.find((n) => n.incident_id === focusTarget.incidentId);
       if (incNode) {
         setInternalSelectedNodeId(incNode.id);
         onSelectNode?.(incNode);
-        return;
       }
     }
-    if (!activeNodeId || !filteredTimeline.some((n) => n.id === activeNodeId)) {
-      if (primaryEventId && filteredTimeline.some((n) => n.id === primaryEventId)) {
-        const pNode = filteredTimeline.find((n) => n.id === primaryEventId);
-        if (pNode) {
-          setInternalSelectedNodeId(pNode.id);
-          onSelectNode?.(pNode);
-        }
-      } else if (filteredTimeline.length > 0) {
-        setInternalSelectedNodeId(filteredTimeline[0].id);
-        onSelectNode?.(filteredTimeline[0]);
-      }
+  }, [focusTarget, filteredTimeline, onSelectNode]);
+
+  // Initial fallback selection on first mount
+  useEffect(() => {
+    if (hasInitializedSelectionRef.current) return;
+    if (!activeNodeId && filteredTimeline.length > 0) {
+      hasInitializedSelectionRef.current = true;
+      const pNode = primaryEventId ? filteredTimeline.find((n) => n.id === primaryEventId) : null;
+      const initNode = pNode || filteredTimeline[0];
+      setInternalSelectedNodeId(initNode.id);
+      onSelectNode?.(initNode);
     }
-  }, [focusTarget, primaryEventId, filteredTimeline]);
+  }, [activeNodeId, primaryEventId, filteredTimeline, onSelectNode]);
 
   // ONLY center/scroll vertically when explicit focusTarget changes (i.e. user clicks left list or focus button)
   useEffect(() => {
@@ -258,14 +263,19 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
                document.getElementById(`flow-node-inc-${targetId}`);
     if (el && scrollContainerRef.current) {
       isProgrammaticScrollRef.current = true;
+      if (scrollEndTimerRef.current) {
+        window.clearTimeout(scrollEndTimerRef.current);
+        scrollEndTimerRef.current = null;
+      }
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      window.setTimeout(() => {
+      const timer = window.setTimeout(() => {
         isProgrammaticScrollRef.current = false;
-      }, 500);
+      }, 800);
+      return () => window.clearTimeout(timer);
     }
   }, [focusTarget]);
 
-  // Synchronize active incident strictly when dragging finishes / mouse is released vertically
+  // Synchronize active incident strictly when manual dragging finishes
   const syncActiveIncident = useCallback(() => {
     if (isProgrammaticScrollRef.current || !scrollContainerRef.current) return;
     const container = scrollContainerRef.current;
@@ -348,11 +358,7 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
   };
 
   const handleScroll = () => {
-    if (isProgrammaticScrollRef.current || isPointerDownRef.current) return;
-    if (scrollEndTimerRef.current) window.clearTimeout(scrollEndTimerRef.current);
-    scrollEndTimerRef.current = window.setTimeout(() => {
-      syncActiveIncident();
-    }, 200);
+    // We intentionally do not auto-sync incident on general scroll to prevent accidental rollbacks.
   };
 
   const scrollToActiveRootCause = () => {
@@ -361,20 +367,28 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
                document.getElementById(`flow-node-inc-${activeIncidentId}`);
     if (el && scrollContainerRef.current) {
       isProgrammaticScrollRef.current = true;
+      if (scrollEndTimerRef.current) {
+        window.clearTimeout(scrollEndTimerRef.current);
+        scrollEndTimerRef.current = null;
+      }
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       window.setTimeout(() => {
         isProgrammaticScrollRef.current = false;
-      }, 500);
+      }, 800);
     }
   };
 
   const handleNodeClick = (node: CompactedFlowchartItem) => {
     if (hasDraggedRef.current) return;
+    isProgrammaticScrollRef.current = true;
     setInternalSelectedNodeId(node.id);
     onSelectNode?.(node);
     if (node.incident_id && node.incident_id !== activeIncidentId) {
       onActiveIncidentChange?.(node.incident_id);
     }
+    window.setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 800);
   };
 
   return (
@@ -529,8 +543,11 @@ export const IncidentFlowchart: React.FC<IncidentFlowchartProps> = ({
                     )}
 
                     {isPrimary && (
-                      <div className="primaryGlowMarker" title="사건의 최초 에러 발생 로그">
-                        ⚠️ 에러 발생 지점
+                      <div
+                        className={`primaryGlowMarker ${node.flow_role === "cmd_failed" ? "cmdFailedMarker" : node.flow_role === "cmd_canceled" ? "cmdCanceledMarker" : ""}`}
+                        title={node.flow_role === "cmd_failed" ? "제어 명령 실패 지점" : node.flow_role === "cmd_canceled" ? "제어 취소 지점" : "사건의 최초 에러 발생 로그"}
+                      >
+                        {node.flow_role === "cmd_failed" ? "⚠️ 명령 실패 지점" : node.flow_role === "cmd_canceled" ? "⚡ 제어 취소 지점" : "⚠️ 에러 발생 지점"}
                       </div>
                     )}
                   </div>

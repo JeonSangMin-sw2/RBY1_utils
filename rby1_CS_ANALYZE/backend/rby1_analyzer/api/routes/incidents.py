@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 import json
+import re
 import sqlite3
 from typing import Annotated
 
@@ -297,6 +298,7 @@ def case_incidents(
         item["affected_components"] = _json_list(item["affected_components"])
         item["affected_joints"] = _json_list(item["affected_joints"])
         item["affected_power_rails"] = _json_list(item["affected_power_rails"])
+        item["detected_flags"] = _json_list(item.get("detected_flags"))
         item["csv_linked"] = bool(item["csv_linked"])
         item["layer"] = _issue_layer(str(item["family"]), item.get("fault_level"), primary_component)
         incidents.append(item)
@@ -407,6 +409,7 @@ def case_incident(case_id: str, incident_id: int, request: Request) -> dict[str,
     incident["affected_components"] = _json_list(incident["affected_components"])
     incident["affected_joints"] = _json_list(incident["affected_joints"])
     incident["affected_power_rails"] = _json_list(incident["affected_power_rails"])
+    incident["detected_flags"] = _json_list(incident.get("detected_flags"))
     provenance: dict[int, list[dict[str, object]]] = defaultdict(list)
     for item in provenance_rows:
         if item["original_name"] is not None:
@@ -447,14 +450,58 @@ def case_incident(case_id: str, incident_id: int, request: Request) -> dict[str,
         item["is_primary"] = is_primary
 
         lowered_excerpt = excerpt.lower()
-        if is_primary or role == "root":
+        has_error_tag = bool(re.search(r"\[(error|critical|fatal)\]", lowered_excerpt))
+        has_debug_or_info_tag = bool(re.search(r"\[(debug|info|trace)\]", lowered_excerpt))
+        raw_severity = str(item.get("severity") or "").lower()
+
+        is_cmd_canceled = (
+            (has_debug_or_info_tag or raw_severity in ("debug", "info"))
+            and not has_error_tag
+            and (
+                "control canceled" in lowered_excerpt
+                or "result: canceled" in lowered_excerpt
+                or "canceled" in lowered_excerpt
+                or "preempted" in lowered_excerpt
+            )
+        )
+
+        is_debug_cmd_failure = (
+            (has_debug_or_info_tag or raw_severity in ("debug", "info"))
+            and not has_error_tag
+            and not is_cmd_canceled
+            and (
+                "result: failed" in lowered_excerpt
+                or "result: rejected" in lowered_excerpt
+                or "result: false" in lowered_excerpt
+                or "result: error" in lowered_excerpt
+                or role == "result_failure"
+            )
+        )
+        is_major_fault = (
+            "majorfault" in lowered_excerpt
+            or "major fault" in lowered_excerpt
+            or "major_fault" in lowered_excerpt
+        )
+        is_minor_fault = (
+            "minorfault" in lowered_excerpt
+            or "minor fault" in lowered_excerpt
+            or "minor_fault" in lowered_excerpt
+        )
+
+        if is_major_fault:
+            item["flow_role"] = "major_fault"
+        elif is_minor_fault:
+            item["flow_role"] = "minor_fault"
+        elif is_cmd_canceled and not any(k in lowered_excerpt for k in ("emo error", "power drop", "fuse")):
+            item["flow_role"] = "cmd_canceled"
+        elif is_debug_cmd_failure and not any(k in lowered_excerpt for k in ("emo error", "power drop", "fuse")):
+            item["flow_role"] = "cmd_failed"
+        elif is_primary or role == "root":
             item["flow_role"] = "root"
-        elif "majorfault" in lowered_excerpt or "minorfault" in lowered_excerpt or role == "status":
+        elif role in ("status", "reaction", "fallout") or "fsm state" in lowered_excerpt:
             item["flow_role"] = "fault"
         elif "robot states have been saved" in lowered_excerpt or "saved:" in lowered_excerpt:
             item["flow_role"] = "csv_dump"
-        elif role in ("reaction", "fallout"):
-            item["flow_role"] = "reaction"
         elif (
             "requested:" in lowered_excerpt
             or "request_header" in lowered_excerpt
@@ -472,9 +519,9 @@ def case_incident(case_id: str, incident_id: int, request: Request) -> dict[str,
             or (cmd_meta and cmd_meta.get("category") in ("hardware_power", "service_api", "control_manager"))
         ):
             item["flow_role"] = "rpc"
-        elif str(item.get("severity")).lower() in ("error", "critical"):
+        elif has_error_tag or raw_severity in ("error", "critical"):
             item["flow_role"] = "error"
-        elif str(item.get("severity")).lower() == "warning":
+        elif raw_severity == "warning" or "[warn]" in lowered_excerpt or "[warning]" in lowered_excerpt:
             item["flow_role"] = "warning"
         else:
             item["flow_role"] = "context"
@@ -662,14 +709,58 @@ def day_flowchart(
             role = str(item.get("role") or "")
             is_primary = bool(item.get("is_primary"))
             lowered_excerpt = excerpt.lower()
-            if is_primary or role == "root":
+            has_error_tag = bool(re.search(r"\[(error|critical|fatal)\]", lowered_excerpt))
+            has_debug_or_info_tag = bool(re.search(r"\[(debug|info|trace)\]", lowered_excerpt))
+            raw_severity = str(item.get("severity") or "").lower()
+
+            is_cmd_canceled = (
+                (has_debug_or_info_tag or raw_severity in ("debug", "info"))
+                and not has_error_tag
+                and (
+                    "control canceled" in lowered_excerpt
+                    or "result: canceled" in lowered_excerpt
+                    or "canceled" in lowered_excerpt
+                    or "preempted" in lowered_excerpt
+                )
+            )
+
+            is_debug_cmd_failure = (
+                (has_debug_or_info_tag or raw_severity in ("debug", "info"))
+                and not has_error_tag
+                and not is_cmd_canceled
+                and (
+                    "result: failed" in lowered_excerpt
+                    or "result: rejected" in lowered_excerpt
+                    or "result: false" in lowered_excerpt
+                    or "result: error" in lowered_excerpt
+                    or role == "result_failure"
+                )
+            )
+            is_major_fault = (
+                "majorfault" in lowered_excerpt
+                or "major fault" in lowered_excerpt
+                or "major_fault" in lowered_excerpt
+            )
+            is_minor_fault = (
+                "minorfault" in lowered_excerpt
+                or "minor fault" in lowered_excerpt
+                or "minor_fault" in lowered_excerpt
+            )
+
+            if is_major_fault:
+                item["flow_role"] = "major_fault"
+            elif is_minor_fault:
+                item["flow_role"] = "minor_fault"
+            elif is_cmd_canceled and not any(k in lowered_excerpt for k in ("emo error", "power drop", "fuse")):
+                item["flow_role"] = "cmd_canceled"
+            elif is_debug_cmd_failure and not any(k in lowered_excerpt for k in ("emo error", "power drop", "fuse")):
+                item["flow_role"] = "cmd_failed"
+            elif is_primary or role == "root":
                 item["flow_role"] = "root"
-            elif "majorfault" in lowered_excerpt or "minorfault" in lowered_excerpt or role == "status":
+            elif role in ("status", "reaction", "fallout") or "fsm state" in lowered_excerpt:
                 item["flow_role"] = "fault"
             elif "robot states have been saved" in lowered_excerpt or "saved:" in lowered_excerpt:
                 item["flow_role"] = "csv_dump"
-            elif role in ("reaction", "fallout"):
-                item["flow_role"] = "reaction"
             elif (
                 "requested:" in lowered_excerpt
                 or "request_header" in lowered_excerpt
@@ -687,9 +778,9 @@ def day_flowchart(
                 or (cmd_meta and cmd_meta.get("category") in ("hardware_power", "service_api", "control_manager"))
             ):
                 item["flow_role"] = "rpc"
-            elif str(item.get("severity")).lower() in ("error", "critical"):
+            elif has_error_tag or raw_severity in ("error", "critical"):
                 item["flow_role"] = "error"
-            elif str(item.get("severity")).lower() == "warning":
+            elif raw_severity == "warning" or "[warn]" in lowered_excerpt or "[warning]" in lowered_excerpt:
                 item["flow_role"] = "warning"
             else:
                 item["flow_role"] = "context"
