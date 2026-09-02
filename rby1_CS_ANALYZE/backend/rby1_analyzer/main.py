@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import mimetypes
 from pathlib import Path
 import sys
 
+# Ensure Windows registry does not corrupt JavaScript / CSS MIME types
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("application/json", ".json")
+mimetypes.add_type("image/svg+xml", ".svg")
+mimetypes.add_type("image/png", ".png")
+mimetypes.add_type("font/woff2", ".woff2")
+
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from rby1_analyzer.api.routes import router
@@ -42,9 +52,22 @@ def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
     app.include_router(incidents_router)
     app.include_router(csv_analysis_router)
     app.include_router(dynamics_router)
-    runtime_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
-    frontend_dist = runtime_root / "frontend" / "dist"
-    if frontend_dist.is_dir():
+
+    # Resolve frontend dist directory
+    candidates = [
+        Path(getattr(sys, "_MEIPASS", "")) / "frontend" / "dist",
+        Path(__file__).resolve().parents[2] / "frontend" / "dist",
+        Path.cwd() / "frontend" / "dist",
+    ]
+    frontend_dist = next((p for p in candidates if p.is_dir()), None)
+
+    if frontend_dist is not None:
+        index_file = frontend_dist / "index.html"
+
+        @app.get("/", include_in_schema=False)
+        def serve_index() -> FileResponse:
+            return FileResponse(index_file, media_type="text/html")
+
         app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
     else:
         @app.get("/", include_in_schema=False, response_class=HTMLResponse)
