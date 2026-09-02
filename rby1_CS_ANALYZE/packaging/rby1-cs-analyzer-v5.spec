@@ -57,4 +57,6 @@ exe = EXE(
     upx=False,
     runtime_tmpdir=None,
     console=True,
+    version=str(root / "packaging" / "version_info.txt"),
 )
+
