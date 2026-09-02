@@ -90,21 +90,40 @@ def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
         assets_dir = frontend_dist / "assets"
         models_dir = frontend_dist / "models"
 
+        def _find_asset(file_path: str) -> Path | None:
+            # 1. Exact match in assets_dir
+            target = assets_dir / file_path
+            if target.is_file():
+                return target
+            # 2. Exact match in frontend_dist root
+            target = frontend_dist / file_path
+            if target.is_file():
+                return target
+            # 3. Case-insensitive match in assets_dir
+            req_name = Path(file_path).name.lower()
+            if assets_dir.is_dir():
+                for entry in assets_dir.iterdir():
+                    if entry.is_file() and entry.name.lower() == req_name:
+                        return entry
+            # 4. Hash mismatch fallback (serve the index bundle of same extension)
+            ext = Path(file_path).suffix.lower()
+            if ext in (".js", ".css") and assets_dir.is_dir():
+                for entry in assets_dir.iterdir():
+                    if entry.is_file() and entry.suffix.lower() == ext and "index" in entry.name.lower():
+                        return entry
+            # 5. Recursive search in frontend_dist
+            for root_path, _, files in os.walk(frontend_dist):
+                for f in files:
+                    if f.lower() == req_name:
+                        cand = Path(root_path) / f
+                        if cand.is_file():
+                            return cand
+            return None
+
         @app.get("/assets/{file_path:path}", include_in_schema=False)
         async def serve_asset(file_path: str) -> Response:
-            # 1. Search in assets_dir
-            target = assets_dir / file_path
-            if not target.is_file():
-                # 2. Search in frontend_dist root
-                target = frontend_dist / file_path
-            if not target.is_file() and assets_dir.is_dir():
-                # 3. Fallback: match by filename
-                req_name = Path(file_path).name.lower()
-                for entry in assets_dir.iterdir():
-                    if entry.name.lower() == req_name:
-                        target = entry
-                        break
-            if not target.is_file():
+            target = _find_asset(file_path)
+            if not target:
                 return Response(status_code=404, content=f"Asset not found: {file_path}", media_type="text/plain")
 
             media_type = "application/javascript" if target.name.lower().endswith(".js") else (
@@ -132,6 +151,18 @@ def create_app(runtime: RuntimeContext | None = None) -> FastAPI:
 
         @app.get("/", include_in_schema=False)
         def serve_index() -> FileResponse:
+            return FileResponse(index_file, media_type="text/html")
+
+        @app.get("/{file_path:path}", include_in_schema=False)
+        async def serve_root_fallback(file_path: str) -> Response:
+            if not file_path or file_path == "/":
+                return FileResponse(index_file, media_type="text/html")
+            target = _find_asset(file_path)
+            if target:
+                media_type = "application/javascript" if target.name.lower().endswith(".js") else (
+                    "text/css" if target.name.lower().endswith(".css") else None
+                )
+                return FileResponse(target, media_type=media_type)
             return FileResponse(index_file, media_type="text/html")
     else:
         @app.get("/", include_in_schema=False, response_class=HTMLResponse)
